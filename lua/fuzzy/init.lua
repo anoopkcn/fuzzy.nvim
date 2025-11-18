@@ -6,6 +6,11 @@
 
 local FILE_MATCH_LIMIT = 600
 
+local function set_quickfix(title, items)
+    vim.fn.setqflist({}, " ", { title = title, items = items })
+    return #items
+end
+
 local function split_lines(output)
     if not output or output == "" then
         return {}
@@ -62,8 +67,7 @@ local function set_quickfix_from_lines(lines)
             table.insert(items, entry)
         end
     end
-    vim.fn.setqflist({}, " ", { title = "FuzzyGrep", items = items })
-    return #items
+    return set_quickfix("FuzzyGrep", items)
 end
 
 local function run_rg(raw_args, callback)
@@ -100,8 +104,11 @@ local function set_quickfix_files(files, limit)
             })
         end
     end
-    vim.fn.setqflist({}, " ", { title = "FuzzyFiles", items = items })
-    return #items
+    return set_quickfix("FuzzyFiles", items)
+end
+
+local function set_quickfix_buffers(buffers)
+    return set_quickfix("FuzzyBuffers", buffers)
 end
 
 local M = {}
@@ -164,6 +171,24 @@ function M.setup()
     end, {
         nargs = "*",
         desc = "Fuzzy find tracked files using ripgrep --files",
+    })
+
+    vim.api.nvim_create_user_command("FuzzyBuffers", function()
+        local buffers = {}
+        for _, buf in ipairs(vim.fn.getbufinfo({ buflisted = 1 })) do
+            local name = buf.name ~= "" and buf.name or "[No Name]"
+            table.insert(buffers, {
+                filename = name,
+                lnum = math.max(buf.lnum or 1, 1),
+                col = 1,
+                text = name,
+            })
+        end
+
+        local count = set_quickfix_buffers(buffers)
+        open_quickfix_when_results(count, "FuzzyBuffers: no listed buffers.")
+    end, {
+        desc = "Show listed buffers in quickfix list",
     })
 end
 
