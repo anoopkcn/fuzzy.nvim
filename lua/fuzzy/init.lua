@@ -85,7 +85,17 @@ local function prompt_input(prompt, default)
 end
 
 local function list_project_files(callback)
-    local args = { "rg", "--files", "--hidden", "--follow", "--color=never", "--glob", "!.git/*" }
+    local args = {
+        "rg",
+        "--files",
+        "--hidden",
+        "--follow",
+        "--max-count",
+        tostring(FILE_MATCH_LIMIT + 1),
+        "--color=never",
+        "--glob",
+        "!.git/*",
+    }
     system_lines(args, callback)
 end
 
