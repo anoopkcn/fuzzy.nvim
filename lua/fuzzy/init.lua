@@ -6,9 +6,89 @@
 
 local FILE_MATCH_LIMIT = 600
 
+local qf_state = {
+    id = nil,
+    nr = nil,
+}
+
+local function locate_qf_nr(id)
+    if not id then
+        return nil
+    end
+    local total = vim.fn.getqflist({ nr = "$" }).nr or 0
+    for nr = 1, total do
+        local info = vim.fn.getqflist({ nr = nr, id = 0 })
+        if info.id == id then
+            return nr
+        end
+    end
+    return nil
+end
+
+local function focus_fuzzy_qf()
+    if not qf_state.nr then
+        return
+    end
+    local current = vim.fn.getqflist({ nr = 0 }).nr or 0
+    local target = qf_state.nr
+    if not target or target == current then
+        return
+    end
+    local diff = current - target
+    local command
+    if diff > 0 then
+        command = string.format("colder %d", diff)
+    else
+        command = string.format("cnewer %d", math.abs(diff))
+    end
+    vim.cmd(command)
+end
+
 local function set_quickfix(title, items)
-    vim.fn.setqflist({}, " ", { title = title, items = items })
-    return #items
+    local count = #items
+    if qf_state.id then
+        local nr = locate_qf_nr(qf_state.id)
+        if nr then
+            qf_state.nr = nr
+            local ok, err = pcall(vim.fn.setqflist, {}, "r", {
+                id = qf_state.id,
+                title = title,
+                items = items,
+            })
+            if ok then
+                focus_fuzzy_qf()
+                return count
+            else
+                vim.notify(
+                    string.format("Fuzzy: failed to update quickfix list: %s", err),
+                    vim.log.levels.ERROR
+                )
+                qf_state.id = nil
+                qf_state.nr = nil
+            end
+        else
+            qf_state.id = nil
+            qf_state.nr = nil
+        end
+    end
+
+    local ok, err = pcall(vim.fn.setqflist, {}, " ", {
+        nr = "$",
+        title = title,
+        items = items,
+    })
+    if not ok then
+        vim.notify(
+            string.format("Fuzzy: failed to set quickfix list: %s", err),
+            vim.log.levels.ERROR
+        )
+        return count
+    end
+
+    local info = vim.fn.getqflist({ nr = 0, id = 0 })
+    qf_state.id = info.id
+    qf_state.nr = info.nr
+    return count
 end
 
 local function split_lines(output)
