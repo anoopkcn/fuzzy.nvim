@@ -6,91 +6,6 @@
 
 local FILE_MATCH_LIMIT = 600
 
-local qf_state = {
-    id = nil,
-    nr = nil,
-}
-
-local function locate_qf_nr(id)
-    if not id then
-        return nil
-    end
-    local total = vim.fn.getqflist({ nr = "$" }).nr or 0
-    for nr = 1, total do
-        local info = vim.fn.getqflist({ nr = nr, id = 0 })
-        if info.id == id then
-            return nr
-        end
-    end
-    return nil
-end
-
-local function focus_fuzzy_qf()
-    if not qf_state.nr then
-        return
-    end
-    local current = vim.fn.getqflist({ nr = 0 }).nr or 0
-    local target = qf_state.nr
-    if not target or target == current then
-        return
-    end
-    local diff = current - target
-    local command
-    if diff > 0 then
-        command = string.format("colder %d", diff)
-    else
-        command = string.format("cnewer %d", math.abs(diff))
-    end
-    vim.cmd(command)
-end
-
-local function set_quickfix(title, items)
-    local count = #items
-    if qf_state.id then
-        local nr = locate_qf_nr(qf_state.id)
-        if nr then
-            qf_state.nr = nr
-            local ok, err = pcall(vim.fn.setqflist, {}, "r", {
-                id = qf_state.id,
-                title = title,
-                items = items,
-            })
-            if ok then
-                focus_fuzzy_qf()
-                return count
-            else
-                vim.notify(
-                    string.format("Fuzzy: failed to update quickfix list: %s", err),
-                    vim.log.levels.ERROR
-                )
-                qf_state.id = nil
-                qf_state.nr = nil
-            end
-        else
-            qf_state.id = nil
-            qf_state.nr = nil
-        end
-    end
-
-    local ok, err = pcall(vim.fn.setqflist, {}, " ", {
-        nr = "$",
-        title = title,
-        items = items,
-    })
-    if not ok then
-        vim.notify(
-            string.format("Fuzzy: failed to set quickfix list: %s", err),
-            vim.log.levels.ERROR
-        )
-        return count
-    end
-
-    local info = vim.fn.getqflist({ nr = 0, id = 0 })
-    qf_state.id = info.id
-    qf_state.nr = info.nr
-    return count
-end
-
 local function split_lines(output)
     if not output or output == "" then
         return {}
@@ -145,7 +60,8 @@ local function set_quickfix_from_lines(lines)
             table.insert(items, entry)
         end
     end
-    return set_quickfix("FuzzyGrep", items)
+    vim.fn.setqflist({}, " ", { title = "FuzzyGrep", items = items })
+    return #items
 end
 
 local function run_rg(raw_args, callback)
@@ -193,11 +109,24 @@ local function set_quickfix_files(files, limit)
             })
         end
     end
-    return set_quickfix("FuzzyFiles", items)
+    vim.fn.setqflist({}, " ", { title = "FuzzyFiles", items = items })
+    return #items
 end
 
-local function set_quickfix_buffers(buffers)
-    return set_quickfix("FuzzyBuffers", buffers)
+local function set_quickfix_buffers()
+    local buffers = {}
+    for _, buf in ipairs(vim.fn.getbufinfo({ buflisted = 1 })) do
+        local name = buf.name ~= "" and buf.name or "[No Name]"
+        table.insert(buffers, {
+            filename = buf.name ~= "" and name or nil,
+            bufnr = buf.name == "" and buf.bufnr or nil,
+            lnum = math.max(buf.lnum or 1, 1),
+            col = 1,
+            text = name,
+        })
+    end
+    vim.fn.setqflist({}, " ", { title = "FuzzyBuffers", items = buffers })
+    return #buffers
 end
 
 local M = {}
@@ -263,19 +192,12 @@ function M.setup()
     })
 
     vim.api.nvim_create_user_command("FuzzyBuffers", function()
-        local buffers = {}
-        for _, buf in ipairs(vim.fn.getbufinfo({ buflisted = 1 })) do
-            local name = buf.name ~= "" and buf.name or "[No Name]"
-            table.insert(buffers, {
-                filename = buf.name ~= "" and name or nil,
-                bufnr = buf.name == "" and buf.bufnr or nil,
-                lnum = math.max(buf.lnum or 1, 1),
-                col = 1,
-                text = name,
-            })
+        local count = set_quickfix_buffers()
+        if count == 0 then
+            vim.notify("FuzzyBuffers: no listed buffers.", vim.log.levels.INFO)
+            return
         end
 
-        local count = set_quickfix_buffers(buffers)
         open_quickfix_when_results(count, "FuzzyBuffers: no listed buffers.")
     end, {
         desc = "Show listed buffers in quickfix list",
