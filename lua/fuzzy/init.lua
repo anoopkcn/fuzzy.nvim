@@ -19,9 +19,7 @@ local function split_lines(output)
 end
 
 local function system_lines(command, callback)
-    local shell = vim.o.shell
-    local flag = vim.o.shellcmdflag
-    local handle, err = vim.system({ shell, flag, command }, { text = true }, function(obj)
+    local handle, err = vim.system(command, { text = true }, function(obj)
         local code = obj.code or 0
         local lines = split_lines(obj.stdout)
         vim.schedule(function()
@@ -71,8 +69,9 @@ local function set_quickfix_from_lines(lines)
 end
 
 local function run_rg(raw_args, callback)
-    local command = string.format("rg --vimgrep --smart-case --color=never %s 2>&1", raw_args)
-    system_lines(command, callback)
+    local args = { "rg", "--vimgrep", "--smart-case", "--color=never" }
+    vim.list_extend(args, vim.fn.split(raw_args, [[\s\+]], true))
+    system_lines(args, callback)
 end
 
 local function prompt_input(prompt, default)
@@ -86,8 +85,8 @@ local function prompt_input(prompt, default)
 end
 
 local function list_project_files(callback)
-    local command = "rg --files --hidden --follow --color=never --glob '!.git/*' 2>&1"
-    system_lines(command, callback)
+    local args = { "rg", "--files", "--hidden", "--follow", "--color=never", "--glob", "!.git/*" }
+    system_lines(args, callback)
 end
 
 local function set_quickfix_files(files, limit)
