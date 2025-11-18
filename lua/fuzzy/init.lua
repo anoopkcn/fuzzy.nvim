@@ -275,12 +275,13 @@ local function set_quickfix_buffers()
     local buffers = {}
     for _, buf in ipairs(vim.fn.getbufinfo({ buflisted = 1 })) do
         local name = buf.name ~= "" and buf.name or "[No Name]"
+        local label = string.format("[%d] %s", buf.bufnr, name)
         table.insert(buffers, {
             filename = buf.name ~= "" and name or nil,
             bufnr = buf.name == "" and buf.bufnr or nil,
             lnum = math.max(buf.lnum or 1, 1),
             col = 1,
-            text = name,
+            text = label,
         })
     end
     return update_fuzzy_quickfix(buffers, {
