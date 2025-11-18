@@ -5,6 +5,148 @@
 --- Description: Neovim fuzzy helpers for grep and files that feed the quickfix list.
 
 local FILE_MATCH_LIMIT = 600
+local FUZZY_CONTEXT_KEY = "fuzzy_owner"
+local FUZZY_CONTEXT_VALUE = "lua/fuzzy"
+
+local fuzzy_quickfix_id
+
+local function get_quickfix_info_by_id(id)
+    if not id then
+        return nil
+    end
+    local ok, info = pcall(vim.fn.getqflist, {
+        id = id,
+        context = 1,
+        nr = 0,
+        title = 1,
+    })
+    if not ok or type(info) ~= "table" then
+        return nil
+    end
+    local ctx = info.context
+    if type(ctx) ~= "table" or ctx[FUZZY_CONTEXT_KEY] ~= FUZZY_CONTEXT_VALUE then
+        return nil
+    end
+    info.id = id
+    return info
+end
+
+local function get_quickfix_info_by_nr(nr)
+    local ok, info = pcall(vim.fn.getqflist, {
+        nr = nr,
+        context = 1,
+        id = 0,
+        title = 1,
+    })
+    if not ok or type(info) ~= "table" then
+        return nil
+    end
+    return info
+end
+
+local function get_quickfix_stack_size()
+    local ok, info = pcall(vim.fn.getqflist, { nr = "$" })
+    if not ok or type(info) ~= "table" then
+        return 0
+    end
+    return info.nr or 0
+end
+
+local function find_existing_fuzzy_quickfix()
+    local size = get_quickfix_stack_size()
+    for nr = size, 1, -1 do
+        local info = get_quickfix_info_by_nr(nr)
+        local ctx = info and info.context
+        if type(ctx) == "table" and ctx[FUZZY_CONTEXT_KEY] == FUZZY_CONTEXT_VALUE then
+            return info
+        end
+    end
+end
+
+local function create_fuzzy_quickfix(title)
+    local ok, err = pcall(vim.fn.setqflist, {}, " ", {
+        nr = "$",
+        title = title or "Fuzzy",
+        context = { [FUZZY_CONTEXT_KEY] = FUZZY_CONTEXT_VALUE },
+        items = {},
+    })
+    if not ok then
+        vim.notify(string.format("Fuzzy: failed to prepare quickfix list: %s", err), vim.log.levels.ERROR)
+        return nil
+    end
+    local ok_info, current = pcall(vim.fn.getqflist, { nr = 0 })
+    if not ok_info or type(current) ~= "table" then
+        return nil
+    end
+    return get_quickfix_info_by_nr(current.nr)
+end
+
+local function ensure_fuzzy_quickfix(title)
+    local info = get_quickfix_info_by_id(fuzzy_quickfix_id)
+    if info then
+        return info
+    end
+    info = find_existing_fuzzy_quickfix()
+    if info then
+        fuzzy_quickfix_id = info.id
+        return info
+    end
+    info = create_fuzzy_quickfix(title)
+    if info then
+        fuzzy_quickfix_id = info.id
+    end
+    return info
+end
+
+local function activate_quickfix_nr(target_nr)
+    if not target_nr then
+        return
+    end
+    local ok, current = pcall(vim.fn.getqflist, { nr = 0 })
+    if not ok or type(current) ~= "table" then
+        return
+    end
+    local current_nr = current.nr or 0
+    local delta = target_nr - current_nr
+    if delta == 0 or delta ~= delta then
+        return
+    end
+    local command
+    if delta > 0 then
+        command = string.format("silent! cnewer %d", delta)
+    else
+        command = string.format("silent! colder %d", -delta)
+    end
+    pcall(vim.cmd, command)
+end
+
+local function update_fuzzy_quickfix(items, opts)
+    opts = opts or {}
+    local info = ensure_fuzzy_quickfix(opts.title)
+    if not info then
+        return 0
+    end
+
+    local context = {
+        [FUZZY_CONTEXT_KEY] = FUZZY_CONTEXT_VALUE,
+        command = opts.command or "Fuzzy",
+    }
+
+    local ok, err = pcall(vim.fn.setqflist, {}, "r", {
+        id = info.id,
+        items = items,
+        title = opts.title,
+        context = context,
+    })
+    if not ok then
+        vim.notify(string.format("Fuzzy: failed to update quickfix list: %s", err), vim.log.levels.ERROR)
+        return 0
+    end
+
+    local refreshed = get_quickfix_info_by_id(info.id) or info
+    activate_quickfix_nr(refreshed.nr)
+    return #items
+end
 
 local function split_lines(output)
     if not output or output == "" then
@@ -60,8 +202,10 @@ local function set_quickfix_from_lines(lines)
             table.insert(items, entry)
         end
     end
-    vim.fn.setqflist({}, " ", { title = "FuzzyGrep", items = items })
-    return #items
+    return update_fuzzy_quickfix(items, {
+        title = "FuzzyGrep",
+        command = "FuzzyGrep",
+    })
 end
 
 local function run_rg(raw_args, callback)
@@ -109,8 +253,10 @@ local function set_quickfix_files(files, limit)
             })
         end
     end
-    vim.fn.setqflist({}, " ", { title = "FuzzyFiles", items = items })
-    return #items
+    return update_fuzzy_quickfix(items, {
+        title = "FuzzyFiles",
+        command = "FuzzyFiles",
+    })
 end
 
 local function set_quickfix_buffers()
@@ -125,8 +271,10 @@ local function set_quickfix_buffers()
             text = name,
         })
     end
-    vim.fn.setqflist({}, " ", { title = "FuzzyBuffers", items = buffers })
-    return #buffers
+    return update_fuzzy_quickfix(buffers, {
+        title = "FuzzyBuffers",
+        command = "FuzzyBuffers",
+    })
 end
 
 local M = {}
