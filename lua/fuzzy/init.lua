@@ -154,6 +154,73 @@ local function update_fuzzy_quickfix(items, opts)
     return #items
 end
 
+local function parse_command_args(raw)
+    if not raw or raw == "" then
+        return {}
+    end
+
+    local args = {}
+    local current = {}
+    local quote = nil
+
+    local function push_current()
+        if #current > 0 then
+            table.insert(args, table.concat(current))
+            current = {}
+        end
+    end
+
+    local i = 1
+    local len = #raw
+    while i <= len do
+        local ch = raw:sub(i, i)
+        if quote == "'" then
+            if ch == "'" then
+                quote = nil
+            else
+                table.insert(current, ch)
+            end
+        elseif quote == '"' then
+            if ch == '"' then
+                quote = nil
+            elseif ch == "\\" then
+                local next_char = raw:sub(i + 1, i + 1)
+                if next_char ~= "" and next_char:match('["\\$`nrt]') then
+                    local replacements = { n = "\n", r = "\r", t = "\t" }
+                    table.insert(current, replacements[next_char] or next_char)
+                    i = i + 1
+                else
+                    table.insert(current, ch)
+                end
+            else
+                table.insert(current, ch)
+            end
+        else
+            if ch:match("%s") then
+                push_current()
+            elseif ch == "'" or ch == '"' then
+                quote = ch
+            elseif ch == "\\" then
+                local next_char = raw:sub(i + 1, i + 1)
+                if next_char ~= "" then
+                    table.insert(current, next_char)
+                    i = i + 1
+                end
+            else
+                table.insert(current, ch)
+            end
+        end
+        i = i + 1
+    end
+
+    push_current()
+    if quote then
+        vim.notify(string.format("Fuzzy: unmatched %s quote, treating literally.", quote), vim.log.levels.WARN)
+    end
+
+    return args
+end
+
 local function split_lines(output)
     if not output or output == "" then
         return {}
@@ -216,7 +283,7 @@ end
 
 local function run_rg(raw_args, callback)
     local args = { "rg", "--vimgrep", "--smart-case", "--color=never" }
-    vim.list_extend(args, vim.fn.split(raw_args, [[\s\+]], true))
+    vim.list_extend(args, parse_command_args(raw_args))
     system_lines(args, callback)
 end
 
