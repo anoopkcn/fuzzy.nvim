@@ -221,6 +221,22 @@ local function parse_command_args(raw)
     return args
 end
 
+local function normalize_rg_args(arg_input)
+    if type(arg_input) == "table" then
+        local args = {}
+        for _, value in ipairs(arg_input) do
+            if value ~= nil then
+                local str = tostring(value)
+                if str ~= "" then
+                    table.insert(args, str)
+                end
+            end
+        end
+        return args
+    end
+    return parse_command_args(arg_input)
+end
+
 local function split_lines(output)
     if not output or output == "" then
         return {}
@@ -283,8 +299,21 @@ end
 
 local function run_rg(raw_args, callback)
     local args = { "rg", "--vimgrep", "--smart-case", "--color=never" }
-    vim.list_extend(args, parse_command_args(raw_args))
+    vim.list_extend(args, normalize_rg_args(raw_args))
     system_lines(args, callback)
+end
+
+local function run_fuzzy_grep(raw_args)
+    run_rg(raw_args, function(lines, status)
+        if status > 1 then
+            local message = table.concat(lines, "\n")
+            vim.notify(message ~= "" and message or "FuzzyGrep: ripgrep failed.", vim.log.levels.ERROR)
+            return
+        end
+
+        local count = set_quickfix_from_lines(lines)
+        open_quickfix_when_results(count, "FuzzyGrep: no matches found.")
+    end)
 end
 
 local function prompt_input(prompt, default)
@@ -363,16 +392,7 @@ function M.setup()
             end
         end
 
-        run_rg(opts.args, function(lines, status)
-            if status > 1 then
-                local message = table.concat(lines, "\n")
-                vim.notify(message ~= "" and message or "FuzzyGrep: ripgrep failed.", vim.log.levels.ERROR)
-                return
-            end
-
-            local count = set_quickfix_from_lines(lines)
-            open_quickfix_when_results(count, "FuzzyGrep: no matches found.")
-        end)
+        run_fuzzy_grep(opts.args)
     end, {
         nargs = "*",
         complete = "file",
@@ -424,6 +444,10 @@ function M.setup()
     end, {
         desc = "Show listed buffers in quickfix list",
     })
+end
+
+function M.grep(args)
+    run_fuzzy_grep(args)
 end
 
 return M
