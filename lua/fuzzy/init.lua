@@ -297,7 +297,16 @@ local function set_quickfix_from_lines(lines)
     })
 end
 
+local HAS_RG = vim.fn.executable("rg") == 1
 local function run_rg(raw_args, callback)
+    if not HAS_RG then
+        local message = "FuzzyGrep: 'rg' executable not found."
+        vim.schedule(function()
+            callback({ message }, 2)
+        end)
+        return
+    end
+
     local args = { "rg", "--vimgrep", "--smart-case", "--color=never" }
     vim.list_extend(args, normalize_args(raw_args))
     system_lines(args, callback)
