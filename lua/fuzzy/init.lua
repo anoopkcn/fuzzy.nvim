@@ -1,20 +1,14 @@
----@brief
---- LICENSE: MIT
---- by @anoopkcn
---- https://github.com/anoopkcn/dotfiles/blob/main/nvim/lua/fuzzy/init.lua
---- Description: Neovim fuzzy helpers for grep, files and buffers that feed the quickfix list.
--- documentation:
+-- LICENSE: MIT
+-- by @anoopkcn
+-- https://github.com/anoopkcn/dotfiles/blob/main/nvim/lua/fuzzy/init.lua
+-- Description: Neovim fuzzy helpers for grep, files and buffers that feed the quickfix list.
 -- Provides commands:
---   :FuzzyGrep [pattern] - Runs ripgrep with the given pattern and populates the quickfix list with results.
+--   :FuzzyGrep [pattern] [rg options] - Runs ripgrep with the given pattern and populates the quickfix list with results.
 --   :FuzzyFiles [query]  - Lists project files matching the fuzzy query in the quickfix list.
 --   :FuzzyBuffers      - Lists all listed buffers in the quickfix list.
 -- The quickfix list is reused across invocations of these commands.
 -- The commands use ripgrep (rg) and Neovim's built-in fuzzy matching.
 -- Ensure ripgrep is installed and available in your PATH for these commands to work.
--- Example Usage:
---   :FuzzyGrep some_fuzzy_pattern [all rg options]
---   :FuzzyFiles some_fuzzy_file [all rg --files options]
---   :FuzzyBuffers
 
 local FILE_MATCH_LIMIT = 600
 local FUZZY_CONTEXT_KEY = "fuzzy_owner"
