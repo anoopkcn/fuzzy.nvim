@@ -4,7 +4,7 @@
 -- Description: Neovim fuzzy helpers for grep, files and buffers that feed the quickfix list.
 -- Provides commands:
 --   :FuzzyGrep [pattern] [rg options] - Runs ripgrep with the given pattern and populates the quickfix list with results.
---   :FuzzyFiles [fd arguments]        - Runs fd with the supplied arguments and populates the quickfix list with files.
+--   :FuzzyFiles [fd arguments]        - Runs fd with the supplied arguments (use --noignore to include gitignored files).
 --   :FuzzyBuffers                     - Lists all listed buffers in the quickfix list.
 -- The quickfix list is reused across invocations of these commands.
 -- The commands use ripgrep (rg), fd, and Neovim's built-in fuzzy matching.
@@ -361,6 +361,17 @@ local function run_fd(raw_args, callback)
     end
 
     local extra_args = normalize_args(raw_args)
+    local include_vcs = false
+    local filtered = {}
+    for _, arg in ipairs(extra_args) do
+        if arg == "--noignore" then
+            include_vcs = true
+        else
+            table.insert(filtered, arg)
+        end
+    end
+    extra_args = filtered
+
     local custom_limit = has_fd_custom_limit(extra_args)
     local sentinel_limit = FILE_MATCH_LIMIT + 1
     local args = {
@@ -372,6 +383,9 @@ local function run_fd(raw_args, callback)
         "--exclude",
         ".git",
     }
+    if include_vcs then
+        table.insert(args, "--no-ignore-vcs")
+    end
 
     if not custom_limit then
         table.insert(args, "--max-results")
@@ -471,7 +485,7 @@ function M.setup()
         end)
     end, {
         nargs = "*",
-        desc = "Fuzzy find tracked files using fd",
+        desc = "Fuzzy find files using fd (--noignore to include gitignored files)",
     })
 
     vim.api.nvim_create_user_command("FuzzyBuffers", function()
