@@ -368,7 +368,6 @@ local function run_fd(raw_args, callback)
         "--follow",
         "--color",
         "never",
-        "--glob",
         "--exclude",
         ".git",
     }
