@@ -422,18 +422,35 @@ local function set_quickfix_files(files)
     })
 end
 
+local function is_real_listed_buffer(bufnr)
+    if not bufnr or bufnr < 1 or not vim.api.nvim_buf_is_valid(bufnr) then
+        return false
+    end
+    local ok_type, buftype = pcall(vim.api.nvim_buf_get_option, bufnr, "buftype")
+    if not ok_type or buftype ~= "" then
+        return false
+    end
+    local ok_listed, listed = pcall(vim.api.nvim_buf_get_option, bufnr, "buflisted")
+    if ok_listed and not listed then
+        return false
+    end
+    return true
+end
+
 local function set_quickfix_buffers()
     local buffers = {}
     for _, buf in ipairs(vim.fn.getbufinfo({ buflisted = 1 })) do
-        local name = buf.name ~= "" and buf.name or "[No Name]"
-        local label = string.format("[%d] %s", buf.bufnr, name)
-        table.insert(buffers, {
-            filename = buf.name ~= "" and name or nil,
-            bufnr = buf.name == "" and buf.bufnr or nil,
-            lnum = math.max(buf.lnum or 1, 1),
-            col = 1,
-            text = label,
-        })
+        if is_real_listed_buffer(buf.bufnr) then
+            local name = buf.name ~= "" and buf.name or "[No Name]"
+            local label = string.format("[%d] %s", buf.bufnr, name)
+            table.insert(buffers, {
+                filename = buf.name ~= "" and name or nil,
+                bufnr = buf.name == "" and buf.bufnr or nil,
+                lnum = math.max(buf.lnum or 1, 1),
+                col = 1,
+                text = label,
+            })
+        end
     end
     return update_fuzzy_quickfix(buffers, {
         title = "FuzzyBuffers",
