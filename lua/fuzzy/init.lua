@@ -16,43 +16,46 @@ local FUZZY_CONTEXT_VALUE = "lua/fuzzy"
 
 local fuzzy_quickfix_id
 
+local function is_fuzzy_context(ctx)
+    return type(ctx) == "table" and ctx[FUZZY_CONTEXT_KEY] == FUZZY_CONTEXT_VALUE
+end
+
+local function get_quickfix_info(opts)
+    local ok, info = pcall(vim.fn.getqflist, opts)
+    if not ok or type(info) ~= "table" then
+        return nil
+    end
+    return info
+end
+
 local function get_quickfix_info_by_id(id)
     if not id then
         return nil
     end
-    local ok, info = pcall(vim.fn.getqflist, {
+    local info = get_quickfix_info({
         id = id,
         context = 1,
         nr = 0,
         title = 1,
     })
-    if not ok or type(info) ~= "table" then
-        return nil
+    if info and is_fuzzy_context(info.context) then
+        info.id = id
+        return info
     end
-    local ctx = info.context
-    if type(ctx) ~= "table" or ctx[FUZZY_CONTEXT_KEY] ~= FUZZY_CONTEXT_VALUE then
-        return nil
-    end
-    info.id = id
-    return info
 end
 
 local function get_quickfix_info_by_nr(nr)
-    local ok, info = pcall(vim.fn.getqflist, {
+    return get_quickfix_info({
         nr = nr,
         context = 1,
         id = 0,
         title = 1,
     })
-    if not ok or type(info) ~= "table" then
-        return nil
-    end
-    return info
 end
 
 local function get_quickfix_stack_size()
-    local ok, info = pcall(vim.fn.getqflist, { nr = "$" })
-    if not ok or type(info) ~= "table" then
+    local info = get_quickfix_info({ nr = "$" })
+    if not info then
         return 0
     end
     return info.nr or 0
@@ -62,8 +65,7 @@ local function find_existing_fuzzy_quickfix()
     local size = get_quickfix_stack_size()
     for nr = size, 1, -1 do
         local info = get_quickfix_info_by_nr(nr)
-        local ctx = info and info.context
-        if type(ctx) == "table" and ctx[FUZZY_CONTEXT_KEY] == FUZZY_CONTEXT_VALUE then
+        if info and is_fuzzy_context(info.context) then
             return info
         end
     end
@@ -80,8 +82,8 @@ local function create_fuzzy_quickfix(title)
         vim.notify(string.format("Fuzzy: failed to prepare quickfix list: %s", err), vim.log.levels.ERROR)
         return nil
     end
-    local ok_info, current = pcall(vim.fn.getqflist, { nr = 0 })
-    if not ok_info or type(current) ~= "table" then
+    local current = get_quickfix_info({ nr = 0 })
+    if not current then
         return nil
     end
     return get_quickfix_info_by_nr(current.nr)
@@ -360,6 +362,7 @@ local function run_fd(raw_args, callback)
 
     local extra_args = normalize_args(raw_args)
     local custom_limit = has_fd_custom_limit(extra_args)
+    local sentinel_limit = FILE_MATCH_LIMIT + 1
     local args = {
         "fd",
         "--hidden",
@@ -372,19 +375,23 @@ local function run_fd(raw_args, callback)
 
     if not custom_limit then
         table.insert(args, "--max-results")
-        table.insert(args, tostring(FILE_MATCH_LIMIT + 1))
+        table.insert(args, tostring(sentinel_limit))
     end
 
     vim.list_extend(args, extra_args)
     system_lines(args, function(lines, status)
-        callback(lines, status, custom_limit)
+        local truncated = false
+        if status <= 1 and not custom_limit and #lines == sentinel_limit then
+            truncated = true
+            table.remove(lines)
+        end
+        callback(lines, status, truncated)
     end)
 end
 
-local function set_quickfix_files(files, limit)
-    local max_items = math.min(limit or #files, #files)
+local function set_quickfix_files(files)
     local items = {}
-    for idx = 1, max_items do
+    for idx = 1, math.min(FILE_MATCH_LIMIT, #files) do
         local file = files[idx]
         if file ~= "" then
             table.insert(items, {
@@ -449,21 +456,14 @@ function M.setup()
             end
         end
 
-        run_fd(raw_args, function(files, status, custom_limit)
+        run_fd(raw_args, function(files, status, truncated)
             if status > 1 then
                 local message = table.concat(files, "\n")
                 vim.notify(message ~= "" and message or "FuzzyFiles: failed to list files.", vim.log.levels.ERROR)
                 return
             end
 
-            local truncated = false
-            local limit_sentinel = FILE_MATCH_LIMIT + 1
-            if not custom_limit and #files == limit_sentinel then
-                truncated = true
-                table.remove(files)
-            end
-
-            local count = set_quickfix_files(files, FILE_MATCH_LIMIT)
+            local count = set_quickfix_files(files)
             if truncated then
                 vim.notify(string.format("FuzzyFiles: showing first %d matches.", FILE_MATCH_LIMIT), vim.log.levels.INFO)
             end
