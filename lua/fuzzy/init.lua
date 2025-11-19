@@ -362,8 +362,6 @@ local function run_fd(raw_args, callback)
     local custom_limit = has_fd_custom_limit(extra_args)
     local args = {
         "fd",
-        "--type",
-        "f",
         "--hidden",
         "--follow",
         "--color",
