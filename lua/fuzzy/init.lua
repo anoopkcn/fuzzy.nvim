@@ -4,11 +4,11 @@
 -- Description: Neovim fuzzy helpers for grep, files and buffers that feed the quickfix list.
 -- Provides commands:
 --   :FuzzyGrep [pattern] [rg options] - Runs ripgrep with the given pattern and populates the quickfix list with results.
---   :FuzzyFiles [query]  - Lists project files matching the fuzzy query in the quickfix list.
---   :FuzzyBuffers      - Lists all listed buffers in the quickfix list.
+--   :FuzzyFiles [fd arguments]        - Runs fd with the supplied arguments and populates the quickfix list with files.
+--   :FuzzyBuffers                     - Lists all listed buffers in the quickfix list.
 -- The quickfix list is reused across invocations of these commands.
--- The commands use ripgrep (rg) and Neovim's built-in fuzzy matching.
--- Ensure ripgrep is installed and available in your PATH for these commands to work.
+-- The commands use ripgrep (rg), fd, and Neovim's built-in fuzzy matching.
+-- Ensure ripgrep and fd are installed and available in your PATH for these commands to work.
 
 local FILE_MATCH_LIMIT = 600
 local FUZZY_CONTEXT_KEY = "fuzzy_owner"
@@ -221,7 +221,7 @@ local function parse_command_args(raw)
     return args
 end
 
-local function normalize_rg_args(arg_input)
+local function normalize_args(arg_input)
     if type(arg_input) == "table" then
         local args = {}
         for _, value in ipairs(arg_input) do
@@ -299,7 +299,7 @@ end
 
 local function run_rg(raw_args, callback)
     local args = { "rg", "--vimgrep", "--smart-case", "--color=never" }
-    vim.list_extend(args, normalize_rg_args(raw_args))
+    vim.list_extend(args, normalize_args(raw_args))
     system_lines(args, callback)
 end
 
@@ -326,19 +326,53 @@ local function prompt_input(prompt, default)
     return vim.trim(result)
 end
 
-local function list_project_files(callback)
+local HAS_FD = vim.fn.executable("fd") == 1
+
+local function has_fd_custom_limit(args)
+    for _, arg in ipairs(args) do
+        if arg == "--max-results" or arg == "-n" then
+            return true
+        end
+        if arg:match("^%-n%d+$") then
+            return true
+        end
+    end
+    return false
+end
+
+local function run_fd(raw_args, callback)
+    if not HAS_FD then
+        local message = "FuzzyFiles: 'fd' executable not found."
+        vim.schedule(function()
+            callback({ message }, 2, false)
+        end)
+        return
+    end
+
+    local extra_args = normalize_args(raw_args)
+    local custom_limit = has_fd_custom_limit(extra_args)
     local args = {
-        "rg",
-        "--files",
+        "fd",
+        "--type",
+        "f",
         "--hidden",
         "--follow",
-        "--max-count",
-        tostring(FILE_MATCH_LIMIT + 1),
-        "--color=never",
+        "--color",
+        "never",
         "--glob",
-        "!.git/*",
+        "--exclude",
+        ".git",
     }
-    system_lines(args, callback)
+
+    if not custom_limit then
+        table.insert(args, "--max-results")
+        table.insert(args, tostring(FILE_MATCH_LIMIT + 1))
+    end
+
+    vim.list_extend(args, extra_args)
+    system_lines(args, function(lines, status)
+        callback(lines, status, custom_limit)
+    end)
 end
 
 local function set_quickfix_files(files, limit)
@@ -400,37 +434,38 @@ function M.setup()
     })
 
     vim.api.nvim_create_user_command("FuzzyFiles", function(opts)
-        local query = vim.trim(opts.args or "")
-        if query == "" then
-            query = prompt_input("FuzzyFiles: ", "")
-            if query == "" then
+        local raw_args = vim.trim(opts.args or "")
+        if raw_args == "" then
+            raw_args = prompt_input("FuzzyFiles: ", "")
+            if raw_args == "" then
                 vim.notify("FuzzyFiles cancelled.", vim.log.levels.INFO)
                 return
             end
         end
 
-        list_project_files(function(files, status)
+        run_fd(raw_args, function(files, status, custom_limit)
             if status > 1 then
                 local message = table.concat(files, "\n")
                 vim.notify(message ~= "" and message or "FuzzyFiles: failed to list files.", vim.log.levels.ERROR)
                 return
             end
 
-            local limit = FILE_MATCH_LIMIT + 1
-            local candidates = vim.fn.matchfuzzy(files, query, { limit = limit })
-            local truncated = #candidates == limit
-            if truncated then
-                table.remove(candidates)
+            local truncated = false
+            local limit_sentinel = FILE_MATCH_LIMIT + 1
+            if not custom_limit and #files == limit_sentinel then
+                truncated = true
+                table.remove(files)
             end
-            local count = set_quickfix_files(candidates, FILE_MATCH_LIMIT)
+
+            local count = set_quickfix_files(files, FILE_MATCH_LIMIT)
             if truncated then
                 vim.notify(string.format("FuzzyFiles: showing first %d matches.", FILE_MATCH_LIMIT), vim.log.levels.INFO)
             end
-            open_quickfix_when_results(count, "FuzzyFiles: nothing matched the pattern.")
+            open_quickfix_when_results(count, "FuzzyFiles: no files matched.")
         end)
     end, {
         nargs = "*",
-        desc = "Fuzzy find tracked files using ripgrep --files",
+        desc = "Fuzzy find tracked files using fd",
     })
 
     vim.api.nvim_create_user_command("FuzzyBuffers", function()
