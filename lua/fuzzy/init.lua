@@ -426,11 +426,11 @@ local function is_real_listed_buffer(bufnr)
     if not bufnr or bufnr < 1 or not vim.api.nvim_buf_is_valid(bufnr) then
         return false
     end
-    local ok_type, buftype = pcall(vim.api.nvim_buf_get_option, bufnr, "buftype")
+    local ok_type, buftype = pcall(vim.api.nvim_get_option_value, "buftype", { buf = bufnr })
     if not ok_type or buftype ~= "" then
         return false
     end
-    local ok_listed, listed = pcall(vim.api.nvim_buf_get_option, bufnr, "buflisted")
+    local ok_listed, listed = pcall(vim.api.nvim_get_option_value, "buflisted", { buf = bufnr })
     if ok_listed and not listed then
         return false
     end
