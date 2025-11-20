@@ -240,8 +240,10 @@ end
 
 local function normalize_args(arg_input)
     if type(arg_input) == "table" then
-        return vim.tbl_filter(function(v) return v ~= nil and tostring(v) ~= "" end,
-            vim.tbl_map(tostring, arg_input))
+        local mapped = vim.tbl_map(tostring, arg_input)
+        return vim.tbl_filter(function(v)
+            return v ~= nil and tostring(v) ~= ""
+        end, mapped)
     end
     return parse_command_args(arg_input)
 end
