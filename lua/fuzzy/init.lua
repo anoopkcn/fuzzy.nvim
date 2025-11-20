@@ -10,16 +10,24 @@
 -- The commands use ripgrep (rg), fd, and Neovim's built-in fuzzy matching.
 -- Ensure ripgrep and fd are installed and available in your PATH for these commands to work.
 
-local FILE_MATCH_LIMIT = 600
 local FUZZY_CONTEXT_KEY = "fuzzy_owner"
 local FUZZY_CONTEXT_VALUE = "lua/fuzzy"
 local DEFAULT_CONFIG = {
     open_single_result = false,
+    file_match_limit = 600,
 }
 
 local config = vim.deepcopy(DEFAULT_CONFIG)
 
 local fuzzy_quickfix_id
+
+local function get_file_match_limit()
+    local limit = tonumber(config.file_match_limit) or tonumber(DEFAULT_CONFIG.file_match_limit) or 600
+    if not limit or limit < 1 then
+        limit = DEFAULT_CONFIG.file_match_limit or 600
+    end
+    return math.floor(limit)
+end
 
 local function is_fuzzy_context(ctx)
     return type(ctx) == "table" and ctx[FUZZY_CONTEXT_KEY] == FUZZY_CONTEXT_VALUE
@@ -378,7 +386,8 @@ local function run_fd(raw_args, callback)
     extra_args = filtered
 
     local custom_limit = has_fd_custom_limit(extra_args)
-    local sentinel_limit = FILE_MATCH_LIMIT + 1
+    local match_limit = get_file_match_limit()
+    local sentinel_limit = match_limit + 1
     local args = {
         "fd",
         "--hidden",
@@ -404,14 +413,15 @@ local function run_fd(raw_args, callback)
             truncated = true
             table.remove(lines)
         end
-        callback(lines, status, truncated)
+        callback(lines, status, truncated, match_limit)
     end)
 end
 
-local function build_file_quickfix_items(files)
+local function build_file_quickfix_items(files, match_limit)
+    match_limit = match_limit or get_file_match_limit()
     local items = {}
     local first = nil
-    for idx = 1, math.min(FILE_MATCH_LIMIT, #files) do
+    for idx = 1, math.min(match_limit, #files) do
         local file = files[idx]
         if file ~= "" then
             first = first or file
@@ -502,14 +512,14 @@ function M.setup(user_opts)
             end
         end
 
-        run_fd(raw_args, function(files, status, truncated)
+        run_fd(raw_args, function(files, status, truncated, match_limit)
             if status > 1 then
                 local message = table.concat(files, "\n")
                 vim.notify(message ~= "" and message or "FuzzyFiles: failed to list files.", vim.log.levels.ERROR)
                 return
             end
 
-            local items, first_file = build_file_quickfix_items(files)
+            local items, first_file = build_file_quickfix_items(files, match_limit)
             local count = #items
             local direct_file = type(first_file) == "string" and first_file or nil
             local prefer_direct = (config.open_single_result or opts.bang) and count == 1
@@ -524,8 +534,8 @@ function M.setup(user_opts)
             end
 
             local qf_count = set_quickfix_files(items)
-            if truncated then
-                vim.notify(string.format("FuzzyFiles: showing first %d matches.", FILE_MATCH_LIMIT), vim.log.levels.INFO)
+            if truncated and match_limit then
+                vim.notify(string.format("FuzzyFiles: showing first %d matches.", match_limit), vim.log.levels.INFO)
             end
             open_quickfix_when_results(qf_count, "FuzzyFiles: no files matched.")
         end)
