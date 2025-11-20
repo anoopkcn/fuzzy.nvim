@@ -471,9 +471,9 @@ end
 
 local M = {}
 
-function M.setup(opts)
-    if opts and type(opts) == "table" then
-        config = vim.tbl_deep_extend("force", {}, config, opts)
+function M.setup(user_opts)
+    if user_opts and type(user_opts) == "table" then
+        config = vim.tbl_deep_extend("force", {}, config, user_opts)
     end
 
     vim.api.nvim_create_user_command("FuzzyGrep", function(opts)
@@ -511,11 +511,12 @@ function M.setup(opts)
 
             local items, first_file = build_file_quickfix_items(files)
             local count = #items
-            local prefer_direct = (config.open_single_result or opts.bang) and count == 1 and first_file
-            if prefer_direct then
-                local ok, err = pcall(vim.cmd, string.format("edit %s", vim.fn.fnameescape(first_file)))
+            local direct_file = type(first_file) == "string" and first_file or nil
+            local prefer_direct = (config.open_single_result or opts.bang) and count == 1
+            if prefer_direct and direct_file then
+                local ok, err = pcall(vim.cmd.edit, vim.fn.fnameescape(direct_file))
                 if not ok then
-                    vim.notify(string.format("FuzzyFiles: failed to open '%s': %s", first_file, err),
+                    vim.notify(string.format("FuzzyFiles: failed to open '%s': %s", direct_file, err),
                         vim.log.levels.ERROR)
                 else
                     return
