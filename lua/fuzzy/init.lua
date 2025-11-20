@@ -7,6 +7,7 @@
 --   :FuzzyFiles[!] [fd arguments]     - Runs fd with the supplied arguments (use --noignore to include gitignored files).
 --                                       Add ! to open a single match directly.
 --   :FuzzyBuffers                     - Lists all listed buffers in the quickfix list.
+--   :FuzzyQf                          - Uses vim.ui.select to pick from quickfix history and switch to it.
 -- The quickfix list is reused across invocations of these commands.
 -- The commands use ripgrep (rg), fd, and Neovim's built-in fuzzy matching.
 -- Ensure ripgrep and fd are installed and available in your PATH for these commands to work.
@@ -80,6 +81,35 @@ local function get_quickfix_stack_size()
     return info.nr or 0
 end
 
+local function collect_quickfix_lists()
+    local size = get_quickfix_stack_size()
+    local lists = {}
+    for nr = size, 1, -1 do
+        local info = get_quickfix_info({
+            nr = nr,
+            context = 1,
+            id = 0,
+            title = 1,
+            size = 1,
+        })
+        if info then
+            local title = info.title
+            if not title or title == "" then
+                title = string.format("Quickfix %d", nr)
+            end
+            lists[#lists + 1] = {
+                nr = info.nr or nr,
+                title = title,
+                size = info.size or 0,
+                command = info.context and info.context.command or nil,
+            }
+        end
+    end
+    return lists
+end
+
+local activate_quickfix_nr
+
 local function find_existing_fuzzy_quickfix(command)
     local size = get_quickfix_stack_size()
     for nr = size, 1, -1 do
@@ -126,7 +156,7 @@ local function ensure_fuzzy_quickfix(command, title)
     return info
 end
 
-local function activate_quickfix_nr(target_nr)
+activate_quickfix_nr = function(target_nr)
     if not target_nr then
         return
     end
@@ -146,6 +176,29 @@ local function activate_quickfix_nr(target_nr)
         command = string.format("silent! colder %d", -delta)
     end
     pcall(vim.cmd, command)
+end
+
+local pick_quickfix_from_history
+pick_quickfix_from_history = function()
+    local lists = collect_quickfix_lists()
+    if #lists == 0 then
+        vim.notify("FuzzyQf: no quickfix history.", vim.log.levels.INFO)
+        return
+    end
+
+    vim.ui.select(lists, {
+        prompt = "Quickfix Lists",
+        format_item = function(item)
+            local prefix = item.command and string.format("[%s] ", item.command) or ""
+            return string.format("%s%s (%d items)", prefix, item.title, item.size or 0)
+        end,
+    }, function(choice)
+        if not choice then
+            return
+        end
+        activate_quickfix_nr(choice.nr)
+        vim.cmd("copen")
+    end)
 end
 
 local function update_fuzzy_quickfix(items, opts)
@@ -563,6 +616,12 @@ function M.setup(user_opts)
         open_quickfix_when_results(count, "FuzzyBuffers: no listed buffers.")
     end, {
         desc = "Show listed buffers in quickfix list",
+    })
+
+    vim.api.nvim_create_user_command("FuzzyQf", function()
+        pick_quickfix_from_history()
+    end, {
+        desc = "Quickly pick and open a quickfix list",
     })
 end
 
