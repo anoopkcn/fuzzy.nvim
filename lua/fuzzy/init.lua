@@ -20,7 +20,7 @@ local DEFAULT_CONFIG = {
 
 local config = vim.deepcopy(DEFAULT_CONFIG)
 
-local fuzzy_quickfix_id
+local quickfix_ids = {}
 
 local function get_file_match_limit()
     local limit = tonumber(config.file_match_limit) or tonumber(DEFAULT_CONFIG.file_match_limit) or 600
@@ -30,8 +30,10 @@ local function get_file_match_limit()
     return math.floor(limit)
 end
 
-local function is_fuzzy_context(ctx)
-    return type(ctx) == "table" and ctx[FUZZY_CONTEXT_KEY] == FUZZY_CONTEXT_VALUE
+local function is_fuzzy_context(ctx, command)
+    return type(ctx) == "table"
+        and ctx[FUZZY_CONTEXT_KEY] == FUZZY_CONTEXT_VALUE
+        and (command == nil or ctx.command == command)
 end
 
 local function get_quickfix_info(opts)
@@ -42,7 +44,7 @@ local function get_quickfix_info(opts)
     return info
 end
 
-local function get_quickfix_info_by_id(id)
+local function get_quickfix_info_by_id(id, command)
     if not id then
         return nil
     end
@@ -52,19 +54,22 @@ local function get_quickfix_info_by_id(id)
         nr = 0,
         title = 1,
     })
-    if info and is_fuzzy_context(info.context) then
+    if info and is_fuzzy_context(info.context, command) then
         info.id = id
         return info
     end
 end
 
-local function get_quickfix_info_by_nr(nr)
-    return get_quickfix_info({
+local function get_quickfix_info_by_nr(nr, command)
+    local info = get_quickfix_info({
         nr = nr,
         context = 1,
         id = 0,
         title = 1,
     })
+    if info and is_fuzzy_context(info.context, command) then
+        return info
+    end
 end
 
 local function get_quickfix_stack_size()
@@ -75,21 +80,21 @@ local function get_quickfix_stack_size()
     return info.nr or 0
 end
 
-local function find_existing_fuzzy_quickfix()
+local function find_existing_fuzzy_quickfix(command)
     local size = get_quickfix_stack_size()
     for nr = size, 1, -1 do
-        local info = get_quickfix_info_by_nr(nr)
-        if info and is_fuzzy_context(info.context) then
+        local info = get_quickfix_info_by_nr(nr, command)
+        if info then
             return info
         end
     end
 end
 
-local function create_fuzzy_quickfix(title)
+local function create_fuzzy_quickfix(command, title)
     local ok, err = pcall(vim.fn.setqflist, {}, " ", {
         nr = "$",
-        title = title or "Fuzzy",
-        context = { [FUZZY_CONTEXT_KEY] = FUZZY_CONTEXT_VALUE },
+        title = title or command or "Fuzzy",
+        context = { [FUZZY_CONTEXT_KEY] = FUZZY_CONTEXT_VALUE, command = command },
         items = {},
     })
     if not ok then
@@ -100,22 +105,23 @@ local function create_fuzzy_quickfix(title)
     if not current then
         return nil
     end
-    return get_quickfix_info_by_nr(current.nr)
+    return get_quickfix_info_by_nr(current.nr, command)
 end
 
-local function ensure_fuzzy_quickfix(title)
-    local info = get_quickfix_info_by_id(fuzzy_quickfix_id)
+local function ensure_fuzzy_quickfix(command, title)
+    command = command or "Fuzzy"
+    local info = get_quickfix_info_by_id(quickfix_ids[command], command)
     if info then
         return info
     end
-    info = find_existing_fuzzy_quickfix()
+    info = find_existing_fuzzy_quickfix(command)
     if info then
-        fuzzy_quickfix_id = info.id
+        quickfix_ids[command] = info.id
         return info
     end
-    info = create_fuzzy_quickfix(title)
+    info = create_fuzzy_quickfix(command, title)
     if info then
-        fuzzy_quickfix_id = info.id
+        quickfix_ids[command] = info.id
     end
     return info
 end
@@ -144,14 +150,15 @@ end
 
 local function update_fuzzy_quickfix(items, opts)
     opts = opts or {}
-    local info = ensure_fuzzy_quickfix(opts.title)
+    local command = opts.command or "Fuzzy"
+    local info = ensure_fuzzy_quickfix(command, opts.title)
     if not info then
         return 0
     end
 
     local context = {
         [FUZZY_CONTEXT_KEY] = FUZZY_CONTEXT_VALUE,
-        command = opts.command or "Fuzzy",
+        command = command,
     }
 
     local ok, err = pcall(vim.fn.setqflist, {}, "r", {
@@ -165,7 +172,7 @@ local function update_fuzzy_quickfix(items, opts)
         return 0
     end
 
-    local refreshed = get_quickfix_info_by_id(info.id) or info
+    local refreshed = get_quickfix_info_by_id(info.id, command) or info
     activate_quickfix_nr(refreshed.nr)
     return #items
 end
