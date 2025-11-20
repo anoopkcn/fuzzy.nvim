@@ -7,7 +7,8 @@
 --   :FuzzyFiles[!] [fd arguments]     - Runs fd with the supplied arguments (use --noignore to include gitignored files).
 --                                       Add ! to open a single match directly.
 --   :FuzzyBuffers                     - Lists all listed buffers in the quickfix list.
---   :FuzzyQf                          - Uses vim.ui.select to pick from quickfix history and switch to it.
+--   :FuzzyQf[!]                       - Uses vim.ui.select to pick from quickfix history and switch to it.
+--                                       Add ! to refresh the FuzzyBuffers entry before listing.
 -- The quickfix list is reused across invocations of these commands.
 -- The commands use ripgrep (rg), fd, and Neovim's built-in fuzzy matching.
 -- Ensure ripgrep and fd are installed and available in your PATH for these commands to work.
@@ -618,10 +619,14 @@ function M.setup(user_opts)
         desc = "Show listed buffers in quickfix list",
     })
 
-    vim.api.nvim_create_user_command("FuzzyQf", function()
+    vim.api.nvim_create_user_command("FuzzyQf", function(opts)
+        if opts.bang then
+            pcall(set_quickfix_buffers)
+        end
         pick_quickfix_from_history()
     end, {
-        desc = "Quickly pick and open a quickfix list",
+        desc = "Quickly pick and open a quickfix list (! refreshes FuzzyBuffers)",
+        bang = true,
     })
 end
 
