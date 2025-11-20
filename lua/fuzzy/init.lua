@@ -1,7 +1,14 @@
 -- LICENSE: MIT
 -- by @anoopkcn
 -- https://github.com/anoopkcn/dotfiles/blob/main/nvim/lua/fuzzy/init.lua
--- Description: Neovim fuzzy helpers for grep, files and buffers that feed the quickfix list.
+-- Description: Neovim fuzzy helpers for grep, files, buffers and help that feed the quickfix list.
+-- Provides commands:
+--   :FuzzyGrep [pattern] [rg options] - Runs ripgrep with the given pattern and populates the quickfix list with results.
+--   :FuzzyFiles[!] [fd arguments]     - Runs fd with the supplied arguments (use --noignore to include gitignored files).
+--                                       Add ! to open a single match directly.
+--   :FuzzyBuffers[!]                  - Lists all listed buffers in the quickfix list (! enables live updates).
+--   :FuzzyHelp [pattern]              - Fuzzy search Vim help tags and documentation.
+--   :FuzzyList                        - Pick a quickfix list from history (excluding the selector itself) and open it.
 
 local FUZZY_CONTEXT_KEY = "fuzzy_owner"
 local FUZZY_CONTEXT_VALUE = "lua/fuzzy"
@@ -14,6 +21,28 @@ local config = vim.deepcopy(DEFAULT_CONFIG)
 local quickfix_ids = {}
 local fuzzy_buffers_autocmd_group = vim.api.nvim_create_augroup("FuzzyBuffersLive", { clear = true })
 local fuzzy_buffers_updating = false
+
+-- Setup autocmd to handle help tag opening from quickfix
+local fuzzy_help_group = vim.api.nvim_create_augroup("FuzzyHelp", { clear = true })
+vim.api.nvim_create_autocmd("FileType", {
+    group = fuzzy_help_group,
+    pattern = "qf",
+    callback = function(args)
+        local qf_info = vim.fn.getqflist({ title = 1, context = 1 })
+        if qf_info.context and qf_info.context.command == "FuzzyHelp" then
+            -- Map Enter to open help instead of trying to edit
+            vim.keymap.set("n", "<CR>", function()
+                local idx = vim.fn.line(".")
+                local qf_items = vim.fn.getqflist()
+                local item = qf_items[idx]
+                if item and item.text and item.text ~= "" then
+                    vim.cmd.cclose()
+                    vim.cmd({ cmd = "help", args = { item.text } })
+                end
+            end, { buffer = args.buf, desc = "Open help tag" })
+        end
+    end,
+})
 
 local function get_file_match_limit()
     local limit = tonumber(config.file_match_limit) or DEFAULT_CONFIG.file_match_limit
@@ -331,6 +360,44 @@ local function prompt_input(prompt, default)
     return ok and vim.trim(result) or ""
 end
 
+-- FuzzyHelp: Search Vim help tags
+local function get_help_tags(pattern)
+    -- Get all help tags
+    local tags = vim.fn.getcompletion(pattern or "", "help")
+    return tags
+end
+
+local function set_quickfix_help_tags(tags, pattern)
+    local items = {}
+    for _, tag in ipairs(tags) do
+        items[#items + 1] = {
+            text = tag,
+            user_data = { help_tag = tag },
+        }
+    end
+
+    local title = pattern and pattern ~= ""
+        and string.format("FuzzyHelp: %s", pattern)
+        or "FuzzyHelp"
+
+    return update_fuzzy_quickfix(items, {
+        title = title,
+        command = "FuzzyHelp",
+    })
+end
+
+local function run_fuzzy_help(pattern)
+    local tags = get_help_tags(pattern)
+
+    if #tags == 0 then
+        vim.notify("FuzzyHelp: no help tags found.", vim.log.levels.INFO)
+        return
+    end
+
+    local count = set_quickfix_help_tags(tags, pattern)
+    open_quickfix_when_results(count, "FuzzyHelp: no help tags matched.")
+end
+
 local HAS_FD = vim.fn.executable("fd") == 1
 
 local function has_fd_custom_limit(args)
@@ -570,6 +637,22 @@ function M.setup(user_opts)
         select_quickfix_from_history()
     end, {
         desc = "Pick a quickfix list from history and open it",
+    })
+
+    vim.api.nvim_create_user_command("FuzzyHelp", function(opts)
+        local pattern = vim.trim(opts.args or "")
+        if pattern == "" then
+            pattern = prompt_input("FuzzyHelp: ", "")
+            if pattern == "" then
+                -- Show all help tags if no pattern
+                pattern = ""
+            end
+        end
+        run_fuzzy_help(pattern)
+    end, {
+        nargs = "*",
+        complete = "help",
+        desc = "Fuzzy search Vim help tags and documentation",
     })
 end
 
