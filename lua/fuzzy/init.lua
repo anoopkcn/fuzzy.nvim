@@ -4,7 +4,7 @@
 -- Description: Neovim fuzzy helpers for grep, files and buffers that feed the quickfix list.
 -- Provides commands:
 --   :FuzzyGrep [pattern] [rg options] - Runs ripgrep with the given pattern and populates the quickfix list with results.
---   :FuzzyFiles [fd arguments]        - Runs fd with the supplied arguments (use --noignore to include gitignored files).
+--   :FuzzyFiles[!] [fd arguments]     - Runs fd with the supplied arguments (use --noignore to include gitignored files). Add ! to open a single match directly.
 --   :FuzzyBuffers                     - Lists all listed buffers in the quickfix list.
 -- The quickfix list is reused across invocations of these commands.
 -- The commands use ripgrep (rg), fd, and Neovim's built-in fuzzy matching.
@@ -13,6 +13,11 @@
 local FILE_MATCH_LIMIT = 600
 local FUZZY_CONTEXT_KEY = "fuzzy_owner"
 local FUZZY_CONTEXT_VALUE = "lua/fuzzy"
+local DEFAULT_CONFIG = {
+    open_single_result = false,
+}
+
+local config = vim.deepcopy(DEFAULT_CONFIG)
 
 local fuzzy_quickfix_id
 
@@ -403,11 +408,13 @@ local function run_fd(raw_args, callback)
     end)
 end
 
-local function set_quickfix_files(files)
+local function build_file_quickfix_items(files)
     local items = {}
+    local first = nil
     for idx = 1, math.min(FILE_MATCH_LIMIT, #files) do
         local file = files[idx]
         if file ~= "" then
+            first = first or file
             table.insert(items, {
                 filename = file,
                 lnum = 1,
@@ -416,6 +423,10 @@ local function set_quickfix_files(files)
             })
         end
     end
+    return items, first
+end
+
+local function set_quickfix_files(items)
     return update_fuzzy_quickfix(items, {
         title = "FuzzyFiles",
         command = "FuzzyFiles",
@@ -460,7 +471,11 @@ end
 
 local M = {}
 
-function M.setup()
+function M.setup(opts)
+    if opts and type(opts) == "table" then
+        config = vim.tbl_deep_extend("force", {}, config, opts)
+    end
+
     vim.api.nvim_create_user_command("FuzzyGrep", function(opts)
         if opts.args == "" then
             opts.args = prompt_input("FuzzyGrep: ", "")
@@ -494,15 +509,29 @@ function M.setup()
                 return
             end
 
-            local count = set_quickfix_files(files)
+            local items, first_file = build_file_quickfix_items(files)
+            local count = #items
+            local prefer_direct = (config.open_single_result or opts.bang) and count == 1 and first_file
+            if prefer_direct then
+                local ok, err = pcall(vim.cmd, string.format("edit %s", vim.fn.fnameescape(first_file)))
+                if not ok then
+                    vim.notify(string.format("FuzzyFiles: failed to open '%s': %s", first_file, err),
+                        vim.log.levels.ERROR)
+                else
+                    return
+                end
+            end
+
+            local qf_count = set_quickfix_files(items)
             if truncated then
                 vim.notify(string.format("FuzzyFiles: showing first %d matches.", FILE_MATCH_LIMIT), vim.log.levels.INFO)
             end
-            open_quickfix_when_results(count, "FuzzyFiles: no files matched.")
+            open_quickfix_when_results(qf_count, "FuzzyFiles: no files matched.")
         end)
     end, {
         nargs = "*",
-        desc = "Fuzzy find files using fd (--noignore to include gitignored files)",
+        desc = "Fuzzy find files using fd (--noignore to include gitignored files, add ! to open a single match)",
+        bang = true,
     })
 
     vim.api.nvim_create_user_command("FuzzyBuffers", function()
