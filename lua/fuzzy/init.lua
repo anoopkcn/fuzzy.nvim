@@ -4,7 +4,8 @@
 -- Description: Neovim fuzzy helpers for grep, files and buffers that feed the quickfix list.
 -- Provides commands:
 --   :FuzzyGrep [pattern] [rg options] - Runs ripgrep with the given pattern and populates the quickfix list with results.
---   :FuzzyFiles[!] [fd arguments]     - Runs fd with the supplied arguments (use --noignore to include gitignored files). Add ! to open a single match directly.
+--   :FuzzyFiles[!] [fd arguments]     - Runs fd with the supplied arguments (use --noignore to include gitignored files).
+--                                       Add ! to open a single match directly.
 --   :FuzzyBuffers                     - Lists all listed buffers in the quickfix list.
 -- The quickfix list is reused across invocations of these commands.
 -- The commands use ripgrep (rg), fd, and Neovim's built-in fuzzy matching.
