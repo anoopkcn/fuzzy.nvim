@@ -267,7 +267,3 @@ MIT
 ## Author
 
 [@anoopkcn](https://github.com/anoopkcn)
-
-## Credits
-
-Original implementation: [dotfiles/nvim/lua/fuzzy](https://github.com/anoopkcn/dotfiles/blob/main/nvim/lua/fuzzy/init.lua)
