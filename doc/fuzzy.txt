@@ -1,0 +1,341 @@
+*fuzzy.txt*  Fuzzy file, grep, and buffer finder using quickfix list
+
+Author:  @anoopkcn <https://github.com/anoopkcn>
+License: MIT
+
+==============================================================================
+CONTENTS                                                      *fuzzy-contents*
+
+1. Introduction ............................ |fuzzy-introduction|
+2. Requirements ............................ |fuzzy-requirements|
+3. Commands ................................ |fuzzy-commands|
+    3.1 FuzzyGrep .......................... |:FuzzyGrep|
+    3.2 FuzzyFiles ......................... |:FuzzyFiles|
+    3.3 FuzzyBuffers ....................... |:FuzzyBuffers|
+    3.4 FuzzyList .......................... |:FuzzyList|
+4. Configuration ........................... |fuzzy-configuration|
+5. Functions ............................... |fuzzy-functions|
+6. Examples ................................ |fuzzy-examples|
+
+==============================================================================
+1. INTRODUCTION                                          *fuzzy-introduction*
+
+Fuzzy provides a simple, fast interface for searching files, grepping code,
+and managing buffers using Neovim's built-in quickfix list. Unlike heavier
+plugins, fuzzy leverages external tools (ripgrep and fd) and native Vim
+functionality for maximum performance.
+
+Features:
+  • Fast grep search using ripgrep with smart case matching
+  • File finding using fd with gitignore support
+  • Buffer list management with optional live updates
+  • Quickfix history navigation
+  • Single-file direct opening
+  • Full control over search arguments
+
+==============================================================================
+2. REQUIREMENTS                                          *fuzzy-requirements*
+
+Required external programs:
+  • ripgrep (rg) - for :FuzzyGrep
+  • fd - for :FuzzyFiles
+
+Install via your package manager:
+    macOS:    brew install ripgrep fd
+    Ubuntu:   apt install ripgrep fd-find
+    Arch:     pacman -S ripgrep fd
+
+==============================================================================
+3. COMMANDS                                                  *fuzzy-commands*
+
+All fuzzy commands populate the quickfix list. Use standard quickfix
+navigation: >
+    :cnext      " Next item
+    :cprev      " Previous item
+    :copen      " Open quickfix window
+    :cclose     " Close quickfix window
+<
+Or use the quickfix window mappings:
+    <CR>        Jump to item under cursor
+    ]q          Next quickfix item (if vim-unimpaired is installed)
+    [q          Previous quickfix item
+
+------------------------------------------------------------------------------
+3.1 FuzzyGrep                                                    *:FuzzyGrep*
+
+Search for patterns in files using ripgrep.
+
+Syntax: >
+    :FuzzyGrep [pattern] [rg options]
+<
+If no arguments are provided, you will be prompted to enter a pattern.
+
+The command uses ripgrep with these default flags:
+  --vimgrep       Output in vim-compatible format (file:line:col:text)
+  --smart-case    Case insensitive unless pattern contains uppercase
+
+Examples: >
+    :FuzzyGrep TODO
+    :FuzzyGrep function.*init
+    :FuzzyGrep -t lua require
+    :FuzzyGrep -i error --type-add 'config:*.{yml,yaml}' -t config
+    :FuzzyGrep "TODO|FIXME" -g '*.js'
+<
+Common ripgrep options:
+    -t TYPE             Search only files of TYPE (lua, py, js, etc.)
+    -T TYPE             Exclude files of TYPE
+    -g GLOB             Include/exclude files matching glob pattern
+    -i                  Case insensitive search
+    -w                  Match whole words only
+    -F                  Treat pattern as literal string (not regex)
+    --hidden            Search hidden files
+    --no-ignore         Don't respect .gitignore
+
+See `rg --help` for full options.
+
+------------------------------------------------------------------------------
+3.2 FuzzyFiles                                                  *:FuzzyFiles*
+
+Find files using fd (fast alternative to find).
+
+Syntax: >
+    :FuzzyFiles[!] [fd arguments]
+<
+If no arguments are provided, you will be prompted to enter search criteria.
+
+The [!] bang modifier makes FuzzyFiles open a single result directly instead
+of showing the quickfix list.
+
+Default behavior:
+  • Searches from current working directory
+  • Respects .gitignore
+  • Includes hidden files
+  • Excludes .git directory
+  • Limits results to 600 files (configurable via |fuzzy-configuration|)
+
+Special argument:
+    --noignore          Include files ignored by .gitignore
+
+Examples: >
+    :FuzzyFiles
+    :FuzzyFiles! init.lua
+    :FuzzyFiles .lua$ -e .test.lua
+    :FuzzyFiles --noignore config
+    :FuzzyFiles -t f -e go
+    :FuzzyFiles . --max-depth 2
+<
+Common fd options:
+    -e EXT              Filter by extension (e.g., -e lua -e vim)
+    -t TYPE             Filter by type: f=file, d=directory, l=symlink
+    -E PATTERN          Exclude pattern
+    --max-depth N       Limit search depth
+    -H                  Include hidden files (enabled by default)
+    --no-ignore         Don't respect .gitignore (use --noignore instead)
+
+See `fd --help` for full options.
+
+Note: The result limit prevents overwhelming the quickfix list with thousands
+of files. If results are truncated, you'll see a notification. Use more
+specific search patterns or increase |g:fuzzy_file_match_limit|.
+
+------------------------------------------------------------------------------
+3.3 FuzzyBuffers                                              *:FuzzyBuffers*
+
+List all open buffers in the quickfix list.
+
+Syntax: >
+    :FuzzyBuffers[!]
+<
+Without [!]: Shows current listed buffers as a snapshot
+With [!]:    Enables live updates - quickfix list refreshes when buffers
+            are added/deleted/wiped out
+
+Only includes "real" listed buffers (excludes quickfix, help, terminal, etc.)
+
+Buffer entries show:
+    [bufnr] filename or [No Name]
+
+Examples: >
+    :FuzzyBuffers           " One-time buffer list
+    :FuzzyBuffers!          " Live-updating buffer list
+<
+Use case for live mode:
+  • Keep quickfix window open while working
+  • See buffer list update automatically
+  • Quickly switch between recently opened files
+
+------------------------------------------------------------------------------
+3.4 FuzzyList                                                    *:FuzzyList*
+
+Browse and select from quickfix list history.
+
+Syntax: >
+    :FuzzyList
+<
+Shows all quickfix lists in the history stack (up to 'chistory' items),
+excluding the FuzzyList quickfix list itself.
+
+Display format: >
+    1: [FuzzyGrep] TODO (45 items)
+    2: FuzzyFiles (128 items)
+    3: Quickfix 3 (12 items)
+<
+When prompted, enter the number of the list you want to restore.
+
+Examples: >
+    :FuzzyList
+    Select Quickfix: 2
+<
+Quickfix history:
+Each command creates a new quickfix list. Use :colder and :cnewer to navigate
+manually, or use :FuzzyList for a visual selector.
+
+==============================================================================
+4. CONFIGURATION                                        *fuzzy-configuration*
+
+Setup the plugin in your init.lua: >
+    require('fuzzy').setup({
+        open_single_result = false,   -- Open single result directly
+        file_match_limit = 600,        -- Max files to show in FuzzyFiles
+    })
+<
+------------------------------------------------------------------------------
+                                                 *g:fuzzy_open_single_result*
+open_single_result~
+    Type: boolean
+    Default: false
+
+When enabled, :FuzzyFiles will automatically open a single match instead of
+showing the quickfix list. This applies to all :FuzzyFiles invocations. Use
+:FuzzyFiles! to override on a per-command basis.
+
+Example: >
+    require('fuzzy').setup({ open_single_result = true })
+<
+------------------------------------------------------------------------------
+                                                  *g:fuzzy_file_match_limit*
+file_match_limit~
+    Type: number
+    Default: 600
+
+Maximum number of file results to display in quickfix list. This prevents
+performance issues when thousands of files match. Results beyond this limit
+are discarded, and you'll see a notification.
+
+Example: >
+    require('fuzzy').setup({ file_match_limit = 1000 })
+<
+==============================================================================
+5. FUNCTIONS                                                *fuzzy-functions*
+
+The module exposes Lua functions for programmatic use.
+
+------------------------------------------------------------------------------
+                                                               *fuzzy.setup()*
+fuzzy.setup({opts})
+    Initialize the fuzzy plugin with optional configuration.
+
+    Parameters: ~
+        {opts}  (table|nil) Configuration options (see |fuzzy-configuration|)
+
+    Example: >
+        require('fuzzy').setup({
+            file_match_limit = 1000,
+        })
+<
+------------------------------------------------------------------------------
+                                                                *fuzzy.grep()*
+fuzzy.grep({args})
+    Programmatically run a grep search.
+
+    Parameters: ~
+        {args}  (table|string) Ripgrep arguments (pattern and options)
+
+    Example: >
+        local fuzzy = require('fuzzy')
+
+        -- Grep for word under cursor
+        local word = vim.fn.expand('<cword>')
+        fuzzy.grep({ word })
+
+        -- Grep with options
+        fuzzy.grep({ 'TODO', '-t', 'lua' })
+
+        -- Literal search
+        fuzzy.grep({ '-F', 'function(args)' })
+<
+==============================================================================
+6. EXAMPLES                                                  *fuzzy-examples*
+
+Keybinding setup~
+>
+    local fuzzy = require('fuzzy')
+    fuzzy.setup()
+
+    -- Helper for grepping current word
+    local function grep_word(literal)
+        local word = vim.fn.expand(literal and '<cWORD>' or '<cword>')
+        if word ~= '' then
+            local args = literal and { '-F', word } or { word }
+            fuzzy.grep(args)
+        end
+    end
+
+    -- Search help documentation
+    local function grep_help()
+        local pattern = vim.fn.input('Search help docs: ')
+        if vim.trim(pattern) ~= '' then
+            local help_dirs = vim.api.nvim_get_runtime_file('doc/', true)
+            local args = { pattern, '--type-add', 'help:*.{txt,md}',
+                          '--type', 'help' }
+            vim.list_extend(args, help_dirs)
+            fuzzy.grep(args)
+        end
+    end
+
+    -- Keybindings
+    vim.keymap.set('n', '<leader>/', '<CMD>FuzzyGrep<CR>',
+        { desc = 'Fuzzy grep' })
+    vim.keymap.set('n', '<leader>fw', grep_word,
+        { desc = 'Grep word under cursor' })
+    vim.keymap.set('n', '<leader>fW', function() grep_word(true) end,
+        { desc = 'Grep WORD under cursor (literal)' })
+    vim.keymap.set('n', '<leader>ff', '<CMD>FuzzyFiles!<CR>',
+        { desc = 'Fuzzy find files' })
+    vim.keymap.set('n', '<leader>fb', '<CMD>FuzzyBuffers<CR>',
+        { desc = 'List buffers' })
+    vim.keymap.set('n', '<leader>fh', grep_help,
+        { desc = 'Search help docs' })
+    vim.keymap.set('n', '<leader>fl', '<CMD>FuzzyList<CR>',
+        { desc = 'Quickfix history' })
+<
+Search specific file types~
+>
+    :FuzzyGrep TODO -t lua           " Lua files only
+    :FuzzyGrep error -t py -t js     " Python and JavaScript
+    :FuzzyGrep config -T md          " Exclude markdown files
+<
+Find files with complex patterns~
+>
+    :FuzzyFiles test.*\.lua$         " Test files
+    :FuzzyFiles -e vim -e lua        " Vim and Lua files
+    :FuzzyFiles component -t d       " Directories named 'component'
+    :FuzzyFiles --noignore node_modules  " Search in gitignored dirs
+<
+Workflow integration~
+>
+    " 1. Grep for TODOs in Lua files
+    :FuzzyGrep TODO -t lua
+
+    " 2. Jump through matches with ]q and [q
+    " 3. Fix TODOs
+
+    " 4. Access previous search from history
+    :FuzzyList
+
+    " 5. Navigate between searches
+    :colder
+    :cnewer
+<
+==============================================================================
+vim:tw=78:ts=8:ft=help:norl:
