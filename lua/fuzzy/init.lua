@@ -1,6 +1,5 @@
 -- LICENSE: MIT
 -- by @anoopkcn
--- https://github.com/anoopkcn/dotfiles/blob/main/nvim/lua/fuzzy/init.lua
 -- Description: Neovim fuzzy helpers for grep, files, and buffers that feed the quickfix list.
 -- Provides commands:
 --   :FuzzyGrep [pattern] [rg options] - Runs ripgrep with the given pattern and populates the quickfix list with results.
