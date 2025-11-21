@@ -593,6 +593,30 @@ function M.setup(user_opts)
             local prefer_direct = (config.open_single_result or opts.bang) and count == 1
 
             if prefer_direct and first_file then
+                -- If we're in a quickfix window, switch to a normal window first
+                local wininfo = vim.fn.getwininfo(vim.fn.win_getid())[1]
+                if wininfo and wininfo.quickfix == 1 then
+                    -- Find a non-quickfix window to open the file in
+                    local found_normal_win = false
+                    for _, win in ipairs(vim.api.nvim_list_wins()) do
+                        local info = vim.fn.getwininfo(win)[1]
+                        if info and info.quickfix == 0 then
+                            vim.api.nvim_set_current_win(win)
+                            found_normal_win = true
+                            break
+                        end
+                    end
+                    -- If no normal window exists, create a split above quickfix
+                    if not found_normal_win then
+                        vim.cmd.wincmd("k") -- Try to go up
+                        -- If still in quickfix, create a new split
+                        local still_qf = vim.fn.getwininfo(vim.fn.win_getid())[1].quickfix == 1
+                        if still_qf then
+                            vim.cmd.split()
+                        end
+                    end
+                end
+
                 local ok, err = pcall(vim.cmd.edit, vim.fn.fnameescape(first_file))
                 if not ok then
                     vim.notify(string.format("FuzzyFiles: failed to open '%s': %s", first_file, err),
