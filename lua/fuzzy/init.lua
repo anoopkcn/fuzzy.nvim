@@ -1,13 +1,12 @@
 -- LICENSE: MIT
 -- by @anoopkcn
 -- https://github.com/anoopkcn/dotfiles/blob/main/nvim/lua/fuzzy/init.lua
--- Description: Neovim fuzzy helpers for grep, files, buffers and help that feed the quickfix list.
+-- Description: Neovim fuzzy helpers for grep, files, and buffers that feed the quickfix list.
 -- Provides commands:
 --   :FuzzyGrep [pattern] [rg options] - Runs ripgrep with the given pattern and populates the quickfix list with results.
 --   :FuzzyFiles[!] [fd arguments]     - Runs fd with the supplied arguments (use --noignore to include gitignored files).
 --                                       Add ! to open a single match directly.
 --   :FuzzyBuffers[!]                  - Lists all listed buffers in the quickfix list (! enables live updates).
---   :FuzzyHelp [pattern]              - Fuzzy search Vim help tags and documentation.
 --   :FuzzyList                        - Pick a quickfix list from history (excluding the selector itself) and open it.
 
 local FUZZY_CONTEXT_KEY = "fuzzy_owner"
@@ -22,27 +21,6 @@ local quickfix_ids = {}
 local fuzzy_buffers_autocmd_group = vim.api.nvim_create_augroup("FuzzyBuffersLive", { clear = true })
 local fuzzy_buffers_updating = false
 
--- Setup autocmd to handle help tag opening from quickfix
-local fuzzy_help_group = vim.api.nvim_create_augroup("FuzzyHelp", { clear = true })
-vim.api.nvim_create_autocmd("FileType", {
-    group = fuzzy_help_group,
-    pattern = "qf",
-    callback = function(args)
-        local qf_info = vim.fn.getqflist({ title = 1, context = 1 })
-        if qf_info.context and qf_info.context.command == "FuzzyHelp" then
-            -- Map Enter to open help instead of trying to edit
-            vim.keymap.set("n", "<CR>", function()
-                local idx = vim.fn.line(".")
-                local qf_items = vim.fn.getqflist()
-                local item = qf_items[idx]
-                if item and item.text and item.text ~= "" then
-                    vim.cmd.cclose()
-                    vim.cmd({ cmd = "help", args = { item.text } })
-                end
-            end, { buffer = args.buf, desc = "Open help tag" })
-        end
-    end,
-})
 
 local function get_file_match_limit()
     local limit = tonumber(config.file_match_limit) or DEFAULT_CONFIG.file_match_limit
@@ -288,7 +266,7 @@ local function system_lines(command, callback)
     if not handle then
         vim.schedule(function()
             vim.notify(string.format("Fuzzy: failed to start command: %s", err or "unknown"), vim.log.levels.ERROR)
-            callback({ err or "failed to execute command" }, 1)
+            callback({ err or "failed to execute command" }, 1, {})
         end)
     end
 end
@@ -342,7 +320,7 @@ end
 local function run_fuzzy_grep(raw_args)
     run_rg(raw_args, function(lines, status, err_lines)
         if status > 1 then
-            local message_lines = (#err_lines > 0) and err_lines or lines
+            local message_lines = (err_lines and #err_lines > 0) and err_lines or lines
             local message = table.concat(message_lines, "\n")
             vim.notify(message ~= "" and message or "FuzzyGrep: ripgrep failed.", vim.log.levels.ERROR)
             return
@@ -358,44 +336,6 @@ local function prompt_input(prompt, default)
     local ok, result = pcall(vim.fn.input, prompt, default or "")
     vim.fn.inputrestore()
     return ok and vim.trim(result) or ""
-end
-
--- FuzzyHelp: Search Vim help tags
-local function get_help_tags(pattern)
-    -- Get all help tags
-    local tags = vim.fn.getcompletion(pattern or "", "help")
-    return tags
-end
-
-local function set_quickfix_help_tags(tags, pattern)
-    local items = {}
-    for _, tag in ipairs(tags) do
-        items[#items + 1] = {
-            text = tag,
-            user_data = { help_tag = tag },
-        }
-    end
-
-    local title = pattern and pattern ~= ""
-        and string.format("FuzzyHelp: %s", pattern)
-        or "FuzzyHelp"
-
-    return update_fuzzy_quickfix(items, {
-        title = title,
-        command = "FuzzyHelp",
-    })
-end
-
-local function run_fuzzy_help(pattern)
-    local tags = get_help_tags(pattern)
-
-    if #tags == 0 then
-        vim.notify("FuzzyHelp: no help tags found.", vim.log.levels.INFO)
-        return
-    end
-
-    local count = set_quickfix_help_tags(tags, pattern)
-    open_quickfix_when_results(count, "FuzzyHelp: no help tags matched.")
 end
 
 local HAS_FD = vim.fn.executable("fd") == 1
@@ -582,7 +522,7 @@ function M.setup(user_opts)
 
         run_fd(raw_args, function(files, status, truncated, match_limit, err_lines)
             if status ~= 0 then
-                local message_lines = (#err_lines > 0) and err_lines or files
+                local message_lines = (err_lines and #err_lines > 0) and err_lines or files
                 local message = table.concat(message_lines, "\n")
                 vim.notify(message ~= "" and message or "FuzzyFiles: failed to list files.", vim.log.levels.ERROR)
                 return
@@ -594,12 +534,14 @@ function M.setup(user_opts)
 
             if prefer_direct and first_file then
                 -- If we're in a quickfix window, switch to a normal window first
-                local wininfo = vim.fn.getwininfo(vim.fn.win_getid())[1]
+                local wininfo_list = vim.fn.getwininfo(vim.fn.win_getid())
+                local wininfo = wininfo_list and wininfo_list[1]
                 if wininfo and wininfo.quickfix == 1 then
                     -- Find a non-quickfix window to open the file in
                     local found_normal_win = false
                     for _, win in ipairs(vim.api.nvim_list_wins()) do
-                        local info = vim.fn.getwininfo(win)[1]
+                        local info_list = vim.fn.getwininfo(win)
+                        local info = info_list and info_list[1]
                         if info and info.quickfix == 0 then
                             vim.api.nvim_set_current_win(win)
                             found_normal_win = true
@@ -610,7 +552,9 @@ function M.setup(user_opts)
                     if not found_normal_win then
                         vim.cmd.wincmd("k") -- Try to go up
                         -- If still in quickfix, create a new split
-                        local still_qf = vim.fn.getwininfo(vim.fn.win_getid())[1].quickfix == 1
+                        local check_list = vim.fn.getwininfo(vim.fn.win_getid())
+                        local check_info = check_list and check_list[1]
+                        local still_qf = check_info and check_info.quickfix == 1
                         if still_qf then
                             vim.cmd.split()
                         end
@@ -661,22 +605,6 @@ function M.setup(user_opts)
         select_quickfix_from_history()
     end, {
         desc = "Pick a quickfix list from history and open it",
-    })
-
-    vim.api.nvim_create_user_command("FuzzyHelp", function(opts)
-        local pattern = vim.trim(opts.args or "")
-        if pattern == "" then
-            pattern = prompt_input("FuzzyHelp: ", "")
-            if pattern == "" then
-                -- Show all help tags if no pattern
-                pattern = ""
-            end
-        end
-        run_fuzzy_help(pattern)
-    end, {
-        nargs = "*",
-        complete = "help",
-        desc = "Fuzzy search Vim help tags and documentation",
     })
 end
 
