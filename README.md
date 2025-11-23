@@ -19,23 +19,6 @@ Unlike heavier fuzzy finder plugins, fuzzy.nvim leverages external tools (ripgre
 - [ripgrep](https://github.com/BurntSushi/ripgrep) (rg) - for `:FuzzyGrep` (fallback: `grep -R`)
 - [fd](https://github.com/sharkdp/fd) - for `:FuzzyFiles` (fallback: `find`)
 
-### Installation of External Tools
-
-**macOS:**
-```bash
-brew install ripgrep fd
-```
-
-**Ubuntu/Debian:**
-```bash
-apt install ripgrep fd-find
-```
-
-**Arch Linux:**
-```bash
-pacman -S ripgrep fd
-```
-
 ## Installation
 
 ### Using neovim native [vim.pack](https://neovim.io/doc/user/pack.html#vim.pack)
