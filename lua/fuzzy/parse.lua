@@ -76,12 +76,25 @@ end
 
 local function parse_vimgrep_line(line)
     local filename, lnum, col, text = line:match("^(.-):(%d+):(%d+):(.*)$")
-    return filename and {
-        filename = filename,
-        lnum = tonumber(lnum, 10),
-        col = tonumber(col, 10),
-        text = text,
-    }
+    if filename then
+        return {
+            filename = filename,
+            lnum = tonumber(lnum, 10),
+            col = tonumber(col, 10),
+            text = text,
+        }
+    end
+
+    -- Fallback for grep output without column info: file:line:text
+    local filename2, lnum2, text2 = line:match("^(.-):(%d+):(.*)$")
+    if filename2 then
+        return {
+            filename = filename2,
+            lnum = tonumber(lnum2, 10),
+            col = 1,
+            text = text2,
+        }
+    end
 end
 
 return {

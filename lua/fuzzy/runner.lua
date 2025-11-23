@@ -16,61 +16,85 @@ local function has_fd_custom_limit(args)
     return false
 end
 
-function M.run_rg(raw_args, callback)
-    if not HAS_RG then
-        vim.schedule(function()
-            callback({ "FuzzyGrep: 'rg' executable not found." }, 2)
-        end)
-        return
-    end
-
+-- ripgrep runner ----------------------------
+local function run_ripgrep(raw_args, callback)
     local args = { "rg", "--vimgrep", "--smart-case", "--color=never" }
     vim.list_extend(args, parse.normalize_args(raw_args))
     system.system_lines(args, callback)
 end
 
-function M.run_fd(raw_args, callback)
-    local extra_args = parse.normalize_args(raw_args)
+local function run_grep_fallback(raw_args, callback)
+    local args = parse.normalize_args(raw_args)
+    local cmd = {
+        "grep", "-R", "-nH", "--color=never",
+        "--binary-files=without-match",
+        "--exclude-dir=.git",
+        "--exclude-dir=node_modules",
+    }
+    vim.list_extend(cmd, args)
 
-    local include_vcs = vim.tbl_contains(extra_args, "--noignore")
-    extra_args = vim.tbl_filter(function(arg) return arg ~= "--noignore" end, extra_args)
+    system.system_lines(cmd, function(lines, status, err_lines)
+        callback(lines, status, err_lines)
+    end)
+end
 
-    local custom_limit = has_fd_custom_limit(extra_args)
-    local match_limit = config.get_file_match_limit()
+function M.run_rg(raw_args, callback)
+    if HAS_RG then
+        return run_ripgrep(raw_args, callback)
+    end
+    return run_grep_fallback(raw_args, callback)
+end
+
+-- fd / find runner ---------------------------------------------------------
+local function run_fd_binary(extra_args, include_vcs, custom_limit, match_limit, callback)
     local sentinel_limit = match_limit + 1
+    local args = {
+        "fd", "--hidden", "--follow", "--color", "never",
+        "--exclude", ".git",
+    }
 
-    if HAS_FD then
-        local args = {
-            "fd", "--hidden", "--follow", "--color", "never",
-            "--exclude", ".git",
-        }
-
-        if include_vcs then
-            args[#args + 1] = "--no-ignore-vcs"
-        end
-
-        if not custom_limit then
-            vim.list_extend(args, { "--max-results", tostring(sentinel_limit) })
-        end
-
-        vim.list_extend(args, extra_args)
-
-        system.system_lines(args, function(lines, status, err_lines)
-            local truncated = status == 0 and not custom_limit and #lines == sentinel_limit
-            if truncated then
-                table.remove(lines)
-            end
-            callback(lines, status, truncated, match_limit, err_lines)
-        end)
-        return
+    if include_vcs then
+        args[#args + 1] = "--no-ignore-vcs"
     end
 
-    local find_args = {}
+    if not custom_limit then
+        vim.list_extend(args, { "--max-results", tostring(sentinel_limit) })
+    end
+
+    vim.list_extend(args, extra_args)
+
+    system.system_lines(args, function(lines, status, err_lines)
+        local truncated = status == 0 and not custom_limit and #lines == sentinel_limit
+        if truncated then
+            table.remove(lines)
+        end
+        callback(lines, status, truncated, match_limit, err_lines)
+    end)
+end
+
+local function clamp_match_limit(lines, match_limit, custom_limit)
+    local truncated = false
+    local results = lines
+
+    if not custom_limit and match_limit and #lines > match_limit then
+        truncated = true
+        results = {}
+        for i = 1, match_limit do
+            results[i] = lines[i]
+        end
+    end
+
+    return results, truncated
+end
+
+local function run_find_fallback(extra_args, include_vcs, custom_limit, match_limit, callback)
     local search_root = "."
     if extra_args[1] and extra_args[1]:sub(1, 1) ~= "-" and vim.fn.isdirectory(extra_args[1]) == 1 then
         search_root = table.remove(extra_args, 1)
     end
+
     local name_pattern = extra_args[1]
+    local find_args
 
     if not include_vcs then
         find_args = { "find", search_root, "-path", "*/.git/*", "-prune", "-o", "-type", "f" }
@@ -85,19 +109,24 @@ function M.run_fd(raw_args, callback)
     find_args[#find_args + 1] = "-print"
 
     system.system_lines(find_args, function(lines, status, err_lines)
-        local truncated = false
-        local results = lines
-
-        if not custom_limit and match_limit and #lines > match_limit then
-            truncated = true
-            results = {}
-            for i = 1, match_limit do
-                results[i] = lines[i]
-            end
-        end
-
+        local results, truncated = clamp_match_limit(lines, match_limit, custom_limit)
         callback(results, status, truncated, match_limit, err_lines)
     end)
+end
+
+function M.run_fd(raw_args, callback)
+    local extra_args = parse.normalize_args(raw_args)
+
+    local include_vcs = vim.tbl_contains(extra_args, "--noignore")
+    extra_args = vim.tbl_filter(function(arg) return arg ~= "--noignore" end, extra_args)
+
+    local custom_limit = has_fd_custom_limit(extra_args)
+    local match_limit = config.get_file_match_limit()
+
+    if HAS_FD then
+        return run_fd_binary(extra_args, include_vcs, custom_limit, match_limit, callback)
+    end
+    return run_find_fallback(extra_args, include_vcs, custom_limit, match_limit, callback)
 end
 
 M.has_fd_custom_limit = has_fd_custom_limit
