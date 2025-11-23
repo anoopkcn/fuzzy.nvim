@@ -65,6 +65,8 @@ Or use the quickfix window mappings:
 
 Search for patterns in files using ripgrep (falls back to `grep -R` when rg is unavailable).
 
+Alias: :FG
+
 Syntax: >
     :FuzzyGrep[!] [pattern] [rg options]
 <
@@ -101,6 +103,8 @@ See `rg --help` for full options.
 3.2 FuzzyFiles                                                  *:FuzzyFiles*
 
 Find files using fd (fast alternative to find; falls back to `find` when fd is unavailable).
+
+Alias: :FF
 
 Syntax: >
     :FuzzyFiles[!] [fd arguments]
@@ -147,6 +151,8 @@ specific search patterns or increase |g:fuzzy_file_match_limit|.
 
 List all open buffers in the quickfix list.
 
+Alias: :FB
+
 Syntax: >
     :FuzzyBuffers[!]
 <
@@ -172,6 +178,8 @@ Use case for live mode:
 3.4 FuzzyList                                                    *:FuzzyList*
 
 Browse and select from quickfix list history.
+
+Alias: :FL
 
 Syntax: >
     :FuzzyList

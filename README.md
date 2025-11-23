@@ -83,6 +83,8 @@ require('fuzzy').setup({
 
 Search for patterns in files using ripgrep (falls back to `grep -R` when rg is unavailable).
 
+Aliases: `:FG`
+
 With `!`: Collapse multiple matches on the same line into a single quickfix entry (text stays unchanged; a notification tells you how many lines were deduped).
 
 **Examples:**
@@ -109,6 +111,8 @@ With `!`: Collapse multiple matches on the same line into a single quickfix entr
 
 Find files using fd (falls back to `find` when fd is unavailable).
 
+Aliases: `:FF`
+
 **Examples:**
 ```vim
 :FuzzyFiles
@@ -134,6 +138,8 @@ The `!` modifier makes FuzzyFiles open a single result directly.
 
 List all open buffers in the quickfix list.
 
+Aliases: `:FB`
+
 **Examples:**
 ```vim
 :FuzzyBuffers    " One-time buffer list
@@ -146,6 +152,8 @@ With `!`: Enables live updates - quickfix list refreshes when buffers are added/
 ### `:FuzzyList`
 
 Browse and select from quickfix list history.
+
+Aliases: `:FL`
 
 **Example:**
 ```vim
