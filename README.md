@@ -9,15 +9,15 @@ A fast and lightweight Neovim plugin for fuzzy finding files, grepping code, and
 - **Buffer list management** with optional live updates
 - **Quickfix history navigation** for easy access to previous searches
 - **Single-file direct opening** for instant file access
-- **Full control** over search arguments via ripgrep and fd options
+- **Full control** over search arguments via ripgrep/fd options with built-in fallbacks
 
 Unlike heavier fuzzy finder plugins, fuzzy.nvim leverages external tools (ripgrep and fd) and native Vim functionality for maximum performance.
 
 ## Requirements
 
 - Neovim 0.12+
-- [ripgrep](https://github.com/BurntSushi/ripgrep) (rg) - for `:FuzzyGrep`
-- [fd](https://github.com/sharkdp/fd) - for `:FuzzyFiles`
+- [ripgrep](https://github.com/BurntSushi/ripgrep) (rg) - for `:FuzzyGrep` (fallback: `grep -R`)
+- [fd](https://github.com/sharkdp/fd) - for `:FuzzyFiles` (fallback: `find`)
 
 ### Installation of External Tools
 
@@ -98,7 +98,7 @@ require('fuzzy').setup({
 
 ### `:FuzzyGrep [pattern] [rg options]`
 
-Search for patterns in files using ripgrep.
+Search for patterns in files using ripgrep (falls back to `grep -R` when rg is unavailable).
 
 **Examples:**
 ```vim
@@ -121,7 +121,7 @@ Search for patterns in files using ripgrep.
 
 ### `:FuzzyFiles[!] [fd arguments]`
 
-Find files using fd.
+Find files using fd (falls back to `find` when fd is unavailable).
 
 **Examples:**
 ```vim

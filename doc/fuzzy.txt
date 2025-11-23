@@ -37,8 +37,8 @@ Features:
 2. REQUIREMENTS                                          *fuzzy-requirements*
 
 Required external programs:
-  • ripgrep (rg) - for :FuzzyGrep
-  • fd - for :FuzzyFiles
+  • ripgrep (rg) - for :FuzzyGrep (fallback: `grep -R` when rg is unavailable)
+  • fd - for :FuzzyFiles (fallback: `find` when fd is unavailable)
 
 Install via your package manager:
     macOS:    brew install ripgrep fd
@@ -63,7 +63,7 @@ Or use the quickfix window mappings:
 ------------------------------------------------------------------------------
 3.1 FuzzyGrep                                                    *:FuzzyGrep*
 
-Search for patterns in files using ripgrep.
+Search for patterns in files using ripgrep (falls back to `grep -R` when rg is unavailable).
 
 Syntax: >
     :FuzzyGrep [pattern] [rg options]
@@ -96,7 +96,7 @@ See `rg --help` for full options.
 ------------------------------------------------------------------------------
 3.2 FuzzyFiles                                                  *:FuzzyFiles*
 
-Find files using fd (fast alternative to find).
+Find files using fd (fast alternative to find; falls back to `find` when fd is unavailable).
 
 Syntax: >
     :FuzzyFiles[!] [fd arguments]
