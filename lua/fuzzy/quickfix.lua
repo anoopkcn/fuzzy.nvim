@@ -110,6 +110,25 @@ local function format_quickfix_entry(item)
     return string.format("%s%s (%d items)", prefix, item.title, item.size or 0)
 end
 
+local function is_default_ui_select()
+    local info = debug.getinfo(vim.ui.select, "S")
+    if not info or not info.source then
+        return false
+    end
+    return info.source:match("vim[/\\]ui%.lua$") or info.source:match("vim[/\\]ui/select%.lua$")
+end
+
+local function prompt_quickfix_choice(lists, handle_choice)
+    local choices = {}
+    for idx, item in ipairs(lists) do
+        choices[#choices + 1] = string.format("%d: %s", idx, format_quickfix_entry(item))
+    end
+    choices[#choices + 1] = "Select Quickfix:"
+
+    local choice_idx = vim.fn.inputlist(choices)
+    handle_choice(lists[choice_idx])
+end
+
 local function select_quickfix_from_history()
     local lists = collect_quickfix_lists("FuzzyList")
     if #lists == 0 then
@@ -125,7 +144,7 @@ local function select_quickfix_from_history()
         vim.cmd.copen()
     end
 
-    local ok = pcall(vim.ui.select, lists, {
+    local ok = not is_default_ui_select() and pcall(vim.ui.select, lists, {
         prompt = "Select Quickfix",
         format_item = format_quickfix_entry,
     }, handle_choice)
@@ -134,16 +153,7 @@ local function select_quickfix_from_history()
         return
     end
 
-    local output_lines = {}
-    for idx, item in ipairs(lists) do
-        output_lines[#output_lines + 1] = string.format("%d: %s", idx, format_quickfix_entry(item))
-    end
-
-    local echo_chunks = vim.tbl_map(function(line) return { line .. "\n", "None" } end, output_lines)
-    vim.api.nvim_echo(echo_chunks, false, {})
-
-    local choice_idx = tonumber(vim.fn.input("Select Quickfix: "), 10)
-    handle_choice(choice_idx and lists[choice_idx] or nil)
+    prompt_quickfix_choice(lists, handle_choice)
 end
 
 local M = {}
