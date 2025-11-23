@@ -79,13 +79,16 @@ require('fuzzy').setup({
 
 ## Commands
 
-### `:FuzzyGrep [pattern] [rg options]`
+### `:FuzzyGrep[!] [pattern] [rg options]`
 
 Search for patterns in files using ripgrep (falls back to `grep -R` when rg is unavailable).
+
+With `!`: Collapse multiple matches on the same line into a single quickfix entry (text shows `(xN matches)`).
 
 **Examples:**
 ```vim
 :FuzzyGrep TODO
+:FuzzyGrep! TODO
 :FuzzyGrep function.*init
 :FuzzyGrep -t lua require
 :FuzzyGrep -i error --type-add 'config:*.{yml,yaml}' -t config
@@ -228,6 +231,7 @@ Programmatically run a grep search.
 
 **Parameters:**
 - `args` (table|string) - Ripgrep arguments (pattern and options)
+- `dedupe_lines` (boolean|nil) - When true, collapse multiple matches on the same line into one entry (same as `:FuzzyGrep!`)
 
 **Example:**
 ```lua
@@ -236,6 +240,9 @@ local fuzzy = require('fuzzy')
 -- Grep for word under cursor
 local word = vim.fn.expand('<cword>')
 fuzzy.grep({ word })
+
+-- Grep and collapse duplicate line matches
+fuzzy.grep({ 'TODO' }, true)
 
 -- Grep with options
 fuzzy.grep({ 'TODO', '-t', 'lua' })

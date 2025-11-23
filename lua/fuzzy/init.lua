@@ -28,11 +28,12 @@ function M.setup(user_opts)
                 return
             end
         end
-        grep.run(args)
+        grep.run(args, opts.bang)
     end, {
         nargs = "*",
         complete = "file",
         desc = "Run ripgrep and open quickfix list with matches",
+        bang = true,
     })
 
     vim.api.nvim_create_user_command("FuzzyFiles", function(opts)
@@ -65,8 +66,8 @@ function M.setup(user_opts)
     })
 end
 
-function M.grep(args)
-    grep.run(args)
+function M.grep(args, dedupe_lines)
+    grep.run(args, dedupe_lines)
 end
 
 return M

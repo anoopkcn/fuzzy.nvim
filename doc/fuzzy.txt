@@ -66,13 +66,16 @@ Or use the quickfix window mappings:
 Search for patterns in files using ripgrep (falls back to `grep -R` when rg is unavailable).
 
 Syntax: >
-    :FuzzyGrep [pattern] [rg options]
+    :FuzzyGrep[!] [pattern] [rg options]
 <
 If no arguments are provided, you will be prompted to enter a pattern.
 
 The command uses ripgrep with these default flags:
   --vimgrep       Output in vim-compatible format (file:line:col:text)
   --smart-case    Case insensitive unless pattern contains uppercase
+
+With [!]: Multiple matches on the same line are collapsed into a single quickfix
+entry (the text shows "(xN matches)").
 
 Examples: >
     :FuzzyGrep TODO
