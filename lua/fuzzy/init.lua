@@ -72,6 +72,7 @@ function M.setup(user_opts)
         nargs = "*",
         desc = "Fuzzy find files using fd (--noignore to include gitignored files, add ! to open a single match)",
         bang = true,
+        complete = "file",
     }
     vim.api.nvim_create_user_command("FuzzyFiles", run_fuzzy_files, files_opts)
     create_alias("FF", run_fuzzy_files, files_opts)
