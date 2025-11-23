@@ -2,6 +2,31 @@ local config = require("fuzzy.config")
 local quickfix = require("fuzzy.quickfix")
 local runner = require("fuzzy.runner")
 
+local uv = vim.uv or vim.loop
+
+local function normalize_path(path)
+    if not path or path == "" then
+        return nil
+    end
+    local real = uv.fs_realpath(path)
+    return real or vim.fs.normalize(path)
+end
+
+local function bufnr_for_path(path)
+    local normalized = normalize_path(path)
+    if not normalized then
+        return nil
+    end
+    for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+        if vim.api.nvim_buf_is_loaded(buf) then
+            local name = vim.api.nvim_buf_get_name(buf)
+            if name ~= "" and normalize_path(name) == normalized then
+                return buf
+            end
+        end
+    end
+end
+
 local function is_quickfix_window(winid)
     local ok_buf, buf = pcall(vim.api.nvim_win_get_buf, winid)
     if not ok_buf then
@@ -59,10 +84,20 @@ local function open_single_file(first_file)
         end
     end
 
-    local ok, err = pcall(vim.cmd.edit, vim.fn.fnameescape(first_file))
-    if not ok then
-        vim.notify(string.format("FuzzyFiles: failed to open '%s': %s", first_file, err), vim.log.levels.ERROR)
-        return false
+    local existing_buf = bufnr_for_path(first_file)
+    if existing_buf and vim.api.nvim_buf_is_valid(existing_buf) then
+        local ok_buf = pcall(vim.api.nvim_set_current_buf, existing_buf)
+        if not ok_buf then
+            vim.notify(string.format("FuzzyFiles: failed to switch to buffer for '%s'.", first_file),
+                vim.log.levels.ERROR)
+            return false
+        end
+    else
+        local ok, err = pcall(vim.cmd.edit, vim.fn.fnameescape(first_file))
+        if not ok then
+            vim.notify(string.format("FuzzyFiles: failed to open '%s': %s", first_file, err), vim.log.levels.ERROR)
+            return false
+        end
     end
     return true
 end
