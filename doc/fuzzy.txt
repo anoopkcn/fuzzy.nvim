@@ -75,7 +75,8 @@ The command uses ripgrep with these default flags:
   --smart-case    Case insensitive unless pattern contains uppercase
 
 With [!]: Multiple matches on the same line are collapsed into a single quickfix
-entry (the text shows "(xN matches)").
+entry (line text stays the same; an info message reports how many lines were
+deduped).
 
 Examples: >
     :FuzzyGrep TODO

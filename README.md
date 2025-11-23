@@ -83,7 +83,7 @@ require('fuzzy').setup({
 
 Search for patterns in files using ripgrep (falls back to `grep -R` when rg is unavailable).
 
-With `!`: Collapse multiple matches on the same line into a single quickfix entry (text shows `(xN matches)`).
+With `!`: Collapse multiple matches on the same line into a single quickfix entry (text stays unchanged; a notification tells you how many lines were deduped).
 
 **Examples:**
 ```vim

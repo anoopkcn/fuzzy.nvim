@@ -4,6 +4,8 @@ local runner = require("fuzzy.runner")
 
 local function set_quickfix_from_lines(lines, dedupe_lines)
     local items = {}
+    local deduped_lines = 0
+
     if dedupe_lines then
         local seen, order = {}, {}
         for _, line in ipairs(lines) do
@@ -26,14 +28,12 @@ local function set_quickfix_from_lines(lines, dedupe_lines)
 
         for _, key in ipairs(order) do
             local entry = seen[key]
-            local count = entry.count or 1
-            local item = count > 1 and {
-                filename = entry.filename,
-                lnum = entry.lnum,
-                col = entry.col,
-                text = string.format("%s (x%d matches)", entry.text, count),
-            } or entry
-            items[#items + 1] = item
+            if entry.count and entry.count > 1 then
+                deduped_lines = deduped_lines + 1
+                entry.user_data = { fuzzy_match_count = entry.count }
+            end
+            entry.count = nil
+            items[#items + 1] = entry
         end
     else
         for _, line in ipairs(lines) do
@@ -43,10 +43,12 @@ local function set_quickfix_from_lines(lines, dedupe_lines)
             end
         end
     end
-    return quickfix.update(items, {
+
+    local count = quickfix.update(items, {
         title = "FuzzyGrep",
         command = "FuzzyGrep",
     })
+    return count, deduped_lines
 end
 
 local function run_fuzzy_grep(raw_args, dedupe_lines)
@@ -58,7 +60,10 @@ local function run_fuzzy_grep(raw_args, dedupe_lines)
             return
         end
 
-        local count = set_quickfix_from_lines(lines, dedupe_lines)
+        local count, deduped_lines = set_quickfix_from_lines(lines, dedupe_lines)
+        if dedupe_lines and deduped_lines > 0 then
+            vim.notify(string.format("FuzzyGrep!: collapsed duplicate matches on %d line%s.", deduped_lines, deduped_lines == 1 and "" or "s"), vim.log.levels.INFO)
+        end
         quickfix.open_quickfix_when_results(count, dedupe_lines and "FuzzyGrep!: no matches found." or "FuzzyGrep: no matches found.")
     end)
 end
