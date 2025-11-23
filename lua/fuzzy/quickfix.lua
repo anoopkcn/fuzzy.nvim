@@ -112,10 +112,15 @@ end
 
 local function is_default_ui_select()
     local info = debug.getinfo(vim.ui.select, "S")
-    if not info or not info.source then
+    if not info then
         return false
     end
-    return info.source:match("vim[/\\]ui%.lua$") or info.source:match("vim[/\\]ui/select%.lua$")
+    local src = info.source or info.short_src or ""
+    return src == "=[C]"
+        or src:match("vim[/\\]ui%.lua$")
+        or src:match("vim[/\\]_editor%.lua$")
+        or src:match("runtime[/\\]lua[/\\]vim[/\\]ui%.lua$")
+        or src:match("vim[/\\]ui/select%.lua$")
 end
 
 local function prompt_quickfix_choice(lists, handle_choice)
