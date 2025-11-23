@@ -152,6 +152,8 @@ Select Quickfix: 2
 
 Shows all quickfix lists in the history stack and allows you to restore a previous list.
 
+Uses `vim.ui.select` if configured (e.g. with dressing.nvim); falls back to a simple prompt otherwise.
+
 ## Quickfix Navigation
 
 All fuzzy commands populate the quickfix list. Use standard quickfix navigation:

@@ -186,6 +186,9 @@ Examples: >
     :FuzzyList
     Select Quickfix: 2
 <
+The picker uses |vim.ui.select()| when available (so dressing.nvim or similar
+UI replacements are honored) and falls back to a simple prompt otherwise.
+
 Quickfix history:
 Each command creates a new quickfix list. Use :colder and :cnewer to navigate
 manually, or use :FuzzyList for a visual selector.

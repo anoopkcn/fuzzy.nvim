@@ -4,6 +4,15 @@ local config = require("fuzzy.config")
 
 local HAS_RG = vim.fn.executable("rg") == 1
 local HAS_FD = vim.fn.executable("fd") == 1
+local uv = vim.uv or vim.loop
+
+local function is_directory(path)
+    if not path or path == "" then
+        return false
+    end
+    local stat = uv.fs_stat(path)
+    return stat and stat.type == "directory"
+end
 
 local M = {}
 
@@ -89,7 +98,7 @@ end
 
 local function run_find_fallback(extra_args, include_vcs, custom_limit, match_limit, callback)
     local search_root = "."
-    if extra_args[1] and extra_args[1]:sub(1, 1) ~= "-" and vim.fn.isdirectory(extra_args[1]) == 1 then
+    if extra_args[1] and extra_args[1]:sub(1, 1) ~= "-" and is_directory(extra_args[1]) then
         search_root = table.remove(extra_args, 1)
     end
 

@@ -2,6 +2,16 @@ local config = require("fuzzy.config")
 local quickfix = require("fuzzy.quickfix")
 local runner = require("fuzzy.runner")
 
+local function is_quickfix_window(winid)
+    local ok_buf, buf = pcall(vim.api.nvim_win_get_buf, winid)
+    if not ok_buf then
+        return false
+    end
+
+    local ok_type, buftype = pcall(vim.api.nvim_get_option_value, "buftype", { buf = buf })
+    return ok_type and buftype == "quickfix"
+end
+
 local function build_file_quickfix_items(files, match_limit)
     match_limit = match_limit or config.get_file_match_limit()
     local items = {}
@@ -31,28 +41,19 @@ end
 
 local function open_single_file(first_file)
     -- If we're in a quickfix window, switch to a normal window first
-    local wininfo_list = vim.fn.getwininfo(vim.fn.win_getid())
-    local wininfo = wininfo_list and wininfo_list[1]
-    if wininfo and wininfo.quickfix == 1 then
-        -- Find a non-quickfix window to open the file in
+    if is_quickfix_window(vim.api.nvim_get_current_win()) then
         local found_normal_win = false
-        for _, win in ipairs(vim.api.nvim_list_wins()) do
-            local info_list = vim.fn.getwininfo(win)
-            local info = info_list and info_list[1]
-            if info and info.quickfix == 0 then
+        for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+            if not is_quickfix_window(win) then
                 vim.api.nvim_set_current_win(win)
                 found_normal_win = true
                 break
             end
         end
-        -- If no normal window exists, create a split above quickfix
+
         if not found_normal_win then
-            vim.cmd.wincmd("k") -- Try to go up
-            -- If still in quickfix, create a new split
-            local check_list = vim.fn.getwininfo(vim.fn.win_getid())
-            local check_info = check_list and check_list[1]
-            local still_qf = check_info and check_info.quickfix == 1
-            if still_qf then
+            pcall(vim.cmd.wincmd, { args = { "k" } })
+            if is_quickfix_window(vim.api.nvim_get_current_win()) then
                 vim.cmd.split()
             end
         end

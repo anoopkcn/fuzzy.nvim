@@ -17,16 +17,26 @@ local function is_real_listed_buffer(bufnr)
     return ok_listed and listed
 end
 
+local function buffer_lnum(bufnr)
+    local ok_mark, mark = pcall(vim.api.nvim_buf_get_mark, bufnr, '"')
+    if ok_mark and mark and mark[1] and mark[1] > 0 then
+        return mark[1]
+    end
+    return 1
+end
+
 local function set_quickfix_buffers()
     local buffers = {}
-    for _, buf in ipairs(vim.fn.getbufinfo({ buflisted = 1 })) do
-        if is_real_listed_buffer(buf.bufnr) then
-            local name = buf.name ~= "" and buf.name or "[No Name]"
-            local label = string.format("[%d] %s", buf.bufnr, name)
+    for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+        if is_real_listed_buffer(bufnr) then
+            local name = vim.api.nvim_buf_get_name(bufnr)
+            local has_name = name ~= nil and name ~= ""
+            local display_name = has_name and name or "[No Name]"
+            local label = string.format("[%d] %s", bufnr, display_name)
             buffers[#buffers + 1] = {
-                filename = buf.name ~= "" and name or nil,
-                bufnr = buf.name == "" and buf.bufnr or nil,
-                lnum = math.max(buf.lnum or 1, 1),
+                filename = has_name and name or nil,
+                bufnr = has_name and nil or bufnr,
+                lnum = buffer_lnum(bufnr),
                 col = 1,
                 text = label,
             }
