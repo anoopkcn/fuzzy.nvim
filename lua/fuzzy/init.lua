@@ -31,7 +31,7 @@ function M.setup(user_opts)
     local function run_fuzzy_grep(opts)
         local args = opts.args
         if args == "" then
-            args = input.prompt_input("FuzzyGrep: ", "")
+            args = input.prompt_input("FG: ", "")
             if args == "" then
                 return
             end
@@ -42,7 +42,7 @@ function M.setup(user_opts)
     local function run_fuzzy_files(opts)
         local raw_args = vim.trim(opts.args or "")
         if raw_args == "" then
-            raw_args = input.prompt_input("FuzzyFiles: ", "")
+            raw_args = input.prompt_input("FF: ", "")
             if raw_args == "" then
                 return
             end
