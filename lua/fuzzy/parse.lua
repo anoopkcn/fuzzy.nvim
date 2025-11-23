@@ -64,14 +64,33 @@ local function parse_command_args(raw)
     return args
 end
 
+local function expand_tilde(arg)
+    if type(arg) ~= "string" then
+        return arg
+    end
+
+    local prefix, tilde_path = arg:match("^(.-=)(~.+)$")
+    if tilde_path then
+        return prefix .. vim.fn.expand(tilde_path)
+    end
+
+    if arg:match("^~") then
+        return vim.fn.expand(arg)
+    end
+
+    return arg
+end
+
 local function normalize_args(arg_input)
     if type(arg_input) == "table" then
-        local mapped = vim.tbl_map(tostring, arg_input)
+        local mapped = vim.tbl_map(function(v)
+            return expand_tilde(tostring(v))
+        end, arg_input)
         return vim.tbl_filter(function(v)
             return v ~= nil and tostring(v) ~= ""
         end, mapped)
     end
-    return parse_command_args(arg_input)
+    return vim.tbl_map(expand_tilde, parse_command_args(arg_input))
 end
 
 local function parse_vimgrep_line(line)
