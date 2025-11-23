@@ -75,7 +75,7 @@ require('fuzzy').setup({
   When enabled, `:FuzzyFiles` will automatically open a single match instead of showing the quickfix list. Use `:FuzzyFiles!` to override on a per-command basis.
 
 - **`file_match_limit`** (number, default: `600`)
-  Maximum number of file results to display in the quickfix list. This prevents performance issues when thousands of files match.
+  Maximum number of file results to display in the quickfix list. This prevents performance issues when thousands or millions of files match.
 
 ## Commands
 
