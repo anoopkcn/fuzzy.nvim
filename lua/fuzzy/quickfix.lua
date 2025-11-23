@@ -124,14 +124,28 @@ local function is_default_ui_select()
 end
 
 local function prompt_quickfix_choice(lists, handle_choice)
-    local choices = {}
+    local output_lines = {}
     for idx, item in ipairs(lists) do
-        choices[#choices + 1] = string.format("%d: %s", idx, format_quickfix_entry(item))
+        output_lines[#output_lines + 1] = string.format("%d: %s", idx, format_quickfix_entry(item))
     end
-    choices[#choices + 1] = "Select Quickfix:"
 
-    local choice_idx = vim.fn.inputlist(choices)
-    handle_choice(lists[choice_idx])
+    local echo_chunks = vim.tbl_map(function(line) return { line .. "\n", "None" } end, output_lines)
+    vim.api.nvim_echo(echo_chunks, false, {})
+
+    local input = vim.ui and vim.ui.input or vim.fn.input
+    local choice_idx
+    input({ prompt = "Select Quickfix: " }, function(value)
+        choice_idx = tonumber(value, 10)
+    end)
+
+    if choice_idx == nil then
+        -- If vim.ui.input is not available, fall back to blocking input().
+        if input == vim.fn.input then
+            choice_idx = tonumber(input("Select Quickfix: "), 10)
+        end
+    end
+
+    handle_choice(choice_idx and lists[choice_idx] or nil)
 end
 
 local function select_quickfix_from_history()
