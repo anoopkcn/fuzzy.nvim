@@ -17,23 +17,6 @@ local list = require("fuzzy.commands.list")
 
 local M = {}
 
-local function file_and_buffer_complete(arg_lead, cmdline, cursor_pos)
-    local seen, results = {}, {}
-    local function add(items)
-        for _, item in ipairs(items or {}) do
-            if not seen[item] then
-                results[#results + 1] = item
-                seen[item] = true
-            end
-        end
-    end
-
-    add(vim.fn.getcompletion(arg_lead, "file"))
-    add(vim.fn.getcompletion(arg_lead, "buffer"))
-
-    return results
-end
-
 local function create_alias(name, fn, opts)
     local alias_opts = vim.tbl_extend("force", {}, opts or {})
     if alias_opts.desc then
