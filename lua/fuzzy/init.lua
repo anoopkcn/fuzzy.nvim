@@ -63,7 +63,7 @@ function M.setup(user_opts)
         nargs = "*",
         desc = "Run ripgrep and open quickfix list with matches",
         bang = true,
-        complete ="shellcmd"
+        complete = "file",
     }
     vim.api.nvim_create_user_command("FuzzyGrep", run_fuzzy_grep, grep_opts)
     create_alias("FG", run_fuzzy_grep, grep_opts)
@@ -72,7 +72,7 @@ function M.setup(user_opts)
         nargs = "*",
         desc = "Fuzzy find files using fd (--noignore to include gitignored files, add ! to open a single match)",
         bang = true,
-        complete = "shellcmd",
+        complete = "file",
     }
     vim.api.nvim_create_user_command("FuzzyFiles", run_fuzzy_files, files_opts)
     create_alias("FF", run_fuzzy_files, files_opts)
