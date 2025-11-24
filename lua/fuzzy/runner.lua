@@ -103,24 +103,40 @@ local function run_find_fallback(extra_args, include_vcs, custom_limit, match_li
     end
 
     local name_pattern = extra_args[1]
-    local find_args
-
-    if not include_vcs then
-        find_args = { "find", search_root, "-path", "*/.git/*", "-prune", "-o", "-type", "f" }
-    else
-        find_args = { "find", search_root, "-type", "f" }
-    end
-
+    local predicate
     if name_pattern and name_pattern ~= "" then
-        find_args[#find_args + 1] = "-name"
-        find_args[#find_args + 1] = string.format("*%s*", name_pattern)
+        predicate = function(name)
+            return name:find(name_pattern, 1, true) ~= nil
+        end
+    else
+        predicate = function()
+            return true
+        end
     end
-    find_args[#find_args + 1] = "-print"
 
-    system.system_lines(find_args, function(lines, status, err_lines)
-        local results, truncated = clamp_match_limit(lines, match_limit, custom_limit)
-        callback(results, status, truncated, match_limit, err_lines)
-    end)
+    local limit = (not custom_limit and match_limit) and (match_limit + 1) or nil
+
+    local ok, results = pcall(vim.fs.find, predicate, {
+        path = search_root,
+        type = "file",
+        limit = limit,
+        skip = function(name)
+            return not include_vcs and name == ".git"
+        end,
+    })
+
+    if not ok then
+        callback({ results or "find failed" }, 1, false, match_limit, {})
+        return
+    end
+
+    local truncated = false
+    if limit and #results > match_limit then
+        truncated = true
+        results[match_limit + 1] = nil
+    end
+
+    callback(results, 0, truncated, match_limit, {})
 end
 
 function M.run_fd(raw_args, callback)
