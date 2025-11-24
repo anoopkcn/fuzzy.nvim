@@ -1,9 +1,43 @@
 local function system_lines(command, callback)
-    local handle, err = vim.system(command, { text = true }, function(obj)
-        local stdout_lines = vim.split(obj.stdout or "", "\n", { trimempty = true })
-        local stderr_lines = vim.split(obj.stderr or "", "\n", { trimempty = true })
+    local stdout, stderr = {}, {}
+    local stdout_pending, stderr_pending = "", ""
+
+    local function handle_chunk(chunk, acc, pending)
+        if not chunk or chunk == "" then
+            return pending
+        end
+
+        local pieces = vim.split(pending .. chunk, "\n", { plain = true, trimempty = false })
+        pending = table.remove(pieces) or ""
+
+        for _, line in ipairs(pieces) do
+            if line ~= "" then
+                acc[#acc + 1] = line
+            end
+        end
+        return pending
+    end
+
+    local function flush_pending(pending, acc)
+        if pending ~= "" then
+            acc[#acc + 1] = pending
+        end
+    end
+
+    local handle, err = vim.system(command, {
+        text = true,
+        stdout = function(_, data)
+            stdout_pending = handle_chunk(data, stdout, stdout_pending)
+        end,
+        stderr = function(_, data)
+            stderr_pending = handle_chunk(data, stderr, stderr_pending)
+        end,
+    }, function(obj)
+        flush_pending(stdout_pending, stdout)
+        flush_pending(stderr_pending, stderr)
+
         vim.schedule(function()
-            callback(stdout_lines, obj.code or 0, stderr_lines)
+            callback(stdout, obj.code or 0, stderr)
         end)
     end)
 
