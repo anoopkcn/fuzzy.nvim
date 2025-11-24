@@ -4,12 +4,21 @@ local runner = require("fuzzy.runner")
 
 local uv = vim.uv or vim.loop
 
+local normalize_cache = setmetatable({}, { __mode = "kv" })
+
 local function normalize_path(path)
     if not path or path == "" then
         return nil
     end
+    local cached = normalize_cache[path]
+    if cached then
+        return cached
+    end
+
     local real = uv.fs_realpath(path)
-    return real or vim.fs.normalize(path)
+    local normalized = real or vim.fs.normalize(path)
+    normalize_cache[path] = normalized
+    return normalized
 end
 
 local function bufnr_for_path(path)
