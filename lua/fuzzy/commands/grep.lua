@@ -5,6 +5,7 @@ local runner = require("fuzzy.runner")
 local function set_quickfix_from_lines(lines, dedupe_lines)
     local items = {}
     local deduped_lines = 0
+    local label = dedupe_lines and "FuzzyGrep" or "FuzzyGrep!"
 
     if dedupe_lines then
         local seen, order = {}, {}
@@ -45,26 +46,28 @@ local function set_quickfix_from_lines(lines, dedupe_lines)
     end
 
     local count = quickfix.update(items, {
-        title = "FuzzyGrep",
-        command = "FuzzyGrep",
+        title = label,
+        command = label,
     })
     return count, deduped_lines
 end
 
 local function run_fuzzy_grep(raw_args, dedupe_lines)
+    local command_label = dedupe_lines and "FuzzyGrep" or "FuzzyGrep!"
+
     runner.run_rg(raw_args, function(lines, status, err_lines)
         if status > 1 then
             local message_lines = (err_lines and #err_lines > 0) and err_lines or lines
             local message = table.concat(message_lines, "\n")
-            vim.notify(message ~= "" and message or "FuzzyGrep: ripgrep failed.", vim.log.levels.ERROR)
+            vim.notify(message ~= "" and message or (command_label .. ": ripgrep failed."), vim.log.levels.ERROR)
             return
         end
 
         local count, deduped_lines = set_quickfix_from_lines(lines, dedupe_lines)
         if dedupe_lines and deduped_lines > 0 then
-            vim.notify(string.format("FuzzyGrep!: collapsed duplicate matches on %d line%s.", deduped_lines, deduped_lines == 1 and "" or "s"), vim.log.levels.INFO)
+            vim.notify(string.format("%s: collapsed duplicate matches on %d line%s.", command_label, deduped_lines, deduped_lines == 1 and "" or "s"), vim.log.levels.INFO)
         end
-        quickfix.open_quickfix_when_results(count, dedupe_lines and "FuzzyGrep!: no matches found." or "FuzzyGrep: no matches found.")
+        quickfix.open_quickfix_when_results(count, command_label .. ": no matches found.")
     end)
 end
 

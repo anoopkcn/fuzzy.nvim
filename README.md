@@ -85,12 +85,12 @@ Search for patterns in files using ripgrep (falls back to `grep -R` when rg is u
 
 Aliases: `:FG`
 
-With `!`: Collapse multiple matches on the same line into a single quickfix entry (text stays unchanged; a notification tells you how many lines were deduped).
+Default: Collapses multiple matches on the same line into a single quickfix entry (text stays unchanged; a notification tells you how many lines were deduped). Add `!` to keep every match (no deduping).
 
 **Examples:**
 ```vim
 :FuzzyGrep TODO
-:FuzzyGrep! TODO
+:FuzzyGrep! TODO    " keep every match on duplicate lines
 :FuzzyGrep function.*init
 :FuzzyGrep -t lua require
 :FuzzyGrep -i error --type-add 'config:*.{yml,yaml}' -t config
@@ -239,7 +239,7 @@ Programmatically run a grep search.
 
 **Parameters:**
 - `args` (table|string) - Ripgrep arguments (pattern and options)
-- `dedupe_lines` (boolean|nil) - When true, collapse multiple matches on the same line into one entry (same as `:FuzzyGrep!`)
+- `dedupe_lines` (boolean|nil) - When true, collapse multiple matches on the same line into one entry (same as `:FuzzyGrep`); when false/nil, keep every match (same as `:FuzzyGrep!`)
 
 **Example:**
 ```lua

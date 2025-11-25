@@ -36,7 +36,7 @@ function M.setup(user_opts)
                 return
             end
         end
-        grep.run(args, opts.bang)
+        grep.run(args, not opts.bang)
     end
 
     local function run_fuzzy_files(opts)
