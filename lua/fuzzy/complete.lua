@@ -119,7 +119,7 @@ local function get_buffer_paths()
         if vim.api.nvim_buf_is_loaded(buf) and vim.bo[buf].buflisted and vim.bo[buf].buftype == "" then
             local name = vim.api.nvim_buf_get_name(buf)
             if name ~= "" then
-                paths[#paths + 1] = name
+                paths[#paths + 1] = vim.fn.fnamemodify(name, ":.")
             end
         end
     end
