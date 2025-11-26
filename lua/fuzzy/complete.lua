@@ -136,6 +136,7 @@ local function get_buffer_paths()
 end
 
 function M.complete_buffers(arg_lead, cmd_line, cursor_pos)
+    -- Use same logic as complete_files for consistency
     local buffers = get_buffer_paths()
 
     if arg_lead == "" then
@@ -147,12 +148,17 @@ function M.complete_buffers(arg_lead, cmd_line, cursor_pos)
     end
 
     local scored = match.filter(arg_lead, buffers, MAX_COMPLETIONS)
-    return vim.iter(scored):map(function(e) return e.item end):totable()
+    local results = {}
+    for _, entry in ipairs(scored) do
+        results[#results + 1] = entry.item
+    end
+    return results
 end
 
 function M.make_buffer_completer()
+    -- TEST: Use file completion to verify registration works
     return function(arg_lead, cmd_line, cursor_pos)
-        return M.complete_buffers(arg_lead, cmd_line, cursor_pos)
+        return M.complete_files(arg_lead, cmd_line, cursor_pos)
     end
 end
 
