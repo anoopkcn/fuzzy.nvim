@@ -109,21 +109,7 @@ end
 
 function M.make_file_completer()
     return function(arg_lead, cmd_line, cursor_pos)
-        -- Debug: Write to file to confirm function is called
-        local f = io.open("/tmp/fuzzy_debug.log", "a")
-        if f then
-            f:write(string.format("[%s] File completer called: arg_lead='%s', cmd_line='%s'\n",
-                os.date("%H:%M:%S"), arg_lead or "nil", cmd_line or "nil"))
-            f:close()
-        end
-        local results = M.complete_files(arg_lead, cmd_line, cursor_pos)
-        -- Debug: Log results
-        local f2 = io.open("/tmp/fuzzy_debug.log", "a")
-        if f2 then
-            f2:write(string.format("  -> Returning %d results\n", #results))
-            f2:close()
-        end
-        return results
+        return M.complete_files(arg_lead, cmd_line, cursor_pos)
     end
 end
 
@@ -185,21 +171,7 @@ end
 
 function M.make_buffer_completer()
     return function(arg_lead, cmd_line, cursor_pos)
-        -- Debug: Write to file to confirm function is called
-        local f = io.open("/tmp/fuzzy_debug.log", "a")
-        if f then
-            f:write(string.format("[%s] Buffer completer called: arg_lead='%s', cmd_line='%s'\n",
-                os.date("%H:%M:%S"), arg_lead or "nil", cmd_line or "nil"))
-            f:close()
-        end
-        local results = M.complete_buffers(arg_lead, cmd_line, cursor_pos)
-        -- Debug: Log results
-        local f2 = io.open("/tmp/fuzzy_debug.log", "a")
-        if f2 then
-            f2:write(string.format("  -> Returning %d results\n", #results))
-            f2:close()
-        end
-        return results
+        return M.complete_buffers(arg_lead, cmd_line, cursor_pos)
     end
 end
 
