@@ -111,7 +111,29 @@ local function open_single_file(first_file)
     return true
 end
 
+local function is_existing_file(path)
+    if not path or path == "" then
+        return false
+    end
+    local stat = uv.fs_stat(path)
+    return stat and stat.type == "file"
+end
+
 local function run(raw_args, bang)
+    -- If the argument is an existing file path, open it directly
+    local trimmed = vim.trim(raw_args or "")
+    if is_existing_file(trimmed) then
+        if bang or config.get().open_single_result then
+            open_single_file(trimmed)
+            return
+        end
+        -- Show in quickfix if not using bang
+        local items = {{ filename = trimmed, lnum = 1, col = 1, text = trimmed }}
+        set_quickfix_files(items)
+        quickfix.open_quickfix_when_results(1, "FuzzyFiles: no files matched.")
+        return
+    end
+
     runner.run_fd(raw_args, function(files, status, truncated, match_limit, err_lines)
         if status ~= 0 then
             local message_lines = (err_lines and #err_lines > 0) and err_lines or files
