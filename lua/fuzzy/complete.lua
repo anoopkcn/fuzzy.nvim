@@ -202,12 +202,13 @@ local function get_listed_buffers()
 
     for _, info in ipairs(listed) do
         local bufnr = info.bufnr
-        if bufnr and bufnr > 0 and info.loaded == 1 then
-            local buftype = vim.bo[bufnr].buftype
-            if buftype == "" then
+        if bufnr and bufnr > 0 and info.loaded then
+            local ok, buftype = pcall(function()
+                return vim.bo[bufnr].buftype
+            end)
+            if ok and (buftype == "" or buftype == nil) then
                 local name = info.name or ""
                 if name ~= "" then
-                    -- Add both full path and basename for matching
                     buffers[#buffers + 1] = name
                 end
             end
