@@ -109,7 +109,21 @@ end
 
 function M.make_file_completer()
     return function(arg_lead, cmd_line, cursor_pos)
-        return M.complete_files(arg_lead, cmd_line, cursor_pos)
+        -- Debug: Write to file to confirm function is called
+        local f = io.open("/tmp/fuzzy_debug.log", "a")
+        if f then
+            f:write(string.format("[%s] File completer called: arg_lead='%s', cmd_line='%s'\n",
+                os.date("%H:%M:%S"), arg_lead or "nil", cmd_line or "nil"))
+            f:close()
+        end
+        local results = M.complete_files(arg_lead, cmd_line, cursor_pos)
+        -- Debug: Log results
+        local f2 = io.open("/tmp/fuzzy_debug.log", "a")
+        if f2 then
+            f2:write(string.format("  -> Returning %d results\n", #results))
+            f2:close()
+        end
+        return results
     end
 end
 
@@ -121,13 +135,18 @@ end
 ---@return table list of buffer paths
 local function get_buffer_paths()
     local paths = {}
-    for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-        if vim.api.nvim_buf_is_loaded(buf) and vim.bo[buf].buflisted then
-            local buftype = vim.bo[buf].buftype
-            if buftype == "" then
-                local name = vim.api.nvim_buf_get_name(buf)
-                if name ~= "" then
-                    paths[#paths + 1] = name
+    local bufs = vim.api.nvim_list_bufs()
+    for _, buf in ipairs(bufs) do
+        local ok, is_loaded = pcall(vim.api.nvim_buf_is_loaded, buf)
+        if ok and is_loaded then
+            local ok2, buflisted = pcall(function() return vim.bo[buf].buflisted end)
+            if ok2 and buflisted then
+                local ok3, buftype = pcall(function() return vim.bo[buf].buftype end)
+                if ok3 and (buftype == "" or buftype == nil) then
+                    local ok4, name = pcall(vim.api.nvim_buf_get_name, buf)
+                    if ok4 and name and name ~= "" then
+                        paths[#paths + 1] = name
+                    end
                 end
             end
         end
@@ -136,29 +155,51 @@ local function get_buffer_paths()
 end
 
 function M.complete_buffers(arg_lead, cmd_line, cursor_pos)
-    -- Use same logic as complete_files for consistency
-    local buffers = get_buffer_paths()
+    local ok, result = pcall(function()
+        local buffers = get_buffer_paths()
 
-    if arg_lead == "" then
+        if arg_lead == "" then
+            local results = {}
+            for i = 1, math.min(MAX_COMPLETIONS, #buffers) do
+                results[i] = buffers[i]
+            end
+            return results
+        end
+
+        local scored = match.filter(arg_lead, buffers, MAX_COMPLETIONS)
         local results = {}
-        for i = 1, math.min(MAX_COMPLETIONS, #buffers) do
-            results[i] = buffers[i]
+        for _, entry in ipairs(scored) do
+            results[#results + 1] = entry.item
         end
         return results
-    end
+    end)
 
-    local scored = match.filter(arg_lead, buffers, MAX_COMPLETIONS)
-    local results = {}
-    for _, entry in ipairs(scored) do
-        results[#results + 1] = entry.item
+    if not ok then
+        vim.schedule(function()
+            vim.notify("FuzzyBuffers completion error: " .. tostring(result), vim.log.levels.WARN)
+        end)
+        return {}
     end
-    return results
+    return result or {}
 end
 
 function M.make_buffer_completer()
-    -- TEST: Use file completion to verify registration works
     return function(arg_lead, cmd_line, cursor_pos)
-        return M.complete_files(arg_lead, cmd_line, cursor_pos)
+        -- Debug: Write to file to confirm function is called
+        local f = io.open("/tmp/fuzzy_debug.log", "a")
+        if f then
+            f:write(string.format("[%s] Buffer completer called: arg_lead='%s', cmd_line='%s'\n",
+                os.date("%H:%M:%S"), arg_lead or "nil", cmd_line or "nil"))
+            f:close()
+        end
+        local results = M.complete_buffers(arg_lead, cmd_line, cursor_pos)
+        -- Debug: Log results
+        local f2 = io.open("/tmp/fuzzy_debug.log", "a")
+        if f2 then
+            f2:write(string.format("  -> Returning %d results\n", #results))
+            f2:close()
+        end
+        return results
     end
 end
 

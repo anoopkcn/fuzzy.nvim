@@ -8,13 +8,6 @@
 --   :FuzzyBuffers[!] [pattern]        - Fuzzy find open buffers (! switches directly to single match).
 --   :FuzzyList                        - Pick a quickfix list from history (excluding the selector itself) and open it.
 
-local config = require("fuzzy.config")
-local grep = require("fuzzy.commands.grep")
-local files = require("fuzzy.commands.files")
-local buffers = require("fuzzy.commands.buffers")
-local quickfix = require("fuzzy.quickfix")
-local complete = require("fuzzy.complete")
-
 local M = {}
 
 local function prompt_input(prompt, default)
@@ -33,7 +26,25 @@ local function create_alias(name, fn, opts)
 end
 
 function M.setup(user_opts)
+    -- Require modules fresh inside setup to ensure hot-reload works correctly
+    local config = require("fuzzy.config")
+    local grep = require("fuzzy.commands.grep")
+    local files = require("fuzzy.commands.files")
+    local buffers = require("fuzzy.commands.buffers")
+    local quickfix = require("fuzzy.quickfix")
+    local complete = require("fuzzy.complete")
+
     config.setup(user_opts)
+
+    -- Delete existing commands to ensure clean re-registration
+    pcall(vim.api.nvim_del_user_command, "FuzzyGrep")
+    pcall(vim.api.nvim_del_user_command, "FG")
+    pcall(vim.api.nvim_del_user_command, "FuzzyFiles")
+    pcall(vim.api.nvim_del_user_command, "FF")
+    pcall(vim.api.nvim_del_user_command, "FuzzyBuffers")
+    pcall(vim.api.nvim_del_user_command, "FB")
+    pcall(vim.api.nvim_del_user_command, "FuzzyList")
+    pcall(vim.api.nvim_del_user_command, "FL")
 
     local function run_fuzzy_grep(opts)
         local args = opts.args
@@ -110,7 +121,7 @@ function M.setup(user_opts)
 end
 
 function M.grep(args, dedupe_lines)
-    grep.run(args, dedupe_lines)
+    require("fuzzy.commands.grep").run(args, dedupe_lines)
 end
 
 return M
