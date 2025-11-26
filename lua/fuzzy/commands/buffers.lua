@@ -1,5 +1,27 @@
 local quickfix = require("fuzzy.quickfix")
 local match = require("fuzzy.match")
+local config = require("fuzzy.config")
+
+--- Get valid listed buffers
+---@return table list of buffer info
+local function get_listed_buffers()
+    local buffers = {}
+    local listed = vim.fn.getbufinfo({ buflisted = 1 })
+
+    for _, info in ipairs(listed) do
+        local bufnr = info.bufnr
+        if bufnr and bufnr > 0 and info.loaded then
+            local ok, buftype = pcall(function()
+                return vim.bo[bufnr].buftype
+            end)
+            if ok and (buftype == "" or buftype == nil) then
+                buffers[#buffers + 1] = info
+            end
+        end
+    end
+
+    return buffers
+end
 
 --- Check if path matches a loaded buffer
 ---@param path string
@@ -10,16 +32,12 @@ local function find_buffer_by_path(path)
     end
 
     local normalized = vim.fs.normalize(path)
-    local listed = vim.fn.getbufinfo({ buflisted = 1 })
 
-    for _, info in ipairs(listed) do
-        local bufnr = info.bufnr
-        if bufnr and bufnr > 0 and info.loaded == 1 then
-            local name = info.name or ""
-            if name ~= "" then
-                if name == path or vim.fs.normalize(name) == normalized then
-                    return bufnr
-                end
+    for _, info in ipairs(get_listed_buffers()) do
+        local name = info.name or ""
+        if name ~= "" then
+            if name == path or vim.fs.normalize(name) == normalized then
+                return info.bufnr
             end
         end
     end
@@ -40,10 +58,10 @@ end
 
 --- Build quickfix items from buffer list
 ---@param buffers table list of buffer info
----@return table items, string|nil first_file
+---@return table items, number|nil first_bufnr
 local function build_buffer_quickfix_items(buffers)
     local items = {}
-    local first_file = nil
+    local first_bufnr = nil
 
     for _, info in ipairs(buffers) do
         local name = info.name or ""
@@ -51,7 +69,7 @@ local function build_buffer_quickfix_items(buffers)
         local display_name = has_name and name or "[No Name]"
         local label = string.format("[%d] %s", info.bufnr, display_name)
 
-        first_file = first_file or (has_name and name or nil)
+        first_bufnr = first_bufnr or info.bufnr
 
         items[#items + 1] = {
             filename = has_name and name or nil,
@@ -62,26 +80,14 @@ local function build_buffer_quickfix_items(buffers)
         }
     end
 
-    return items, first_file
+    return items, first_bufnr
 end
 
 --- Get filtered list of buffers
 ---@param pattern string|nil fuzzy pattern to filter by
 ---@return table list of matching buffer info
 local function get_filtered_buffers(pattern)
-    local listed = vim.fn.getbufinfo({ buflisted = 1 })
-    local buffers = {}
-
-    -- First collect valid buffers
-    for _, info in ipairs(listed) do
-        local bufnr = info.bufnr
-        if bufnr and bufnr > 0 and info.loaded == 1 then
-            local buftype = vim.bo[bufnr].buftype
-            if buftype == "" then
-                buffers[#buffers + 1] = info
-            end
-        end
-    end
+    local buffers = get_listed_buffers()
 
     -- If no pattern, return all
     if not pattern or pattern == "" then
@@ -122,7 +128,8 @@ local function run(raw_args, bang)
     if pattern ~= "" then
         local exact_bufnr = find_buffer_by_path(pattern)
         if exact_bufnr then
-            if bang then
+            -- Switch directly if bang or config.open_single_result
+            if bang or config.get().open_single_result then
                 switch_to_buffer(exact_bufnr)
                 return
             end
@@ -136,8 +143,9 @@ local function run(raw_args, bang)
         return
     end
 
-    -- If single match and bang, switch directly
-    if bang and #buffers == 1 then
+    -- If single match and (bang or config), switch directly
+    local prefer_direct = (config.get().open_single_result or bang) and #buffers == 1
+    if prefer_direct then
         local info = buffers[1]
         if info.bufnr then
             switch_to_buffer(info.bufnr)
@@ -145,7 +153,7 @@ local function run(raw_args, bang)
         end
     end
 
-    local items, first_file = build_buffer_quickfix_items(buffers)
+    local items, first_bufnr = build_buffer_quickfix_items(buffers)
 
     local count = quickfix.update(items, {
         title = "FuzzyBuffers",
