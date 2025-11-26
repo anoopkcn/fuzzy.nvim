@@ -10,13 +10,6 @@
 
 local M = {}
 
-local function prompt_input(prompt, default)
-    vim.fn.inputsave()
-    local ok, result = pcall(vim.fn.input, prompt, default or "")
-    vim.fn.inputrestore()
-    return ok and vim.trim(result) or ""
-end
-
 local function create_alias(name, fn, opts)
     local alias_opts = vim.tbl_extend("force", {}, opts or {})
     if alias_opts.desc then
@@ -38,23 +31,17 @@ function M.setup(user_opts)
     local function run_fuzzy_grep(opts)
         local args = opts.args
         if args == "" then
-            args = prompt_input("FG: ", "")
-            if args == "" then
                 return
-            end
         end
         grep.run(args, not opts.bang)
     end
 
     local function run_fuzzy_files(opts)
-        local raw_args = vim.trim(opts.args or "")
-        if raw_args == "" then
-            raw_args = prompt_input("FF: ", "")
-            if raw_args == "" then
+        local args = opts.args
+        if args == "" then
                 return
-            end
         end
-
+        local raw_args = vim.trim(args or "")
         files.run(raw_args, opts.bang)
     end
 
@@ -74,7 +61,7 @@ function M.setup(user_opts)
         complete = "file",
     }
     vim.api.nvim_create_user_command("FuzzyGrep", run_fuzzy_grep, grep_opts)
-    create_alias("FG", run_fuzzy_grep, grep_opts)
+    create_alias("Grep", run_fuzzy_grep, grep_opts)
 
     local files_opts = {
         nargs = "*",
@@ -83,7 +70,7 @@ function M.setup(user_opts)
         complete = complete.make_file_completer(),
     }
     vim.api.nvim_create_user_command("FuzzyFiles", run_fuzzy_files, files_opts)
-    create_alias("FF", run_fuzzy_files, files_opts)
+    create_alias("Files", run_fuzzy_files, files_opts)
 
     local buffers_opts = {
         nargs = "*",
@@ -92,13 +79,13 @@ function M.setup(user_opts)
         complete = complete.make_buffer_completer(),
     }
     vim.api.nvim_create_user_command("FuzzyBuffers", run_fuzzy_buffers, buffers_opts)
-    create_alias("FB", run_fuzzy_buffers, buffers_opts)
+    create_alias("Buffers", run_fuzzy_buffers, buffers_opts)
 
     local list_opts = {
         desc = "Pick a quickfix list from history and open it",
     }
     vim.api.nvim_create_user_command("FuzzyList", run_fuzzy_list, list_opts)
-    create_alias("FL", run_fuzzy_list, list_opts)
+    create_alias("List", run_fuzzy_list, list_opts)
 end
 
 function M.grep(args, dedupe_lines)
