@@ -5,7 +5,7 @@
 --   :FuzzyGrep [pattern] [rg options] - Runs ripgrep with the given pattern and populates the quickfix list with results.
 --   :FuzzyFiles[!] [fd arguments]     - Runs fd with the supplied arguments (use --noignore to include gitignored files).
 --                                       Add ! to open a single match directly.
---   :FuzzyBuffers                     - Lists all listed buffers in the quickfix list.
+--   :FuzzyBuffers[!] [pattern]        - Fuzzy find open buffers (! switches directly to single match).
 --   :FuzzyList                        - Pick a quickfix list from history (excluding the selector itself) and open it.
 
 local config = require("fuzzy.config")
@@ -58,8 +58,17 @@ function M.setup(user_opts)
         files.run(raw_args, opts.bang)
     end
 
-    local function run_fuzzy_buffers()
-        buffers.run()
+    local function run_fuzzy_buffers(opts)
+        local raw_args = vim.trim(opts.args or "")
+        if raw_args == "" then
+            raw_args = prompt_input("FB: ", "")
+            if raw_args == "" then
+                -- No input, show all buffers
+                buffers.run("", opts.bang)
+                return
+            end
+        end
+        buffers.run(raw_args, opts.bang)
     end
 
     local function run_fuzzy_list()
@@ -85,7 +94,10 @@ function M.setup(user_opts)
     create_alias("FF", run_fuzzy_files, files_opts)
 
     local buffers_opts = {
-        desc = "Show listed buffers in quickfix list",
+        nargs = "*",
+        desc = "Fuzzy find open buffers (! switches directly to single match)",
+        bang = true,
+        complete = complete.make_buffer_completer(),
     }
     vim.api.nvim_create_user_command("FuzzyBuffers", run_fuzzy_buffers, buffers_opts)
     create_alias("FB", run_fuzzy_buffers, buffers_opts)

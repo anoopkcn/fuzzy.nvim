@@ -192,4 +192,65 @@ function M.make_file_completer()
     end
 end
 
+-- Buffer completion ---------------------------------------------------------
+
+--- Get list of listed buffer names/paths
+---@return table list of buffer names
+local function get_listed_buffers()
+    local buffers = {}
+    local listed = vim.fn.getbufinfo({ buflisted = 1 })
+
+    for _, info in ipairs(listed) do
+        local bufnr = info.bufnr
+        if bufnr and bufnr > 0 and info.loaded == 1 then
+            local buftype = vim.bo[bufnr].buftype
+            if buftype == "" then
+                local name = info.name or ""
+                if name ~= "" then
+                    -- Add both full path and basename for matching
+                    buffers[#buffers + 1] = name
+                end
+            end
+        end
+    end
+
+    return buffers
+end
+
+--- Fuzzy buffer completion function for nvim_create_user_command
+---@param arg_lead string current argument being completed
+---@param cmd_line string entire command line
+---@param cursor_pos number cursor position
+---@return table list of completion candidates
+function M.complete_buffers(arg_lead, cmd_line, cursor_pos)
+    local buffers = get_listed_buffers()
+
+    -- If no input, return all buffers
+    if arg_lead == "" then
+        local results = {}
+        for i = 1, math.min(MAX_COMPLETIONS, #buffers) do
+            results[i] = buffers[i]
+        end
+        return results
+    end
+
+    -- Fuzzy match and sort
+    local scored = match.filter(arg_lead, buffers, MAX_COMPLETIONS)
+
+    local results = {}
+    for _, entry in ipairs(scored) do
+        results[#results + 1] = entry.item
+    end
+
+    return results
+end
+
+--- Create a buffer completion function for nvim_create_user_command
+---@return function
+function M.make_buffer_completer()
+    return function(arg_lead, cmd_line, cursor_pos)
+        return M.complete_buffers(arg_lead, cmd_line, cursor_pos)
+    end
+end
+
 return M
