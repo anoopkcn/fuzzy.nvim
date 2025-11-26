@@ -26,7 +26,6 @@ local function create_alias(name, fn, opts)
 end
 
 function M.setup(user_opts)
-    -- Require modules fresh inside setup to ensure hot-reload works correctly
     local config = require("fuzzy.config")
     local grep = require("fuzzy.commands.grep")
     local files = require("fuzzy.commands.files")
@@ -35,16 +34,6 @@ function M.setup(user_opts)
     local complete = require("fuzzy.complete")
 
     config.setup(user_opts)
-
-    -- Delete existing commands to ensure clean re-registration
-    pcall(vim.api.nvim_del_user_command, "FuzzyGrep")
-    pcall(vim.api.nvim_del_user_command, "FG")
-    pcall(vim.api.nvim_del_user_command, "FuzzyFiles")
-    pcall(vim.api.nvim_del_user_command, "FF")
-    pcall(vim.api.nvim_del_user_command, "FuzzyBuffers")
-    pcall(vim.api.nvim_del_user_command, "FB")
-    pcall(vim.api.nvim_del_user_command, "FuzzyList")
-    pcall(vim.api.nvim_del_user_command, "FL")
 
     local function run_fuzzy_grep(opts)
         local args = opts.args

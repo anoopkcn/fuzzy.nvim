@@ -22,15 +22,11 @@ local file_cache = {
 local CACHE_TTL = 30
 local HAS_FD = vim.fn.executable("fd") == 1
 
-local function get_cwd()
-    return vim.fn.getcwd()
-end
-
 local function is_file_cache_valid()
     if not file_cache.files then
         return false
     end
-    if file_cache.cwd ~= get_cwd() then
+    if file_cache.cwd ~= vim.fn.getcwd() then
         return false
     end
     return (os.time() - file_cache.timestamp) <= CACHE_TTL
@@ -76,7 +72,7 @@ end
 local function get_files()
     if not is_file_cache_valid() then
         local limit = config.get_file_match_limit() or 600
-        file_cache.cwd = get_cwd()
+        file_cache.cwd = vim.fn.getcwd()
         file_cache.files = HAS_FD and collect_files_fd(limit) or collect_files_fallback(limit)
         file_cache.timestamp = os.time()
     end
@@ -117,23 +113,13 @@ end
 -- Buffer completion
 -------------------------------------------------------------------------------
 
---- Get list of buffer file paths (same format as file completion)
----@return table list of buffer paths
 local function get_buffer_paths()
     local paths = {}
-    local bufs = vim.api.nvim_list_bufs()
-    for _, buf in ipairs(bufs) do
-        local ok, is_loaded = pcall(vim.api.nvim_buf_is_loaded, buf)
-        if ok and is_loaded then
-            local ok2, buflisted = pcall(function() return vim.bo[buf].buflisted end)
-            if ok2 and buflisted then
-                local ok3, buftype = pcall(function() return vim.bo[buf].buftype end)
-                if ok3 and (buftype == "" or buftype == nil) then
-                    local ok4, name = pcall(vim.api.nvim_buf_get_name, buf)
-                    if ok4 and name and name ~= "" then
-                        paths[#paths + 1] = name
-                    end
-                end
+    for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+        if vim.api.nvim_buf_is_loaded(buf) and vim.bo[buf].buflisted and vim.bo[buf].buftype == "" then
+            local name = vim.api.nvim_buf_get_name(buf)
+            if name ~= "" then
+                paths[#paths + 1] = name
             end
         end
     end
@@ -141,32 +127,18 @@ local function get_buffer_paths()
 end
 
 function M.complete_buffers(arg_lead, cmd_line, cursor_pos)
-    local ok, result = pcall(function()
-        local buffers = get_buffer_paths()
+    local buffers = get_buffer_paths()
 
-        if arg_lead == "" then
-            local results = {}
-            for i = 1, math.min(MAX_COMPLETIONS, #buffers) do
-                results[i] = buffers[i]
-            end
-            return results
-        end
-
-        local scored = match.filter(arg_lead, buffers, MAX_COMPLETIONS)
+    if arg_lead == "" then
         local results = {}
-        for _, entry in ipairs(scored) do
-            results[#results + 1] = entry.item
+        for i = 1, math.min(MAX_COMPLETIONS, #buffers) do
+            results[i] = buffers[i]
         end
         return results
-    end)
-
-    if not ok then
-        vim.schedule(function()
-            vim.notify("FuzzyBuffers completion error: " .. tostring(result), vim.log.levels.WARN)
-        end)
-        return {}
     end
-    return result or {}
+
+    local scored = match.filter(arg_lead, buffers, MAX_COMPLETIONS)
+    return vim.iter(scored):map(function(e) return e.item end):totable()
 end
 
 function M.make_buffer_completer()
