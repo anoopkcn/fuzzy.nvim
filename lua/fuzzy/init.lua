@@ -60,14 +60,6 @@ function M.setup(user_opts)
 
     local function run_fuzzy_buffers(opts)
         local raw_args = vim.trim(opts.args or "")
-        if raw_args == "" then
-            raw_args = prompt_input("FB: ", "")
-            if raw_args == "" then
-                -- No input, show all buffers
-                buffers.run("", opts.bang)
-                return
-            end
-        end
         buffers.run(raw_args, opts.bang)
     end
 
