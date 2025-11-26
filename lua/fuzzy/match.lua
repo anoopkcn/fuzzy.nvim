@@ -27,10 +27,6 @@ local function is_upper(c)
     return c:match("%u")
 end
 
-local function is_separator(c)
-    return c == "/" or c == "\\" or c == "_" or c == "-" or c == "." or c == " "
-end
-
 --- Compute match bonus based on character position context
 ---@param haystack string
 ---@param i number position in haystack (1-indexed)

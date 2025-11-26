@@ -20,7 +20,6 @@ local CACHE_TTL = 30
 local MAX_COMPLETIONS = 50
 
 local HAS_FD = vim.fn.executable("fd") == 1
-local uv = vim.uv or vim.loop
 
 --- Get current working directory
 ---@return string

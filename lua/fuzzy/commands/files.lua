@@ -2,8 +2,6 @@ local config = require("fuzzy.config")
 local quickfix = require("fuzzy.quickfix")
 local runner = require("fuzzy.runner")
 
-local uv = vim.uv or vim.loop
-
 local normalize_cache = setmetatable({}, { __mode = "kv" })
 
 local function normalize_path(path)
@@ -15,7 +13,7 @@ local function normalize_path(path)
         return cached
     end
 
-    local real = uv.fs_realpath(path)
+    local real = vim.uv.fs_realpath(path)
     local normalized = real or vim.fs.normalize(path)
     normalize_cache[path] = normalized
     return normalized
@@ -115,7 +113,7 @@ local function is_existing_file(path)
     if not path or path == "" then
         return false
     end
-    local stat = uv.fs_stat(path)
+    local stat = vim.uv.fs_stat(path)
     return stat and stat.type == "file"
 end
 

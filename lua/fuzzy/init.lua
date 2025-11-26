@@ -5,18 +5,24 @@
 --   :FuzzyGrep [pattern] [rg options] - Runs ripgrep with the given pattern and populates the quickfix list with results.
 --   :FuzzyFiles[!] [fd arguments]     - Runs fd with the supplied arguments (use --noignore to include gitignored files).
 --                                       Add ! to open a single match directly.
---   :FuzzyBuffers[!]                  - Lists all listed buffers in the quickfix list (! enables live updates).
+--   :FuzzyBuffers                     - Lists all listed buffers in the quickfix list.
 --   :FuzzyList                        - Pick a quickfix list from history (excluding the selector itself) and open it.
 
 local config = require("fuzzy.config")
-local input = require("fuzzy.input")
 local grep = require("fuzzy.commands.grep")
 local files = require("fuzzy.commands.files")
 local buffers = require("fuzzy.commands.buffers")
-local list = require("fuzzy.commands.list")
+local quickfix = require("fuzzy.quickfix")
 local complete = require("fuzzy.complete")
 
 local M = {}
+
+local function prompt_input(prompt, default)
+    vim.fn.inputsave()
+    local ok, result = pcall(vim.fn.input, prompt, default or "")
+    vim.fn.inputrestore()
+    return ok and vim.trim(result) or ""
+end
 
 local function create_alias(name, fn, opts)
     local alias_opts = vim.tbl_extend("force", {}, opts or {})
@@ -32,7 +38,7 @@ function M.setup(user_opts)
     local function run_fuzzy_grep(opts)
         local args = opts.args
         if args == "" then
-            args = input.prompt_input("FG: ", "")
+            args = prompt_input("FG: ", "")
             if args == "" then
                 return
             end
@@ -43,7 +49,7 @@ function M.setup(user_opts)
     local function run_fuzzy_files(opts)
         local raw_args = vim.trim(opts.args or "")
         if raw_args == "" then
-            raw_args = input.prompt_input("FF: ", "")
+            raw_args = prompt_input("FF: ", "")
             if raw_args == "" then
                 return
             end
@@ -52,12 +58,12 @@ function M.setup(user_opts)
         files.run(raw_args, opts.bang)
     end
 
-    local function run_fuzzy_buffers(opts)
-        buffers.run(opts.bang)
+    local function run_fuzzy_buffers()
+        buffers.run()
     end
 
     local function run_fuzzy_list()
-        list.run()
+        quickfix.select_from_history()
     end
 
     local grep_opts = {
@@ -79,8 +85,7 @@ function M.setup(user_opts)
     create_alias("FF", run_fuzzy_files, files_opts)
 
     local buffers_opts = {
-        desc = "Show listed buffers in quickfix list (! enables live updates)",
-        bang = true,
+        desc = "Show listed buffers in quickfix list",
     }
     vim.api.nvim_create_user_command("FuzzyBuffers", run_fuzzy_buffers, buffers_opts)
     create_alias("FB", run_fuzzy_buffers, buffers_opts)

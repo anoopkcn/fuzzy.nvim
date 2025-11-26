@@ -4,25 +4,21 @@ local config = require("fuzzy.config")
 
 local HAS_RG = vim.fn.executable("rg") == 1
 local HAS_FD = vim.fn.executable("fd") == 1
-local uv = vim.uv or vim.loop
 
 local function is_directory(path)
     if not path or path == "" then
         return false
     end
-    local stat = uv.fs_stat(path)
+    local stat = vim.uv.fs_stat(path)
     return stat and stat.type == "directory"
 end
 
 local M = {}
 
 local function has_fd_custom_limit(args)
-    for _, arg in ipairs(args) do
-        if arg == "--max-results" or arg == "-n" or arg:match("^%-n%d+$") then
-            return true
-        end
-    end
-    return false
+    return vim.iter(args):any(function(arg)
+        return arg == "--max-results" or arg == "-n" or arg:match("^%-n%d+$")
+    end)
 end
 
 -- ripgrep runner ----------------------------
@@ -41,10 +37,7 @@ local function run_grep_fallback(raw_args, callback)
         "--exclude-dir=node_modules",
     }
     vim.list_extend(cmd, args)
-
-    system.system_lines(cmd, function(lines, status, err_lines)
-        callback(lines, status, err_lines)
-    end)
+    system.system_lines(cmd, callback)
 end
 
 function M.run_rg(raw_args, callback)
@@ -79,21 +72,6 @@ local function run_fd_binary(extra_args, include_vcs, custom_limit, match_limit,
         end
         callback(lines, status, truncated, match_limit, err_lines)
     end)
-end
-
-local function clamp_match_limit(lines, match_limit, custom_limit)
-    local truncated = false
-    local results = lines
-
-    if not custom_limit and match_limit and #lines > match_limit then
-        truncated = true
-        results = {}
-        for i = 1, match_limit do
-            results[i] = lines[i]
-        end
-    end
-
-    return results, truncated
 end
 
 local function run_find_fallback(extra_args, include_vcs, custom_limit, match_limit, callback)
@@ -143,7 +121,9 @@ function M.run_fd(raw_args, callback)
     local extra_args = parse.normalize_args(raw_args)
 
     local include_vcs = vim.tbl_contains(extra_args, "--noignore")
-    extra_args = vim.tbl_filter(function(arg) return arg ~= "--noignore" end, extra_args)
+    extra_args = vim.iter(extra_args):filter(function(arg)
+        return arg ~= "--noignore"
+    end):totable()
 
     local custom_limit = has_fd_custom_limit(extra_args)
     local match_limit = config.get_file_match_limit()
@@ -153,7 +133,5 @@ function M.run_fd(raw_args, callback)
     end
     return run_find_fallback(extra_args, include_vcs, custom_limit, match_limit, callback)
 end
-
-M.has_fd_custom_limit = has_fd_custom_limit
 
 return M
