@@ -1,63 +1,47 @@
 -- Fuzzy completion for command-line mode
--- Provides fuzzy file completion using cached file listings
+-- Provides fuzzy file and buffer completion
 
 local match = require("fuzzy.match")
 local config = require("fuzzy.config")
 
 local M = {}
 
--- Cache for file listings
+-- Maximum completion results to show
+local MAX_COMPLETIONS = 50
+
+-------------------------------------------------------------------------------
+-- File completion
+-------------------------------------------------------------------------------
+
 local file_cache = {
     cwd = nil,
     files = nil,
     timestamp = 0,
 }
 
--- Cache TTL in seconds (refresh if older than this)
 local CACHE_TTL = 30
-
--- Maximum completion results to show
-local MAX_COMPLETIONS = 50
-
 local HAS_FD = vim.fn.executable("fd") == 1
 
---- Get current working directory
----@return string
 local function get_cwd()
     return vim.fn.getcwd()
 end
 
---- Check if cache is valid
----@return boolean
-local function is_cache_valid()
+local function is_file_cache_valid()
     if not file_cache.files then
         return false
     end
     if file_cache.cwd ~= get_cwd() then
         return false
     end
-    local now = os.time()
-    if now - file_cache.timestamp > CACHE_TTL then
-        return false
-    end
-    return true
+    return (os.time() - file_cache.timestamp) <= CACHE_TTL
 end
 
---- Collect files using fd (synchronous for completion)
----@param limit number
----@return table
 local function collect_files_fd(limit)
-    local args = {
-        "fd",
-        "--hidden",
-        "--follow",
-        "--color", "never",
-        "--exclude", ".git",
-        "--type", "f",
+    local result = vim.system({
+        "fd", "--hidden", "--follow", "--color", "never",
+        "--exclude", ".git", "--type", "f",
         "--max-results", tostring(limit),
-    }
-
-    local result = vim.system(args, { text = true }):wait()
+    }, { text = true }):wait()
 
     if result.code ~= 0 then
         return {}
@@ -69,100 +53,47 @@ local function collect_files_fd(limit)
             files[#files + 1] = line
         end
     end
-
     return files
 end
 
---- Collect files using vim.fs.find (fallback)
----@param limit number
----@return table
 local function collect_files_fallback(limit)
-    local ok, results = pcall(vim.fs.find, function()
-        return true
-    end, {
+    local ok, results = pcall(vim.fs.find, function() return true end, {
         path = ".",
         type = "file",
         limit = limit,
-        skip = function(name)
-            return name == ".git"
-        end,
+        skip = function(name) return name == ".git" end,
     })
 
     if not ok then
         return {}
     end
 
-    -- Normalize paths (remove leading ./)
-    local files = {}
-    for _, path in ipairs(results) do
-        local normalized = path:gsub("^%./", "")
-        files[#files + 1] = normalized
-    end
-
-    return files
+    return vim.iter(results):map(function(p)
+        return p:gsub("^%./", "")
+    end):totable()
 end
 
---- Collect files (uses fd if available, falls back to vim.fs.find)
----@return table
-local function collect_files()
-    local limit = config.get_file_match_limit() or 600
-
-    if HAS_FD then
-        return collect_files_fd(limit)
-    end
-
-    return collect_files_fallback(limit)
-end
-
---- Update the file cache
-local function update_cache()
-    file_cache.cwd = get_cwd()
-    file_cache.files = collect_files()
-    file_cache.timestamp = os.time()
-end
-
---- Get files (from cache or fresh)
----@return table
 local function get_files()
-    if not is_cache_valid() then
-        update_cache()
+    if not is_file_cache_valid() then
+        local limit = config.get_file_match_limit() or 600
+        file_cache.cwd = get_cwd()
+        file_cache.files = HAS_FD and collect_files_fd(limit) or collect_files_fallback(limit)
+        file_cache.timestamp = os.time()
     end
     return file_cache.files or {}
 end
 
---- Invalidate the file cache
-function M.invalidate_cache()
-    file_cache.files = nil
-    file_cache.timestamp = 0
-end
-
---- Fuzzy file completion function for nvim_create_user_command
---- This is the function passed to the `complete` option
----@param arg_lead string current argument being completed
----@param cmd_line string entire command line
----@param cursor_pos number cursor position
----@return table list of completion candidates
 function M.complete_files(arg_lead, cmd_line, cursor_pos)
-    -- Handle fd-style options (don't fuzzy match these)
     if arg_lead:match("^%-") then
-        -- Return common fd options
         return {
-            "--hidden",
-            "--no-ignore",
-            "--noignore",
-            "--no-ignore-vcs",
-            "--follow",
-            "--type",
-            "--extension",
-            "--exclude",
-            "--max-depth",
-            "--max-results",
+            "--hidden", "--no-ignore", "--noignore", "--no-ignore-vcs",
+            "--follow", "--type", "--extension", "--exclude",
+            "--max-depth", "--max-results",
         }
     end
 
     local files = get_files()
 
-    -- If no input, return first N files sorted
     if arg_lead == "" then
         local results = {}
         for i = 1, math.min(MAX_COMPLETIONS, #files) do
@@ -172,61 +103,41 @@ function M.complete_files(arg_lead, cmd_line, cursor_pos)
         return results
     end
 
-    -- Fuzzy match and sort
     local scored = match.filter(arg_lead, files, MAX_COMPLETIONS)
-
-    local results = {}
-    for _, entry in ipairs(scored) do
-        results[#results + 1] = entry.item
-    end
-
-    return results
+    return vim.iter(scored):map(function(e) return e.item end):totable()
 end
 
---- Create a completion function that can be used with nvim_create_user_command
---- Returns a closure that handles completion
----@return function
 function M.make_file_completer()
     return function(arg_lead, cmd_line, cursor_pos)
         return M.complete_files(arg_lead, cmd_line, cursor_pos)
     end
 end
 
--- Buffer completion ---------------------------------------------------------
+-------------------------------------------------------------------------------
+-- Buffer completion
+-------------------------------------------------------------------------------
 
---- Get list of listed buffer names/paths
----@return table list of buffer names
-local function get_listed_buffers()
-    local buffers = {}
-    local listed = vim.fn.getbufinfo({ buflisted = 1 })
-
-    for _, info in ipairs(listed) do
-        local bufnr = info.bufnr
-        if bufnr and bufnr > 0 and info.loaded then
-            local ok, buftype = pcall(function()
-                return vim.bo[bufnr].buftype
-            end)
-            if ok and (buftype == "" or buftype == nil) then
-                local name = info.name or ""
+--- Get list of buffer file paths (same format as file completion)
+---@return table list of buffer paths
+local function get_buffer_paths()
+    local paths = {}
+    for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+        if vim.api.nvim_buf_is_loaded(buf) and vim.bo[buf].buflisted then
+            local buftype = vim.bo[buf].buftype
+            if buftype == "" then
+                local name = vim.api.nvim_buf_get_name(buf)
                 if name ~= "" then
-                    buffers[#buffers + 1] = name
+                    paths[#paths + 1] = name
                 end
             end
         end
     end
-
-    return buffers
+    return paths
 end
 
---- Fuzzy buffer completion function for nvim_create_user_command
----@param arg_lead string current argument being completed
----@param cmd_line string entire command line
----@param cursor_pos number cursor position
----@return table list of completion candidates
 function M.complete_buffers(arg_lead, cmd_line, cursor_pos)
-    local buffers = get_listed_buffers()
+    local buffers = get_buffer_paths()
 
-    -- If no input, return all buffers
     if arg_lead == "" then
         local results = {}
         for i = 1, math.min(MAX_COMPLETIONS, #buffers) do
@@ -235,19 +146,10 @@ function M.complete_buffers(arg_lead, cmd_line, cursor_pos)
         return results
     end
 
-    -- Fuzzy match and sort
     local scored = match.filter(arg_lead, buffers, MAX_COMPLETIONS)
-
-    local results = {}
-    for _, entry in ipairs(scored) do
-        results[#results + 1] = entry.item
-    end
-
-    return results
+    return vim.iter(scored):map(function(e) return e.item end):totable()
 end
 
---- Create a buffer completion function for nvim_create_user_command
----@return function
 function M.make_buffer_completer()
     return function(arg_lead, cmd_line, cursor_pos)
         return M.complete_buffers(arg_lead, cmd_line, cursor_pos)

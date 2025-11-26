@@ -1,53 +1,79 @@
+-- FuzzyBuffers: fuzzy find and switch between open buffers
+-- Mirrors FuzzyFiles logic but for loaded buffers instead of files on disk
+
+local config = require("fuzzy.config")
 local quickfix = require("fuzzy.quickfix")
 local match = require("fuzzy.match")
-local config = require("fuzzy.config")
 
---- Get valid listed buffers
----@return table list of buffer info
+--- Normalize path for comparison
+local function normalize_path(path)
+    if not path or path == "" then
+        return nil
+    end
+    local real = vim.uv.fs_realpath(path)
+    return real or vim.fs.normalize(path)
+end
+
+--- Check if we're in a quickfix window
+local function is_quickfix_window(winid)
+    local ok, buf = pcall(vim.api.nvim_win_get_buf, winid)
+    if not ok then return false end
+    local ok2, buftype = pcall(vim.api.nvim_get_option_value, "buftype", { buf = buf })
+    return ok2 and buftype == "quickfix"
+end
+
+--- Get all listed buffer paths
+---@return table list of {bufnr, path} pairs
 local function get_listed_buffers()
     local buffers = {}
-    local listed = vim.fn.getbufinfo({ buflisted = 1 })
-
-    for _, info in ipairs(listed) do
-        local bufnr = info.bufnr
-        if bufnr and bufnr > 0 and info.loaded then
-            local ok, buftype = pcall(function()
-                return vim.bo[bufnr].buftype
-            end)
-            if ok and (buftype == "" or buftype == nil) then
-                buffers[#buffers + 1] = info
+    for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+        if vim.api.nvim_buf_is_loaded(buf) and vim.bo[buf].buflisted then
+            local buftype = vim.bo[buf].buftype
+            if buftype == "" then
+                local name = vim.api.nvim_buf_get_name(buf)
+                if name ~= "" then
+                    buffers[#buffers + 1] = { bufnr = buf, path = name }
+                end
             end
         end
     end
-
     return buffers
 end
 
---- Check if path matches a loaded buffer
+--- Find buffer by path (exact match)
 ---@param path string
----@return number|nil bufnr if found
+---@return number|nil bufnr
 local function find_buffer_by_path(path)
     if not path or path == "" then
         return nil
     end
-
-    local normalized = vim.fs.normalize(path)
-
-    for _, info in ipairs(get_listed_buffers()) do
-        local name = info.name or ""
-        if name ~= "" then
-            if name == path or vim.fs.normalize(name) == normalized then
-                return info.bufnr
-            end
+    local normalized = normalize_path(path)
+    for _, buf in ipairs(get_listed_buffers()) do
+        if buf.path == path or normalize_path(buf.path) == normalized then
+            return buf.bufnr
         end
     end
     return nil
 end
 
---- Switch to buffer by bufnr
+--- Switch to buffer, handling quickfix window
 ---@param bufnr number
 ---@return boolean success
 local function switch_to_buffer(bufnr)
+    -- If in quickfix window, switch to a normal window first
+    if is_quickfix_window(vim.api.nvim_get_current_win()) then
+        for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+            if not is_quickfix_window(win) then
+                vim.api.nvim_set_current_win(win)
+                break
+            end
+        end
+        -- If still in quickfix, create a split
+        if is_quickfix_window(vim.api.nvim_get_current_win()) then
+            vim.cmd.split()
+        end
+    end
+
     local ok = pcall(vim.api.nvim_set_current_buf, bufnr)
     if not ok then
         vim.notify(string.format("FuzzyBuffers: failed to switch to buffer %d.", bufnr), vim.log.levels.ERROR)
@@ -57,61 +83,50 @@ local function switch_to_buffer(bufnr)
 end
 
 --- Build quickfix items from buffer list
----@param buffers table list of buffer info
----@return table items, number|nil first_bufnr
-local function build_buffer_quickfix_items(buffers)
+---@param buffers table list of {bufnr, path}
+---@return table items
+---@return string|nil first_path
+local function build_quickfix_items(buffers)
     local items = {}
-    local first_bufnr = nil
+    local first_path = nil
 
-    for _, info in ipairs(buffers) do
-        local name = info.name or ""
-        local has_name = name ~= ""
-        local display_name = has_name and name or "[No Name]"
-        local label = string.format("[%d] %s", info.bufnr, display_name)
-
-        first_bufnr = first_bufnr or info.bufnr
-
+    for _, buf in ipairs(buffers) do
+        first_path = first_path or buf.path
         items[#items + 1] = {
-            filename = has_name and name or nil,
-            bufnr = has_name and nil or info.bufnr,
-            lnum = (info.lnum and info.lnum > 0) and info.lnum or 1,
+            filename = buf.path,
+            lnum = 1,
             col = 1,
-            text = label,
+            text = string.format("[%d] %s", buf.bufnr, buf.path),
         }
     end
 
-    return items, first_bufnr
+    return items, first_path
 end
 
---- Get filtered list of buffers
----@param pattern string|nil fuzzy pattern to filter by
----@return table list of matching buffer info
-local function get_filtered_buffers(pattern)
-    local buffers = get_listed_buffers()
-
-    -- If no pattern, return all
+--- Filter buffers using fuzzy matching
+---@param pattern string
+---@param buffers table list of {bufnr, path}
+---@return table filtered buffers
+local function filter_buffers(pattern, buffers)
     if not pattern or pattern == "" then
         return buffers
     end
 
-    -- Fuzzy filter by name
-    local names = vim.iter(buffers):map(function(b)
-        return b.name or ""
-    end):totable()
+    -- Extract paths for matching
+    local paths = vim.iter(buffers):map(function(b) return b.path end):totable()
+    local scored = match.filter(pattern, paths)
 
-    local scored = match.filter(pattern, names)
-
-    -- Map back to buffer info, preserving fuzzy order
-    local name_to_info = {}
-    for _, info in ipairs(buffers) do
-        name_to_info[info.name or ""] = info
+    -- Map back to buffer info
+    local path_to_buf = {}
+    for _, buf in ipairs(buffers) do
+        path_to_buf[buf.path] = buf
     end
 
     local filtered = {}
     for _, entry in ipairs(scored) do
-        local info = name_to_info[entry.item]
-        if info then
-            filtered[#filtered + 1] = info
+        local buf = path_to_buf[entry.item]
+        if buf then
+            filtered[#filtered + 1] = buf
         end
     end
 
@@ -119,7 +134,7 @@ local function get_filtered_buffers(pattern)
 end
 
 --- Run FuzzyBuffers command
----@param raw_args string|nil pattern to filter buffers
+---@param raw_args string pattern to filter buffers
 ---@param bang boolean if true, switch directly to single match
 local function run(raw_args, bang)
     local pattern = vim.trim(raw_args or "")
@@ -128,38 +143,37 @@ local function run(raw_args, bang)
     if pattern ~= "" then
         local exact_bufnr = find_buffer_by_path(pattern)
         if exact_bufnr then
-            -- Switch directly if bang or config.open_single_result
             if bang or config.get().open_single_result then
                 switch_to_buffer(exact_bufnr)
                 return
             end
-        end
-    end
-
-    local buffers = get_filtered_buffers(pattern)
-
-    if #buffers == 0 then
-        vim.notify("FuzzyBuffers: no matching buffers.", vim.log.levels.INFO)
-        return
-    end
-
-    -- If single match and (bang or config), switch directly
-    local prefer_direct = (config.get().open_single_result or bang) and #buffers == 1
-    if prefer_direct then
-        local info = buffers[1]
-        if info.bufnr then
-            switch_to_buffer(info.bufnr)
+            -- Show single buffer in quickfix if not using bang
+            local items = {{ filename = pattern, lnum = 1, col = 1, text = pattern }}
+            quickfix.update(items, { title = "FuzzyBuffers", command = "FuzzyBuffers" })
+            quickfix.open_quickfix_when_results(1, "FuzzyBuffers: no matching buffers.")
             return
         end
     end
 
-    local items, first_bufnr = build_buffer_quickfix_items(buffers)
+    -- Get and filter buffers
+    local buffers = get_listed_buffers()
+    local filtered = filter_buffers(pattern, buffers)
 
-    local count = quickfix.update(items, {
-        title = "FuzzyBuffers",
-        command = "FuzzyBuffers",
-    })
+    if #filtered == 0 then
+        vim.notify("FuzzyBuffers: no matching buffers.", vim.log.levels.INFO)
+        return
+    end
 
+    -- If single match and bang/config, switch directly
+    local prefer_direct = (config.get().open_single_result or bang) and #filtered == 1
+    if prefer_direct then
+        switch_to_buffer(filtered[1].bufnr)
+        return
+    end
+
+    -- Show in quickfix
+    local items, first_path = build_quickfix_items(filtered)
+    local count = quickfix.update(items, { title = "FuzzyBuffers", command = "FuzzyBuffers" })
     quickfix.open_quickfix_when_results(count, "FuzzyBuffers: no matching buffers.")
 end
 
