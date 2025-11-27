@@ -1,6 +1,6 @@
 # fuzzy.nvim
 
-A fast and lightweight Neovim plugin for fuzzy finding files, grepping code, and managing buffers using the quickfix list.
+A fast and lightweight Neovim plugin for fuzzy finding files, grepping code, and managing buffers etc,. All using the quickfix workflow.
 
 ## Features
 
