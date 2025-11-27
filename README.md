@@ -113,20 +113,14 @@ Aliases: `:Files`
 :FuzzyFiles . --max-depth 2
 ```
 
-The `!` modifier makes FuzzyFiles open a single result directly.
+The `!` modifier makes FuzzyFiles open a single result directly if there is only one match, instead of showing the quickfix list.
 
 **Special argument:**
 - `--noignore` - Include files ignored by .gitignore
 
-**Common fd options:**
-- `-e EXT` - Filter by extension (e.g., `-e lua -e vim`)
-- `-t TYPE` - Filter by type: f=file, d=directory, l=symlink
-- `-E PATTERN` - Exclude pattern
-- `--max-depth N` - Limit search depth
-
 ### `:FuzzyBuffers[!]`
 
-List all open buffers in the quickfix list.
+List all open buffers in the quickfix list. When executing the command pressing tab will autocomplete the buffer names.
 
 Aliases: `:Buffers`
 
@@ -211,8 +205,8 @@ end
 vim.keymap.set('n', '<leader>fh', grep_help, { desc = 'Search help docs' })
 ```
 
-### An example usage of the plugin:
-```lua
+### An example config/usage of the plugin:
+```lua 
 local ok, fuzzy = pcall(require, "fuzzy")
 if ok then
     fuzzy.setup()
@@ -240,15 +234,18 @@ if ok then
     vim.keymap.set("n", "<leader>fb", ":Buffers! ",
         { silent = false, desc = "Fuzzy buffer list" })
 
-    vim.keymap.set("n", "<leader>fw", function() _fuzzy_grep(vim.fn.expand("<cword>"), false) end,
+    vim.keymap.set("n", "<leader>fw", function()
+            _fuzzy_grep(vim.fn.expand("<cword>"), false)
+        end,
         { silent = false, desc = "Fuzzy grep current word" })
 
-    vim.keymap.set("n", "<leader>fW", function() _fuzzy_grep(vim.fn.expand("<cWORD>"), true) end,
+    vim.keymap.set("n", "<leader>fW", function()
+            _fuzzy_grep(vim.fn.expand("<cWORD>"), true)
+        end,
         { silent = false, desc = "Fuzzy grep current WORD" })
 
     vim.keymap.set("n", "<leader>fl", "<CMD>FuzzyList<CR>",
         { silent = false, desc = "Fuzzy list" })
-
 end
 ```
 ## API
