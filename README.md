@@ -83,7 +83,7 @@ require('fuzzy').setup({
 
 Search for patterns in files using ripgrep (falls back to `grep -R` when rg is unavailable).
 
-Aliases: `:FG`
+Aliases: `:Grep`
 
 Default: Collapses multiple matches on the same line into a single quickfix entry (text stays unchanged; a notification tells you how many lines were deduped). Add `!` to keep every match (no deduping).
 
@@ -97,21 +97,11 @@ Default: Collapses multiple matches on the same line into a single quickfix entr
 :FuzzyGrep "TODO|FIXME" -g '*.js'
 ```
 
-**Common ripgrep options:**
-- `-t TYPE` - Search only files of TYPE (lua, py, js, etc.)
-- `-T TYPE` - Exclude files of TYPE
-- `-g GLOB` - Include/exclude files matching glob pattern
-- `-i` - Case insensitive search
-- `-w` - Match whole words only
-- `-F` - Treat pattern as literal string (not regex)
-- `--hidden` - Search hidden files
-- `--no-ignore` - Don't respect .gitignore
-
 ### `:FuzzyFiles[!] [fd arguments]`
 
 Find files using fd (falls back to `find` when fd is unavailable).
 
-Aliases: `:FF`
+Aliases: `:Files`
 
 **Examples:**
 ```vim
@@ -138,22 +128,19 @@ The `!` modifier makes FuzzyFiles open a single result directly.
 
 List all open buffers in the quickfix list.
 
-Aliases: `:FB`
+Aliases: `:Buffers`
 
 **Examples:**
 ```vim
-:FuzzyBuffers    " One-time buffer list
-:FuzzyBuffers!   " Live-updating buffer list
+:FuzzyBuffers    " Show the buffer list in quickfix
+:FuzzyBuffers!   " Focus on buffer if there is only one target otherise opnen quickfix
 ```
-
-Without `!`: Shows current listed buffers as a snapshot
-With `!`: Enables live updates - quickfix list refreshes when buffers are added/deleted
 
 ### `:FuzzyList`
 
 Browse and select from quickfix list history.
 
-Aliases: `:FL`
+Aliases: `:List`
 
 **Example:**
 ```vim
@@ -185,9 +172,9 @@ All fuzzy commands populate the quickfix list. Use standard quickfix navigation:
 local fuzzy = require('fuzzy')
 fuzzy.setup()
 
-vim.keymap.set('n', '<leader>/', '<CMD>FuzzyGrep<CR>', { desc = 'Fuzzy grep' })
-vim.keymap.set('n', '<leader>ff', '<CMD>FuzzyFiles!<CR>', { desc = 'Fuzzy find files' })
-vim.keymap.set('n', '<leader>fb', '<CMD>FuzzyBuffers<CR>', { desc = 'List buffers' })
+vim.keymap.set('n', '<leader>/',  ':FuzzyGrep ', { desc = 'Fuzzy grep' })
+vim.keymap.set('n', '<leader>ff', ':FuzzyFiles! ', { desc = 'Fuzzy find files' })
+vim.keymap.set('n', '<leader>fb', ':FuzzyBuffers! ', { desc = 'List buffers' })
 vim.keymap.set('n', '<leader>fl', '<CMD>FuzzyList<CR>', { desc = 'Quickfix history' })
 ```
 
