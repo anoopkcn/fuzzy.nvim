@@ -2,11 +2,12 @@
 -- by @anoopkcn
 -- Description: Neovim fuzzy helpers for grep, files, and buffers that feed the quickfix list.
 -- Provides commands:
---   :FuzzyGrep [pattern] [rg options] - Runs ripgrep with the given pattern and populates the quickfix list with results.
---   :FuzzyFiles[!] [fd arguments]     - Runs fd with the supplied arguments (use --noignore to include gitignored files).
---                                       Add ! to open a single match directly.
---   :FuzzyBuffers[!] [pattern]        - Fuzzy find open buffers (! switches directly to single match).
---   :FuzzyList                        - Pick a quickfix list from history (excluding the selector itself) and open it.
+--   :FuzzyGrep[!] [pattern] [rg options] - Runs ripgrep with the given pattern and populates the quickfix list with results.
+--                                          Add ! to show greedy matches as seperate entries in the results.
+--   :FuzzyFiles[!] [fd arguments]        - Runs fd with the supplied arguments (use --noignore to include gitignored files).
+--                                          Add ! to open a single match directly.
+--   :FuzzyBuffers[!] [pattern]           - Fuzzy find open buffers (! switches directly to single match).
+--   :FuzzyList                           - Pick a quickfix list from history (excluding the selector itself) and open it.
 
 local M = {}
 
