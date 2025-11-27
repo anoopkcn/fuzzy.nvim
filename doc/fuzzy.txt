@@ -65,7 +65,7 @@ Or use the quickfix window mappings:
 
 Search for patterns in files using ripgrep (falls back to `grep -R` when rg is unavailable).
 
-Alias: :FG
+Alias: :Grep
 
 Syntax: >
     :FuzzyGrep[!] [pattern] [rg options]
@@ -106,7 +106,7 @@ See `rg --help` for full options.
 
 Find files using fd (fast alternative to find; falls back to `find` when fd is unavailable).
 
-Alias: :FF
+Alias: :Files
 
 Syntax: >
     :FuzzyFiles[!] [fd arguments]
@@ -153,14 +153,14 @@ specific search patterns or increase |g:fuzzy_file_match_limit|.
 
 List all open buffers in the quickfix list.
 
-Alias: :FB
+Alias: :Buffers
 
 Syntax: >
     :FuzzyBuffers[!]
 <
-Without [!]: Shows current listed buffers as a snapshot
-With [!]:    Enables live updates - quickfix list refreshes when buffers
-            are added/deleted/wiped out
+Without [!]: Shows current listed buffers as a snapshot in quickfix list.
+With [!]:    Focus buffer if there is only one match; otherwise, opens buffer
+             list in quickfix list
 
 Only includes "real" listed buffers (excludes quickfix, help, terminal, etc.)
 
@@ -168,8 +168,8 @@ Buffer entries show:
     [bufnr] filename or [No Name]
 
 Examples: >
-    :FuzzyBuffers           " One-time buffer list
-    :FuzzyBuffers!          " Live-updating buffer list
+    :FuzzyBuffers           " Buffer list in quickfix
+    :FuzzyBuffers!          " Focus buffer if single match or list buffers
 <
 Use case for live mode:
   • Keep quickfix window open while working
@@ -181,7 +181,7 @@ Use case for live mode:
 
 Browse and select from quickfix list history.
 
-Alias: :FL
+Alias: :List
 
 Syntax: >
     :FuzzyList
