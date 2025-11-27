@@ -1,4 +1,4 @@
--- Fuzzy matching algorithm inspired by fzy
+-- Fuzzy matching algorithm inspired by fzy but not based on it.
 -- https://github.com/jhawthorn/fzy
 -- Provides scoring for fuzzy matching with bonuses for:
 -- - Consecutive matches
