@@ -19,39 +19,32 @@ local function create_alias(name, fn, opts)
 end
 
 function M.setup(user_opts)
-    local config = require("fuzzy.config")
-    local grep = require("fuzzy.commands.grep")
-    local files = require("fuzzy.commands.files")
-    local buffers = require("fuzzy.commands.buffers")
-    local quickfix = require("fuzzy.quickfix")
-    local complete = require("fuzzy.complete")
-
-    config.setup(user_opts)
+    require("fuzzy.config").setup(user_opts)
 
     local function run_fuzzy_grep(opts)
         local args = opts.args
         if args == "" then
-                return
+            return
         end
-        grep.run(args, not opts.bang)
+        require("fuzzy.commands.grep").run(args, not opts.bang)
     end
 
     local function run_fuzzy_files(opts)
         local args = opts.args
         if args == "" then
-                return
+            return
         end
         local raw_args = vim.trim(args or "")
-        files.run(raw_args, opts.bang)
+        require("fuzzy.commands.files").run(raw_args, opts.bang)
     end
 
     local function run_fuzzy_buffers(opts)
         local raw_args = vim.trim(opts.args or "")
-        buffers.run(raw_args, opts.bang)
+        require("fuzzy.commands.buffers").run(raw_args, opts.bang)
     end
 
     local function run_fuzzy_list()
-        quickfix.select_from_history()
+        require("fuzzy.quickfix").select_from_history()
     end
 
     local grep_opts = {
@@ -67,7 +60,7 @@ function M.setup(user_opts)
         nargs = "*",
         desc = "Fuzzy find files using fd (--noignore to include gitignored files, add ! to open a single match)",
         bang = true,
-        complete = complete.make_file_completer(),
+        complete = require("fuzzy.complete").make_file_completer(),
     }
     vim.api.nvim_create_user_command("FuzzyFiles", run_fuzzy_files, files_opts)
     create_alias("Files", run_fuzzy_files, files_opts)
@@ -76,7 +69,7 @@ function M.setup(user_opts)
         nargs = "*",
         desc = "Fuzzy find open buffers (! switches directly to single match)",
         bang = true,
-        complete = complete.make_buffer_completer(),
+        complete = require("fuzzy.complete").make_buffer_completer(),
     }
     vim.api.nvim_create_user_command("FuzzyBuffers", run_fuzzy_buffers, buffers_opts)
     create_alias("Buffers", run_fuzzy_buffers, buffers_opts)
