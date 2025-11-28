@@ -6,9 +6,8 @@ A fast and lightweight Neovim plugin for fuzzy finding files, grepping code, and
 
 - **Fast grep search** using ripgrep with smart case matching
 - **File finding** using fd with gitignore support
-- **Buffer list management** with optional live updates
+- **Buffer list** of all open buffers
 - **Quickfix history navigation** for easy access to previous searches
-- **Single-file direct opening** for instant file access
 - **Full control** over search arguments via ripgrep/fd options with built-in fallbacks
 
 Unlike heavier fuzzy finder plugins, fuzzy.nvim leverages external tools (ripgrep and fd) and native Vim functionality for maximum performance.
