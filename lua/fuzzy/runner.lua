@@ -63,6 +63,12 @@ local function run_fd_binary(extra_args, include_vcs, custom_limit, match_limit,
         vim.list_extend(args, { "--max-results", tostring(sentinel_limit) })
     end
 
+    -- If pattern contains a path separator, search full paths instead of just filenames
+    local first_arg = extra_args[1]
+    if first_arg and first_arg:find("/", 1, true) and first_arg:sub(1, 1) ~= "-" then
+        args[#args + 1] = "--full-path"
+    end
+
     vim.list_extend(args, extra_args)
 
     system.system_lines(args, function(lines, status, err_lines)
@@ -83,8 +89,11 @@ local function run_find_fallback(extra_args, include_vcs, custom_limit, match_li
     local name_pattern = extra_args[1]
     local predicate
     if name_pattern and name_pattern ~= "" then
-        predicate = function(name)
-            return name:find(name_pattern, 1, true) ~= nil
+        -- If pattern contains a path separator, match against full path
+        local match_full_path = name_pattern:find("/", 1, true) ~= nil
+        predicate = function(name, path)
+            local target = match_full_path and path or name
+            return target:find(name_pattern, 1, true) ~= nil
         end
     else
         predicate = function()
