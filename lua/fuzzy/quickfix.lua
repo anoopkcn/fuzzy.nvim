@@ -224,4 +224,30 @@ function M.get_quickfix_info(opts)
     return get_quickfix_info(opts)
 end
 
+function M.cnext_cycle()
+    local qflist = vim.fn.getqflist()
+    if #qflist == 0 then
+        return
+    end
+    local idx = vim.fn.getqflist({ idx = 0 }).idx
+    if idx >= #qflist then
+        vim.cmd("cfirst")
+    else
+        vim.cmd("cnext")
+    end
+end
+
+function M.cprev_cycle()
+    local qflist = vim.fn.getqflist()
+    if #qflist == 0 then
+        return
+    end
+    local idx = vim.fn.getqflist({ idx = 0 }).idx
+    if idx <= 1 then
+        vim.cmd("clast")
+    else
+        vim.cmd("cprev")
+    end
+end
+
 return M

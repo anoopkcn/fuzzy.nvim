@@ -8,6 +8,8 @@
 --                                          Add ! to open a single match directly.
 --   :FuzzyBuffers[!] [pattern]           - Fuzzy find open buffers (! switches directly to single match).
 --   :FuzzyList                           - Pick a quickfix list from history (excluding the selector itself) and open it.
+--   :FuzzyNext                           - Go to next quickfix entry (cycles to first at end).
+--   :FuzzyPrev                           - Go to previous quickfix entry (cycles to last at beginning).
 
 local M = {}
 
@@ -80,6 +82,14 @@ function M.setup(user_opts)
     }
     vim.api.nvim_create_user_command("FuzzyList", run_fuzzy_list, list_opts)
     create_alias("List", run_fuzzy_list, list_opts)
+
+    local quickfix = require("fuzzy.quickfix")
+    vim.api.nvim_create_user_command("FuzzyNext", quickfix.cnext_cycle, {
+        desc = "Go to next quickfix entry (cycles to first at end)",
+    })
+    vim.api.nvim_create_user_command("FuzzyPrev", quickfix.cprev_cycle, {
+        desc = "Go to previous quickfix entry (cycles to last at beginning)",
+    })
 end
 
 function M.grep(args, dedupe_lines)
