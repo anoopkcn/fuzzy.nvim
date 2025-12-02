@@ -19,31 +19,49 @@ local SCORE_MATCH_DOT = 0.6
 local SCORE_MAX = math.huge
 local SCORE_MIN = -math.huge
 
-local function is_lower(c)
-    return c:match("%l")
+-- Byte constants for fast comparisons
+local BYTE_SLASH = string.byte("/")
+local BYTE_BACKSLASH = string.byte("\\")
+local BYTE_UNDERSCORE = string.byte("_")
+local BYTE_DASH = string.byte("-")
+local BYTE_SPACE = string.byte(" ")
+local BYTE_DOT = string.byte(".")
+local BYTE_a = string.byte("a")
+local BYTE_z = string.byte("z")
+local BYTE_A = string.byte("A")
+local BYTE_Z = string.byte("Z")
+
+-- Local references for performance
+local string_byte = string.byte
+local string_lower = string.lower
+local math_max = math.max
+local math_min = math.min
+
+local function is_lower(byte)
+    return byte >= BYTE_a and byte <= BYTE_z
 end
 
-local function is_upper(c)
-    return c:match("%u")
+local function is_upper(byte)
+    return byte >= BYTE_A and byte <= BYTE_Z
 end
 
 --- Compute match bonus based on character position context
----@param haystack string
+---@param haystack_bytes table pre-computed byte array
 ---@param i number position in haystack (1-indexed)
 ---@return number bonus score
-local function compute_bonus(haystack, i)
+local function compute_bonus(haystack_bytes, i)
     if i == 1 then
         return SCORE_MATCH_SLASH -- Beginning of string is like after a slash
     end
 
-    local prev = haystack:sub(i - 1, i - 1)
-    local curr = haystack:sub(i, i)
+    local prev = haystack_bytes[i - 1]
+    local curr = haystack_bytes[i]
 
-    if prev == "/" or prev == "\\" then
+    if prev == BYTE_SLASH or prev == BYTE_BACKSLASH then
         return SCORE_MATCH_SLASH
-    elseif prev == "_" or prev == "-" or prev == " " then
+    elseif prev == BYTE_UNDERSCORE or prev == BYTE_DASH or prev == BYTE_SPACE then
         return SCORE_MATCH_WORD
-    elseif prev == "." then
+    elseif prev == BYTE_DOT then
         return SCORE_MATCH_DOT
     elseif is_lower(prev) and is_upper(curr) then
         return SCORE_MATCH_CAPITAL
@@ -52,19 +70,30 @@ local function compute_bonus(haystack, i)
     return 0
 end
 
+--- Convert string to byte array for fast access
+---@param str string
+---@return table bytes
+local function to_bytes(str)
+    local bytes = {}
+    for i = 1, #str do
+        bytes[i] = string_byte(str, i)
+    end
+    return bytes
+end
+
 --- Check if needle matches haystack (case-insensitive)
----@param needle string the search pattern
----@param haystack string the string to search in
+---@param needle_lower_bytes table pre-lowercased needle bytes
+---@param haystack_lower_bytes table pre-lowercased haystack bytes
 ---@return boolean matches
-local function has_match(needle, haystack)
-    local needle_lower = needle:lower()
-    local haystack_lower = haystack:lower()
+local function has_match(needle_lower_bytes, haystack_lower_bytes)
+    local needle_len = #needle_lower_bytes
+    local haystack_len = #haystack_lower_bytes
 
     local j = 1
-    for i = 1, #haystack_lower do
-        if haystack_lower:sub(i, i) == needle_lower:sub(j, j) then
+    for i = 1, haystack_len do
+        if haystack_lower_bytes[i] == needle_lower_bytes[j] then
             j = j + 1
-            if j > #needle_lower then
+            if j > needle_len then
                 return true
             end
         end
@@ -89,7 +118,7 @@ function M.score(needle, haystack)
 
     if n == m then
         -- Exact match
-        if needle:lower() == haystack:lower() then
+        if string_lower(needle) == string_lower(haystack) then
             return SCORE_MAX, nil
         end
     end
@@ -98,17 +127,22 @@ function M.score(needle, haystack)
         return SCORE_MIN, nil
     end
 
-    local needle_lower = needle:lower()
-    local haystack_lower = haystack:lower()
+    local needle_lower = string_lower(needle)
+    local haystack_lower = string_lower(haystack)
+
+    -- Pre-compute byte arrays for fast access
+    local needle_lower_bytes = to_bytes(needle_lower)
+    local haystack_lower_bytes = to_bytes(haystack_lower)
+    local haystack_bytes = to_bytes(haystack)
 
     -- Quick check: does needle match at all?
-    if not has_match(needle, haystack) then
+    if not has_match(needle_lower_bytes, haystack_lower_bytes) then
         return SCORE_MIN, nil
     end
 
     -- Dynamic programming approach
     -- D[i][j] = best score for matching needle[1..i] to haystack[1..j]
-    -- M[i][j] = best score ending with a match at position j
+    -- Match[i][j] = best score ending with a match at position j
 
     local D = {}
     local Match = {}
@@ -129,13 +163,13 @@ function M.score(needle, haystack)
     for i = 1, n do
         local prev_score = SCORE_MIN
         local gap_score = i == n and SCORE_GAP_TRAILING or SCORE_GAP_INNER
+        local nc = needle_lower_bytes[i]
 
         for j = i, m do
-            local nc = needle_lower:sub(i, i)
-            local hc = haystack_lower:sub(j, j)
+            local hc = haystack_lower_bytes[j]
 
             if nc == hc then
-                local bonus = compute_bonus(haystack, j)
+                local bonus = compute_bonus(haystack_bytes, j)
 
                 -- Score for starting a new match sequence
                 local score1 = D[i - 1][j - 1] + bonus
@@ -143,11 +177,11 @@ function M.score(needle, haystack)
                 -- Score for continuing a match sequence
                 local score2 = Match[i - 1][j - 1] + SCORE_MATCH_CONSECUTIVE
 
-                local match_score = math.max(score1, score2)
+                local match_score = math_max(score1, score2)
                 Match[i][j] = match_score
 
                 -- Best score so far
-                D[i][j] = math.max(prev_score + gap_score, match_score)
+                D[i][j] = math_max(prev_score + gap_score, match_score)
             else
                 Match[i][j] = SCORE_MIN
                 D[i][j] = prev_score + gap_score
@@ -169,17 +203,21 @@ function M.filter(pattern, items, limit)
     if not pattern or pattern == "" then
         local results = {}
         local max = limit or #items
-        for i = 1, math.min(max, #items) do
+        local item_count = #items
+        for i = 1, math_min(max, item_count) do
             results[i] = { item = items[i], score = 0 }
         end
         return results
     end
 
     local scored = {}
-    for _, item in ipairs(items) do
+    local scored_count = 0
+    for i = 1, #items do
+        local item = items[i]
         local score = M.score(pattern, item)
         if score > SCORE_MIN then
-            scored[#scored + 1] = { item = item, score = score }
+            scored_count = scored_count + 1
+            scored[scored_count] = { item = item, score = score }
         end
     end
 
@@ -188,13 +226,14 @@ function M.filter(pattern, items, limit)
         if a.score ~= b.score then
             return a.score > b.score
         end
-        if #a.item ~= #b.item then
-            return #a.item < #b.item
+        local len_a, len_b = #a.item, #b.item
+        if len_a ~= len_b then
+            return len_a < len_b
         end
         return a.item < b.item
     end)
 
-    if limit and #scored > limit then
+    if limit and scored_count > limit then
         local limited = {}
         for i = 1, limit do
             limited[i] = scored[i]
