@@ -1,5 +1,4 @@
 -- Generic interactive floating picker with live filtering
--- Single window approach for better efficiency and simpler styling
 
 local match = require("fuzzy.match")
 
@@ -32,7 +31,7 @@ local function create_picker_win(opts)
 end
 
 local function build_separator(width)
-    return "├" .. string.rep("─", width - 2) .. "┤"
+    return "─" .. string.rep("─", width - 2) .. "─"
 end
 
 local function close_picker(state)
