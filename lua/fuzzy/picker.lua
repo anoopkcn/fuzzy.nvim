@@ -20,7 +20,7 @@ local function create_float_win(opts)
         relative = "editor",
         width = width,
         height = height - 3,
-        row = row + 3,
+        row = row + 2,
         col = col,
         style = "minimal",
         border = "rounded",
