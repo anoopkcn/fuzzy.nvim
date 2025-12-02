@@ -15,8 +15,8 @@ local function create_float_win(opts)
     -- Border characters: top-left, top, top-right, right, bottom-right, bottom, bottom-left, left
     -- Prompt border: rounded top, separator line at bottom
     local prompt_border = { "╭", "─", "╮", "│", "┤", "─", "├", "│" }
-    -- Results border: no top (connects to prompt), rounded bottom
-    local results_border = { "│", " ", "│", "│", "╯", "─", "╰", "│" }
+    -- Results border: no top border, just sides and rounded bottom
+    local results_border = { "", "", "", "│", "╯", "─", "╰", "│" }
 
     -- Prompt buffer (shown on top)
     local prompt_buf = vim.api.nvim_create_buf(false, true)
@@ -44,8 +44,8 @@ local function create_float_win(opts)
     local results_win = vim.api.nvim_open_win(results_buf, false, {
         relative = "editor",
         width = width,
-        height = height - 4,
-        row = row + 3,
+        height = height - 3,
+        row = row + 2,
         col = col,
         style = "minimal",
         border = results_border,
