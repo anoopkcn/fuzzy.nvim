@@ -150,7 +150,7 @@ end
 function M.open(opts)
     opts = opts or {}
     local source = opts.source or {}
-    local on_select = opts.on_select or function() end
+    local on_select = opts.on_select or function(_item, _query) end
     local max_results = opts.max_results or 50
     local filter_locally = opts.filter_locally ~= false
     local debounce_ms = opts.debounce_ms or 150
