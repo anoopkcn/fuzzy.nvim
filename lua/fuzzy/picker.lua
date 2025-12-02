@@ -106,10 +106,15 @@ local function render_results(state)
 
     -- Scroll results window to keep selection visible
     if #items > 0 and vim.api.nvim_win_is_valid(state.results_win) then
-        pcall(vim.api.nvim_win_set_cursor, state.results_win, { math.min(state.selected, #items), 0 })
-        vim.api.nvim_win_call(state.results_win, function()
-            vim.cmd("normal! zz")
-        end)
+        local win_height = vim.api.nvim_win_get_height(state.results_win)
+        local cursor_row = math.min(state.selected, #items)
+        pcall(vim.api.nvim_win_set_cursor, state.results_win, { cursor_row, 0 })
+        -- Only scroll if selection is outside visible area
+        if cursor_row > win_height then
+            vim.api.nvim_win_call(state.results_win, function()
+                vim.cmd("normal! zz")
+            end)
+        end
     end
 end
 
@@ -261,8 +266,11 @@ function M.open(opts)
     vim.keymap.set("i", "<Tab>", function() move_selection(state, 1) end, kopts)
     vim.keymap.set("i", "<S-Tab>", function() move_selection(state, -1) end, kopts)
 
-    -- Start in insert mode
+    -- Start in insert mode and re-render to ensure highlight shows
     vim.cmd("startinsert!")
+    vim.schedule(function()
+        render_results(state)
+    end)
 
     return state
 end
