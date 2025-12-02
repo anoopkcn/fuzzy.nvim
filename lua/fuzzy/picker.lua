@@ -39,6 +39,7 @@ local function close_picker(state)
         return
     end
     state.closed = true
+    vim.cmd("stopinsert")
     pcall(vim.api.nvim_win_close, state.win, true)
     pcall(vim.api.nvim_buf_delete, state.buf, { force = true })
 end
