@@ -87,16 +87,19 @@ local function render_results(state)
 
     vim.api.nvim_buf_set_lines(state.results_buf, 0, -1, false, lines)
 
-    -- Highlight selected line
+    -- Highlight selected line using extmarks (nvim_buf_add_highlight is deprecated)
     vim.api.nvim_buf_clear_namespace(state.results_buf, state.ns, 0, -1)
     if #items > 0 then
-        vim.api.nvim_buf_add_highlight(state.results_buf, state.ns, "CursorLine", state.selected - 1, 0, -1)
+        vim.api.nvim_buf_set_extmark(state.results_buf, state.ns, state.selected - 1, 0, {
+            end_row = state.selected - 1,
+            end_col = #lines[state.selected],
+            hl_group = "CursorLine",
+            hl_eol = true,
+        })
     end
 
     -- Scroll results window to keep selection visible
     if #items > 0 and vim.api.nvim_win_is_valid(state.results_win) then
-        local win_height = vim.api.nvim_win_get_height(state.results_win)
-        local top_line = math.max(1, state.selected - math.floor(win_height / 2))
         pcall(vim.api.nvim_win_set_cursor, state.results_win, { math.min(state.selected, #items), 0 })
         vim.api.nvim_win_call(state.results_win, function()
             vim.cmd("normal! zz")
@@ -107,7 +110,7 @@ end
 local function apply_filter(state, query)
     if state.filter_locally and query ~= "" then
         local scored = match.filter(query, state.source_items, state.max_results)
-        state.display_items = vim.tbl_map(function(e) return e.item end, scored)
+        state.display_items = vim.iter(scored):map(function(e) return e.item end):totable()
     else
         state.display_items = vim.list_slice(state.source_items, 1, state.max_results)
     end

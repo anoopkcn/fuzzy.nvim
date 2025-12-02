@@ -129,7 +129,7 @@ local function prompt_quickfix_choice(lists, handle_choice)
         output_lines[#output_lines + 1] = string.format("%d: %s", idx, format_quickfix_entry(item))
     end
 
-    local echo_chunks = vim.tbl_map(function(line) return { line .. "\n", "None" } end, output_lines)
+    local echo_chunks = vim.iter(output_lines):map(function(line) return { line .. "\n", "None" } end):totable()
     vim.api.nvim_echo(echo_chunks, false, {})
 
     local input = vim.ui and vim.ui.input or vim.fn.input
