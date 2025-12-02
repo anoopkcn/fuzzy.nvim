@@ -12,20 +12,11 @@ local function create_float_win(opts)
     local row = math.floor((vim.o.lines - height) / 2) - 1
     local col = math.floor((vim.o.columns - width) / 2)
 
-    -- Results buffer (created first, shown below prompt)
-    local results_buf = vim.api.nvim_create_buf(false, true)
-    vim.bo[results_buf].bufhidden = "wipe"
-
-    local results_win = vim.api.nvim_open_win(results_buf, false, {
-        relative = "editor",
-        width = width,
-        height = height - 2,
-        row = row + 2,
-        col = col,
-        style = "minimal",
-        border = "rounded",
-    })
-    vim.wo[results_win].cursorline = false
+    -- Border characters: top-left, top, top-right, right, bottom-right, bottom, bottom-left, left
+    -- Prompt border: rounded top, separator line at bottom
+    local prompt_border = { "╭", "─", "╮", "│", "┤", "─", "├", "│" }
+    -- Results border: no top (connects to prompt), rounded bottom
+    local results_border = { "│", " ", "│", "│", "╯", "─", "╰", "│" }
 
     -- Prompt buffer (shown on top)
     local prompt_buf = vim.api.nvim_create_buf(false, true)
@@ -39,12 +30,27 @@ local function create_float_win(opts)
         row = row,
         col = col,
         style = "minimal",
-        border = "rounded",
+        border = prompt_border,
         title = opts.title or " Fuzzy ",
         title_pos = "center",
     })
 
     vim.fn.prompt_setprompt(prompt_buf, "> ")
+
+    -- Results buffer (shown below prompt, connected)
+    local results_buf = vim.api.nvim_create_buf(false, true)
+    vim.bo[results_buf].bufhidden = "wipe"
+
+    local results_win = vim.api.nvim_open_win(results_buf, false, {
+        relative = "editor",
+        width = width,
+        height = height - 4,
+        row = row + 3,
+        col = col,
+        style = "minimal",
+        border = results_border,
+    })
+    vim.wo[results_win].cursorline = false
 
     return {
         prompt_buf = prompt_buf,
