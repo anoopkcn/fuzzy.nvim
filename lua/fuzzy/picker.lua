@@ -44,7 +44,7 @@ local function close_picker(state)
     pcall(vim.api.nvim_buf_delete, state.buf, { force = true })
 end
 
-local function render(state)
+local function render_results(state)
     if state.closed then
         return
     end
@@ -52,12 +52,7 @@ local function render(state)
     local items = state.display_items
     state.selected = math.min(state.selected, math.max(1, #items))
 
-    local lines = {}
-    -- Line 1: prompt
-    lines[1] = "> " .. state.query
-    -- Line 2: separator
-    lines[2] = build_separator(state.width)
-    -- Lines 3+: results
+    local lines = { build_separator(state.width) }
     for i, entry in ipairs(items) do
         local prefix = i == state.selected and "> " or "  "
         local text = type(entry) == "table" and (entry.display or entry.text or entry.item or tostring(entry)) or entry
@@ -68,10 +63,13 @@ local function render(state)
         lines[#lines + 1] = "  No matches"
     end
 
-    vim.api.nvim_buf_set_lines(state.buf, 0, -1, false, lines)
+    -- Update lines 2+ (keep prompt line intact)
+    vim.api.nvim_buf_set_lines(state.buf, 1, -1, false, lines)
 
-    -- Highlight prompt line
+    -- Highlights
     vim.api.nvim_buf_clear_namespace(state.buf, state.ns, 0, -1)
+
+    -- Highlight prompt prefix
     vim.api.nvim_buf_set_extmark(state.buf, state.ns, 0, 0, {
         end_row = 0,
         end_col = 2,
@@ -81,23 +79,20 @@ local function render(state)
     -- Highlight separator
     vim.api.nvim_buf_set_extmark(state.buf, state.ns, 1, 0, {
         end_row = 1,
-        end_col = #lines[2],
+        end_col = #lines[1],
         hl_group = "FloatBorder",
     })
 
-    -- Highlight selected result line (offset by 2 for prompt + separator)
+    -- Highlight selected result line
     if #items > 0 then
-        local sel_row = state.selected + 1 -- +2 for prompt/separator, -1 for 0-index = +1
+        local sel_row = state.selected + 1
         vim.api.nvim_buf_set_extmark(state.buf, state.ns, sel_row, 0, {
             end_row = sel_row,
-            end_col = #lines[sel_row + 1],
+            end_col = #lines[sel_row],
             hl_group = "CursorLine",
             hl_eol = true,
         })
     end
-
-    -- Position cursor at end of prompt
-    pcall(vim.api.nvim_win_set_cursor, state.win, { 1, #lines[1] })
 end
 
 local function apply_filter(state)
@@ -107,7 +102,7 @@ local function apply_filter(state)
     else
         state.display_items = vim.list_slice(state.source_items, 1, state.max_results)
     end
-    render(state)
+    render_results(state)
 end
 
 local function move_selection(state, delta)
@@ -120,7 +115,7 @@ local function move_selection(state, delta)
     elseif state.selected > #state.display_items then
         state.selected = 1
     end
-    render(state)
+    render_results(state)
 end
 
 --- Open an interactive picker
@@ -189,6 +184,9 @@ function M.open(opts)
         end
     end
 
+    -- Initialize prompt line
+    vim.api.nvim_buf_set_lines(state.buf, 0, -1, false, { "> " })
+
     -- Initial load
     update_source("")
 
@@ -225,46 +223,28 @@ function M.open(opts)
     vim.keymap.set("i", "<Tab>", function() move_selection(state, 1) end, kopts)
     vim.keymap.set("i", "<S-Tab>", function() move_selection(state, -1) end, kopts)
 
-    -- Text input handling
-    vim.keymap.set("i", "<BS>", function()
-        if #state.query > 0 then
-            state.query = state.query:sub(1, -2)
-            on_query_change()
-        end
-    end, kopts)
+    -- Handle text changes via autocmd - let Vim handle editing naturally
+    vim.api.nvim_create_autocmd("TextChangedI", {
+        buffer = state.buf,
+        callback = function()
+            local line = vim.api.nvim_buf_get_lines(state.buf, 0, 1, false)[1] or ""
+            -- Ensure prompt prefix exists
+            if not line:match("^> ") then
+                line = "> " .. line:gsub("^>?%s*", "")
+                vim.api.nvim_buf_set_lines(state.buf, 0, 1, false, { line })
+                vim.api.nvim_win_set_cursor(state.win, { 1, #line })
+            end
+            local query = line:sub(3)
+            if query ~= state.query then
+                state.query = query
+                on_query_change()
+            end
+        end,
+    })
 
-    vim.keymap.set("i", "<C-u>", function()
-        state.query = ""
-        on_query_change()
-    end, kopts)
-
-    vim.keymap.set("i", "<C-w>", function()
-        state.query = state.query:gsub("%S+%s*$", "")
-        on_query_change()
-    end, kopts)
-
-    -- Catch all printable characters
-    vim.on_key(function(key)
-        if state.closed then
-            return
-        end
-        -- Only handle in insert mode and for this buffer
-        if vim.fn.mode() ~= "i" then
-            return
-        end
-        if vim.api.nvim_get_current_buf() ~= state.buf then
-            return
-        end
-        -- Check if it's a printable character (not a special key)
-        local byte = key:byte()
-        if byte and byte >= 32 and byte < 127 then
-            state.query = state.query .. key
-            on_query_change()
-        end
-    end, state.ns)
-
-    -- Start in insert mode
-    vim.cmd("startinsert")
+    -- Start in insert mode at end of prompt
+    vim.cmd("startinsert!")
+    vim.api.nvim_win_set_cursor(state.win, { 1, 2 })
 
     return state
 end
