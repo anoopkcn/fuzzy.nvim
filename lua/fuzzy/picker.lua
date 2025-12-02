@@ -19,7 +19,7 @@ local function create_float_win(opts)
     local results_win = vim.api.nvim_open_win(results_buf, false, {
         relative = "editor",
         width = width,
-        height = height - 3,
+        height = height - 2,
         row = row + 2,
         col = col,
         style = "minimal",
