@@ -1,63 +1,38 @@
 -- Generic interactive floating picker with live filtering
--- Can be used with any source (files, grep, buffers, custom)
+-- Single window approach for better efficiency and simpler styling
 
 local match = require("fuzzy.match")
 
 local M = {}
 
-local function create_float_win(opts)
+local function create_picker_win(opts)
     opts = opts or {}
     local width = opts.width or math.floor(vim.o.columns * 0.7)
     local height = opts.height or math.floor(vim.o.lines * 0.5)
-    local row = math.floor((vim.o.lines - height) / 2) - 1
+    local row = math.floor((vim.o.lines - height) / 2)
     local col = math.floor((vim.o.columns - width) / 2)
 
-    -- Border characters: top-left, top, top-right, right, bottom-right, bottom, bottom-left, left
-    -- Prompt border: rounded top, separator line at bottom
-    local prompt_border = { "╭", "─", "╮", "│", "┤", "─", "├", "│" }
-    -- Results border: no top border, just sides and rounded bottom
-    local results_border = { "", "", "", "│", "╯", "─", "╰", "│" }
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.bo[buf].bufhidden = "wipe"
+    vim.bo[buf].buftype = "nofile"
 
-    -- Prompt buffer (shown on top)
-    local prompt_buf = vim.api.nvim_create_buf(false, true)
-    vim.bo[prompt_buf].bufhidden = "wipe"
-    vim.bo[prompt_buf].buftype = "prompt"
-
-    local prompt_win = vim.api.nvim_open_win(prompt_buf, true, {
+    local win = vim.api.nvim_open_win(buf, true, {
         relative = "editor",
         width = width,
-        height = 1,
+        height = height,
         row = row,
         col = col,
         style = "minimal",
-        border = prompt_border,
+        border = "rounded",
         title = opts.title or " Fuzzy ",
         title_pos = "center",
     })
 
-    vim.fn.prompt_setprompt(prompt_buf, "> ")
+    return { buf = buf, win = win, width = width }
+end
 
-    -- Results buffer (shown below prompt, connected)
-    local results_buf = vim.api.nvim_create_buf(false, true)
-    vim.bo[results_buf].bufhidden = "wipe"
-
-    local results_win = vim.api.nvim_open_win(results_buf, false, {
-        relative = "editor",
-        width = width,
-        height = height - 3,
-        row = row + 2,
-        col = col,
-        style = "minimal",
-        border = results_border,
-    })
-    vim.wo[results_win].cursorline = false
-
-    return {
-        prompt_buf = prompt_buf,
-        prompt_win = prompt_win,
-        results_buf = results_buf,
-        results_win = results_win,
-    }
+local function build_separator(width)
+    return "├" .. string.rep("─", width - 2) .. "┤"
 end
 
 local function close_picker(state)
@@ -65,14 +40,11 @@ local function close_picker(state)
         return
     end
     state.closed = true
-
-    pcall(vim.api.nvim_win_close, state.prompt_win, true)
-    pcall(vim.api.nvim_win_close, state.results_win, true)
-    pcall(vim.api.nvim_buf_delete, state.prompt_buf, { force = true })
-    pcall(vim.api.nvim_buf_delete, state.results_buf, { force = true })
+    pcall(vim.api.nvim_win_close, state.win, true)
+    pcall(vim.api.nvim_buf_delete, state.buf, { force = true })
 end
 
-local function render_results(state)
+local function render(state)
     if state.closed then
         return
     end
@@ -81,51 +53,61 @@ local function render_results(state)
     state.selected = math.min(state.selected, math.max(1, #items))
 
     local lines = {}
+    -- Line 1: prompt
+    lines[1] = "> " .. state.query
+    -- Line 2: separator
+    lines[2] = build_separator(state.width)
+    -- Lines 3+: results
     for i, entry in ipairs(items) do
         local prefix = i == state.selected and "> " or "  "
         local text = type(entry) == "table" and (entry.display or entry.text or entry.item or tostring(entry)) or entry
-        lines[i] = prefix .. text
+        lines[#lines + 1] = prefix .. text
     end
 
-    if #lines == 0 then
-        lines = { "  No matches" }
+    if #items == 0 then
+        lines[#lines + 1] = "  No matches"
     end
 
-    vim.api.nvim_buf_set_lines(state.results_buf, 0, -1, false, lines)
+    vim.api.nvim_buf_set_lines(state.buf, 0, -1, false, lines)
 
-    -- Highlight selected line using extmarks (nvim_buf_add_highlight is deprecated)
-    vim.api.nvim_buf_clear_namespace(state.results_buf, state.ns, 0, -1)
+    -- Highlight prompt line
+    vim.api.nvim_buf_clear_namespace(state.buf, state.ns, 0, -1)
+    vim.api.nvim_buf_set_extmark(state.buf, state.ns, 0, 0, {
+        end_row = 0,
+        end_col = 2,
+        hl_group = "Comment",
+    })
+
+    -- Highlight separator
+    vim.api.nvim_buf_set_extmark(state.buf, state.ns, 1, 0, {
+        end_row = 1,
+        end_col = #lines[2],
+        hl_group = "FloatBorder",
+    })
+
+    -- Highlight selected result line (offset by 2 for prompt + separator)
     if #items > 0 then
-        vim.api.nvim_buf_set_extmark(state.results_buf, state.ns, state.selected - 1, 0, {
-            end_row = state.selected - 1,
-            end_col = #lines[state.selected],
+        local sel_row = state.selected + 1 -- +2 for prompt/separator, -1 for 0-index = +1
+        vim.api.nvim_buf_set_extmark(state.buf, state.ns, sel_row, 0, {
+            end_row = sel_row,
+            end_col = #lines[sel_row + 1],
             hl_group = "CursorLine",
             hl_eol = true,
         })
     end
 
-    -- Scroll results window to keep selection visible
-    if #items > 0 and vim.api.nvim_win_is_valid(state.results_win) then
-        local win_height = vim.api.nvim_win_get_height(state.results_win)
-        local cursor_row = math.min(state.selected, #items)
-        pcall(vim.api.nvim_win_set_cursor, state.results_win, { cursor_row, 0 })
-        -- Only scroll if selection is outside visible area
-        if cursor_row > win_height then
-            vim.api.nvim_win_call(state.results_win, function()
-                vim.cmd("normal! zz")
-            end)
-        end
-    end
+    -- Position cursor at end of prompt
+    pcall(vim.api.nvim_win_set_cursor, state.win, { 1, #lines[1] })
 end
 
-local function apply_filter(state, query)
-    if state.filter_locally and query ~= "" then
-        local scored = match.filter(query, state.source_items, state.max_results)
+local function apply_filter(state)
+    if state.filter_locally and state.query ~= "" then
+        local scored = match.filter(state.query, state.source_items, state.max_results)
         state.display_items = vim.iter(scored):map(function(e) return e.item end):totable()
     else
         state.display_items = vim.list_slice(state.source_items, 1, state.max_results)
     end
-    render_results(state)
+    render(state)
 end
 
 local function move_selection(state, delta)
@@ -138,15 +120,7 @@ local function move_selection(state, delta)
     elseif state.selected > #state.display_items then
         state.selected = 1
     end
-    render_results(state)
-end
-
-local function get_query(state)
-    if not vim.api.nvim_buf_is_valid(state.prompt_buf) then
-        return ""
-    end
-    local line = vim.api.nvim_buf_get_lines(state.prompt_buf, 0, 1, false)[1] or ""
-    return line:gsub("^> ", "")
+    render(state)
 end
 
 --- Open an interactive picker
@@ -156,7 +130,6 @@ end
 ---   - title: string - Window title
 ---   - max_results: number - Max items to show (default 50)
 ---   - filter_locally: boolean - Filter items locally with fuzzy match (default true)
----                               Set to false for dynamic sources that filter themselves (e.g., grep)
 ---   - debounce_ms: number - Debounce time for dynamic sources (default 150)
 function M.open(opts)
     opts = opts or {}
@@ -166,13 +139,13 @@ function M.open(opts)
     local filter_locally = opts.filter_locally ~= false
     local debounce_ms = opts.debounce_ms or 150
 
-    local wins = create_float_win({ title = opts.title })
+    local win_info = create_picker_win({ title = opts.title })
 
     local state = {
-        prompt_buf = wins.prompt_buf,
-        prompt_win = wins.prompt_win,
-        results_buf = wins.results_buf,
-        results_win = wins.results_win,
+        buf = win_info.buf,
+        win = win_info.win,
+        width = win_info.width,
+        query = "",
         selected = 1,
         source_items = {},
         display_items = {},
@@ -185,53 +158,42 @@ function M.open(opts)
 
     local function update_source(query)
         if type(source) == "function" then
-            -- Dynamic source - call function with query
             source(query, function(items)
                 if state.closed then
                     return
                 end
                 vim.schedule(function()
                     state.source_items = items or {}
-                    apply_filter(state, filter_locally and query or "")
+                    apply_filter(state)
                 end)
             end)
         else
-            -- Static source
             state.source_items = source
-            apply_filter(state, query)
+            apply_filter(state)
         end
     end
 
     local function on_query_change()
-        local query = get_query(state)
         state.selected = 1
-
         if type(source) == "function" and not filter_locally then
-            -- Debounce dynamic sources
             if state.debounce_timer then
                 vim.fn.timer_stop(state.debounce_timer)
             end
             state.debounce_timer = vim.fn.timer_start(debounce_ms, function()
                 vim.schedule(function()
-                    update_source(query)
+                    update_source(state.query)
                 end)
             end)
         else
-            update_source(query)
+            update_source(state.query)
         end
     end
 
     -- Initial load
     update_source("")
 
-    -- Handle text changes
-    vim.api.nvim_create_autocmd("TextChangedI", {
-        buffer = state.prompt_buf,
-        callback = on_query_change,
-    })
-
     -- Keymaps
-    local kopts = { buffer = state.prompt_buf, noremap = true, silent = true }
+    local kopts = { buffer = state.buf, noremap = true, silent = true }
 
     -- Close
     vim.keymap.set({ "i", "n" }, "<Esc>", function()
@@ -247,12 +209,11 @@ function M.open(opts)
         if #state.display_items > 0 then
             local selected = state.display_items[state.selected]
             close_picker(state)
-            on_select(selected, get_query(state))
+            on_select(selected, state.query)
         end
     end
 
-    vim.keymap.set("i", "<CR>", do_select, kopts)
-    vim.keymap.set("n", "<CR>", do_select, kopts)
+    vim.keymap.set({ "i", "n" }, "<CR>", do_select, kopts)
 
     -- Navigation
     vim.keymap.set("i", "<C-n>", function() move_selection(state, 1) end, kopts)
@@ -261,16 +222,49 @@ function M.open(opts)
     vim.keymap.set("i", "<Up>", function() move_selection(state, -1) end, kopts)
     vim.keymap.set("i", "<C-j>", function() move_selection(state, 1) end, kopts)
     vim.keymap.set("i", "<C-k>", function() move_selection(state, -1) end, kopts)
-
-    -- Tab to cycle
     vim.keymap.set("i", "<Tab>", function() move_selection(state, 1) end, kopts)
     vim.keymap.set("i", "<S-Tab>", function() move_selection(state, -1) end, kopts)
 
-    -- Start in insert mode and re-render to ensure highlight shows
-    vim.cmd("startinsert!")
-    vim.schedule(function()
-        render_results(state)
-    end)
+    -- Text input handling
+    vim.keymap.set("i", "<BS>", function()
+        if #state.query > 0 then
+            state.query = state.query:sub(1, -2)
+            on_query_change()
+        end
+    end, kopts)
+
+    vim.keymap.set("i", "<C-u>", function()
+        state.query = ""
+        on_query_change()
+    end, kopts)
+
+    vim.keymap.set("i", "<C-w>", function()
+        state.query = state.query:gsub("%S+%s*$", "")
+        on_query_change()
+    end, kopts)
+
+    -- Catch all printable characters
+    vim.on_key(function(key)
+        if state.closed then
+            return
+        end
+        -- Only handle in insert mode and for this buffer
+        if vim.fn.mode() ~= "i" then
+            return
+        end
+        if vim.api.nvim_get_current_buf() ~= state.buf then
+            return
+        end
+        -- Check if it's a printable character (not a special key)
+        local byte = key:byte()
+        if byte and byte >= 32 and byte < 127 then
+            state.query = state.query .. key
+            on_query_change()
+        end
+    end, state.ns)
+
+    -- Start in insert mode
+    vim.cmd("startinsert")
 
     return state
 end
