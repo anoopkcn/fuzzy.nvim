@@ -7,6 +7,7 @@ A fast and lightweight Neovim plugin for fuzzy finding files, grepping code, and
 - **Fast grep search** using ripgrep with smart case matching
 - **File finding** using fd with gitignore support
 - **Buffer list** of all open buffers
+- **Interactive picker** with live fuzzy filtering in a floating window
 - **Quickfix history navigation** for easy access to previous searches
 - **Full control** over search arguments via ripgrep/fd options with built-in fallbacks
 
@@ -145,6 +146,50 @@ Shows all quickfix lists in the history stack and allows you to restore a previo
 
 Uses `vim.ui.select` if configured (e.g. with dressing.nvim); falls back to a simple prompt otherwise.
 
+## Interactive Picker Commands
+
+These commands open a floating window with live fuzzy filtering. Type to filter results, navigate with keybindings, and press Enter to select.
+
+### `:FuzzyFilesI`
+
+Interactive file picker with fuzzy filtering.
+
+Aliases: `:FilesI`
+
+```vim
+:FuzzyFilesI
+```
+
+### `:FuzzyGrepI`
+
+Interactive grep with live results. Results update as you type.
+
+Aliases: `:GrepI`
+
+```vim
+:FuzzyGrepI
+```
+
+### `:FuzzyBuffersI`
+
+Interactive buffer picker with fuzzy filtering.
+
+Aliases: `:BuffersI`
+
+```vim
+:FuzzyBuffersI
+```
+
+### Picker Keybindings
+
+| Key | Action |
+|-----|--------|
+| `<CR>` | Select item |
+| `<Esc>` | Close picker |
+| `<C-n>` / `<Down>` / `<C-j>` / `<Tab>` | Next item |
+| `<C-p>` / `<Up>` / `<C-k>` / `<S-Tab>` | Previous item |
+| `q` (normal mode) | Close picker |
+
 ## Quickfix Navigation
 
 All fuzzy commands populate the quickfix list. Use standard quickfix navigation:
@@ -280,6 +325,48 @@ fuzzy.grep({ 'TODO', '-t', 'lua' })
 
 -- Literal search
 fuzzy.grep({ '-F', 'function(args)' })
+```
+
+### `fuzzy.pick(opts)`
+
+Open a custom interactive picker with fuzzy filtering.
+
+**Parameters:**
+- `opts` (table) - Picker options:
+  - `source` (table|function) - Items to pick from, or `function(query, callback)` for dynamic sources
+  - `on_select` (function) - Called with `(item, query)` when user selects an item
+  - `title` (string) - Window title (default: " Fuzzy ")
+  - `max_results` (number) - Maximum items to display (default: 50)
+  - `filter_locally` (boolean) - Filter items with fuzzy match (default: true)
+  - `debounce_ms` (number) - Debounce time for dynamic sources (default: 150)
+
+**Example:**
+```lua
+local fuzzy = require('fuzzy')
+
+-- Simple static picker
+fuzzy.pick({
+    source = { 'apple', 'banana', 'cherry', 'date' },
+    title = ' Fruits ',
+    on_select = function(item, query)
+        print('Selected: ' .. item)
+    end,
+})
+
+-- Dynamic source (e.g., async search)
+fuzzy.pick({
+    title = ' Search ',
+    filter_locally = false,
+    source = function(query, callback)
+        -- Fetch results based on query
+        vim.defer_fn(function()
+            callback({ 'result1', 'result2' })
+        end, 100)
+    end,
+    on_select = function(item)
+        vim.cmd('edit ' .. item)
+    end,
+})
 ```
 
 ## License

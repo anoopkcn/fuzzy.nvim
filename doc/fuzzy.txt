@@ -13,9 +13,14 @@ CONTENTS                                                      *fuzzy-contents*
     3.2 FuzzyFiles ......................... |:FuzzyFiles|
     3.3 FuzzyBuffers ....................... |:FuzzyBuffers|
     3.4 FuzzyList .......................... |:FuzzyList|
-4. Configuration ........................... |fuzzy-configuration|
-5. Functions ............................... |fuzzy-functions|
-6. Examples ................................ |fuzzy-examples|
+4. Interactive Picker ...................... |fuzzy-picker|
+    4.1 FuzzyFilesI ........................ |:FuzzyFilesI|
+    4.2 FuzzyGrepI ......................... |:FuzzyGrepI|
+    4.3 FuzzyBuffersI ...................... |:FuzzyBuffersI|
+    4.4 Picker Keybindings ................. |fuzzy-picker-keys|
+5. Configuration ........................... |fuzzy-configuration|
+6. Functions ............................... |fuzzy-functions|
+7. Examples ................................ |fuzzy-examples|
 
 ==============================================================================
 1. INTRODUCTION                                          *fuzzy-introduction*
@@ -29,6 +34,7 @@ Features:
   • Fast grep search using ripgrep with smart case matching
   • File finding using fd with gitignore support
   • Buffer list management with optional live updates
+  • Interactive picker with live fuzzy filtering in floating window
   • Quickfix history navigation
   • Single-file direct opening
   • Full control over search arguments
@@ -208,7 +214,76 @@ Each command creates a new quickfix list. Use :colder and :cnewer to navigate
 manually, or use :FuzzyList for a visual selector.
 
 ==============================================================================
-4. CONFIGURATION                                        *fuzzy-configuration*
+4. INTERACTIVE PICKER                                        *fuzzy-picker*
+
+The interactive picker provides a floating window with live fuzzy filtering.
+Type to filter results, navigate with keybindings, and press Enter to select.
+
+------------------------------------------------------------------------------
+4.1 FuzzyFilesI                                                *:FuzzyFilesI*
+
+Interactive file picker with fuzzy filtering.
+
+Alias: :FilesI
+
+Syntax: >
+    :FuzzyFilesI
+<
+Opens a floating picker with all files in the current directory. Type to
+filter results using fuzzy matching. Press <CR> to open the selected file.
+
+------------------------------------------------------------------------------
+4.2 FuzzyGrepI                                                  *:FuzzyGrepI*
+
+Interactive grep with live results.
+
+Alias: :GrepI
+
+Syntax: >
+    :FuzzyGrepI
+<
+Opens a floating picker where you type your search pattern. Results update
+live as you type using ripgrep. Press <CR> to jump to the selected match.
+
+------------------------------------------------------------------------------
+4.3 FuzzyBuffersI                                            *:FuzzyBuffersI*
+
+Interactive buffer picker with fuzzy filtering.
+
+Alias: :BuffersI
+
+Syntax: >
+    :FuzzyBuffersI
+<
+Opens a floating picker with all open buffers. Type to filter buffers using
+fuzzy matching. Press <CR> to switch to the selected buffer.
+
+------------------------------------------------------------------------------
+4.4 Picker Keybindings                                    *fuzzy-picker-keys*
+
+The interactive picker supports the following keybindings:
+
+    <CR>            Select the current item and close picker
+    <Esc>           Close picker without selecting
+    q               Close picker (normal mode only)
+
+    <C-n>           Move to next item
+    <Down>          Move to next item
+    <C-j>           Move to next item
+    <Tab>           Move to next item
+
+    <C-p>           Move to previous item
+    <Up>            Move to previous item
+    <C-k>           Move to previous item
+    <S-Tab>         Move to previous item
+
+Standard insert mode editing keys work for the search prompt:
+    <BS>            Delete character before cursor
+    <C-u>           Clear the entire prompt
+    <C-w>           Delete word before cursor
+
+==============================================================================
+5. CONFIGURATION                                        *fuzzy-configuration*
 
 Setup the plugin in your init.lua: >
     require('fuzzy').setup({
@@ -243,7 +318,7 @@ Example: >
     require('fuzzy').setup({ file_match_limit = 1000 })
 <
 ==============================================================================
-5. FUNCTIONS                                                *fuzzy-functions*
+6. FUNCTIONS                                                *fuzzy-functions*
 
 The module exposes Lua functions for programmatic use.
 
@@ -281,8 +356,50 @@ fuzzy.grep({args})
         -- Literal search
         fuzzy.grep({ '-F', 'function(args)' })
 <
+------------------------------------------------------------------------------
+                                                                *fuzzy.pick()*
+fuzzy.pick({opts})
+    Open a custom interactive picker with fuzzy filtering.
+
+    Parameters: ~
+        {opts}  (table) Picker options:
+            source          (table|function) Items to pick from, or
+                            function(query, callback) for dynamic sources
+            on_select       (function) Called with (item, query) when user
+                            selects an item
+            title           (string) Window title (default: " Fuzzy ")
+            max_results     (number) Maximum items to display (default: 50)
+            filter_locally  (boolean) Filter with fuzzy match (default: true)
+            debounce_ms     (number) Debounce for dynamic sources (default: 150)
+
+    Example (static source): >
+        local fuzzy = require('fuzzy')
+
+        fuzzy.pick({
+            source = { 'apple', 'banana', 'cherry', 'date' },
+            title = ' Fruits ',
+            on_select = function(item, query)
+                print('Selected: ' .. item)
+            end,
+        })
+<
+    Example (dynamic source): >
+        fuzzy.pick({
+            title = ' Search ',
+            filter_locally = false,
+            source = function(query, callback)
+                -- Fetch results based on query asynchronously
+                vim.defer_fn(function()
+                    callback({ 'result1', 'result2' })
+                end, 100)
+            end,
+            on_select = function(item)
+                vim.cmd('edit ' .. item)
+            end,
+        })
+<
 ==============================================================================
-6. EXAMPLES                                                  *fuzzy-examples*
+7. EXAMPLES                                                  *fuzzy-examples*
 
 Keybinding setup~
 >
@@ -325,6 +442,14 @@ Keybinding setup~
         { desc = 'Search help docs' })
     vim.keymap.set('n', '<leader>fl', '<CMD>FuzzyList<CR>',
         { desc = 'Quickfix history' })
+
+    -- Interactive picker keybindings
+    vim.keymap.set('n', '<leader>pf', '<CMD>FuzzyFilesI<CR>',
+        { desc = 'Interactive file picker' })
+    vim.keymap.set('n', '<leader>pg', '<CMD>FuzzyGrepI<CR>',
+        { desc = 'Interactive grep' })
+    vim.keymap.set('n', '<leader>pb', '<CMD>FuzzyBuffersI<CR>',
+        { desc = 'Interactive buffer picker' })
 <
 Search specific file types~
 >
@@ -353,6 +478,31 @@ Workflow integration~
     " 5. Navigate between searches
     :colder
     :cnewer
+<
+Custom picker example~
+>
+    -- Pick from git branches
+    local fuzzy = require('fuzzy')
+
+    local function pick_branch()
+        vim.system({ 'git', 'branch', '--format=%(refname:short)' }, {
+            text = true,
+        }, function(obj)
+            if obj.code ~= 0 then return end
+            local branches = vim.split(obj.stdout, '\n', { trimempty = true })
+            vim.schedule(function()
+                fuzzy.pick({
+                    source = branches,
+                    title = ' Git Branches ',
+                    on_select = function(branch)
+                        vim.system({ 'git', 'checkout', branch })
+                    end,
+                })
+            end)
+        end)
+    end
+
+    vim.keymap.set('n', '<leader>gb', pick_branch, { desc = 'Switch branch' })
 <
 ==============================================================================
 vim:tw=78:ts=8:ft=help:norl:
