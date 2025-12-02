@@ -90,10 +90,104 @@ function M.setup(user_opts)
     vim.api.nvim_create_user_command("FuzzyPrev", quickfix.cprev_cycle, {
         desc = "Go to previous quickfix entry (cycles to last at beginning)",
     })
+
+    -- Interactive picker commands
+    local picker = require("fuzzy.picker")
+    local runner = require("fuzzy.runner")
+
+    local function run_files_interactive()
+        runner.run_fd({}, function(files)
+            vim.schedule(function()
+                picker.open({
+                    source = files,
+                    title = " Files ",
+                    on_select = function(file)
+                        if file and file ~= "" then
+                            vim.cmd("edit " .. vim.fn.fnameescape(file))
+                        end
+                    end,
+                })
+            end)
+        end)
+    end
+
+    local function run_grep_interactive()
+        picker.open({
+            title = " Grep ",
+            filter_locally = false,
+            debounce_ms = 200,
+            source = function(query, callback)
+                if query == "" then
+                    callback({})
+                    return
+                end
+                runner.run_rg(query, function(lines, status)
+                    local items = {}
+                    for _, line in ipairs(lines or {}) do
+                        if line ~= "" then
+                            items[#items + 1] = line
+                        end
+                    end
+                    callback(items)
+                end)
+            end,
+            on_select = function(item)
+                if not item or item == "" then
+                    return
+                end
+                local parsed = require("fuzzy.parse").parse_vimgrep_line(item)
+                if parsed then
+                    vim.cmd("edit " .. vim.fn.fnameescape(parsed.filename))
+                    vim.api.nvim_win_set_cursor(0, { parsed.lnum, (parsed.col or 1) - 1 })
+                end
+            end,
+        })
+    end
+
+    local function run_buffers_interactive()
+        local buffers = {}
+        for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+            if vim.api.nvim_buf_is_loaded(buf) and vim.bo[buf].buflisted and vim.bo[buf].buftype == "" then
+                local name = vim.api.nvim_buf_get_name(buf)
+                if name ~= "" then
+                    buffers[#buffers + 1] = vim.fn.fnamemodify(name, ":.")
+                end
+            end
+        end
+        picker.open({
+            source = buffers,
+            title = " Buffers ",
+            on_select = function(file)
+                if file and file ~= "" then
+                    vim.cmd("edit " .. vim.fn.fnameescape(file))
+                end
+            end,
+        })
+    end
+
+    vim.api.nvim_create_user_command("FuzzyFilesI", run_files_interactive, {
+        desc = "Interactive fuzzy file picker",
+    })
+    create_alias("FilesI", run_files_interactive, { desc = "Interactive fuzzy file picker" })
+
+    vim.api.nvim_create_user_command("FuzzyGrepI", run_grep_interactive, {
+        desc = "Interactive grep with live results",
+    })
+    create_alias("GrepI", run_grep_interactive, { desc = "Interactive grep with live results" })
+
+    vim.api.nvim_create_user_command("FuzzyBuffersI", run_buffers_interactive, {
+        desc = "Interactive buffer picker",
+    })
+    create_alias("BuffersI", run_buffers_interactive, { desc = "Interactive buffer picker" })
 end
 
 function M.grep(args, dedupe_lines)
     require("fuzzy.commands.grep").run(args, dedupe_lines)
+end
+
+-- Expose picker for custom interactive pickers
+M.pick = function(opts)
+    require("fuzzy.picker").open(opts)
 end
 
 return M
