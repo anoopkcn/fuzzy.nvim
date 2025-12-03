@@ -117,14 +117,32 @@ local function render_results(state)
         hl_group = "FloatBorder",
     })
 
-    -- Highlight selected result line
+    -- Highlight selected result line and scroll into view
     if item_count > 0 then
-        local sel_row = state.selected + 1
+        local sel_row = state.selected + 1  -- +1 for separator line
         vim.api.nvim_buf_set_extmark(state.buf, ns, sel_row, 0, {
             end_col = #lines[sel_row],
             hl_group = "CursorLine",
             hl_eol = true,
         })
+
+        -- Scroll to keep selected item visible (sel_row is 0-indexed, topline is 1-indexed)
+        local win_height = vim.api.nvim_win_get_height(state.win)
+        local topline = vim.fn.line("w0", state.win)
+        local botline = topline + win_height - 1
+        local target_line = sel_row + 1  -- Convert to 1-indexed for comparison
+
+        if target_line > botline then
+            -- Scroll down: set topline so target is at bottom
+            vim.api.nvim_win_call(state.win, function()
+                vim.fn.winrestview({ topline = target_line - win_height + 1 })
+            end)
+        elseif target_line < topline and target_line > 1 then
+            -- Scroll up: set topline to target (but keep prompt visible)
+            vim.api.nvim_win_call(state.win, function()
+                vim.fn.winrestview({ topline = math.max(1, target_line - 1) })
+            end)
+        end
     end
 end
 
