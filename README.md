@@ -2,6 +2,8 @@
 
 A fast and lightweight Neovim plugin for fuzzy finding files, grepping code, and managing buffers etc,. All using the quickfix workflow.
 
+![display_img](https://github.com/user-attachments/assets/e250b732-bbea-4fc4-b867-ae8b54c47f0e)
+
 ## Features
 
 - **Fast grep search** using ripgrep with smart case matching
