@@ -126,21 +126,24 @@ local function render_results(state)
             hl_eol = true,
         })
 
-        -- Scroll to keep selected item visible (sel_row is 0-indexed, topline is 1-indexed)
+        -- Scroll to keep selected item visible
+        -- target_line is 1-indexed line number in buffer
+        local target_line = sel_row + 1
         local win_height = vim.api.nvim_win_get_height(state.win)
-        local topline = vim.fn.line("w0", state.win)
+        local info = vim.fn.getwininfo(state.win)[1]
+        local topline = info and info.topline or 1
         local botline = topline + win_height - 1
-        local target_line = sel_row + 1  -- Convert to 1-indexed for comparison
 
         if target_line > botline then
-            -- Scroll down: set topline so target is at bottom
+            -- Scroll down: put selected at bottom
+            local new_top = target_line - win_height + 1
             vim.api.nvim_win_call(state.win, function()
-                vim.fn.winrestview({ topline = target_line - win_height + 1 })
+                vim.fn.winrestview({ topline = new_top })
             end)
-        elseif target_line < topline and target_line > 1 then
-            -- Scroll up: set topline to target (but keep prompt visible)
+        elseif target_line < topline then
+            -- Scroll up: put selected at top (but not above line 1)
             vim.api.nvim_win_call(state.win, function()
-                vim.fn.winrestview({ topline = math.max(1, target_line - 1) })
+                vim.fn.winrestview({ topline = math.max(1, target_line) })
             end)
         end
     end
