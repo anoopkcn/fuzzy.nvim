@@ -232,8 +232,8 @@ function M.open(opts)
     local function on_query_change(new_query, old_query)
         state.selected = 1
 
-        -- Static source: always filter locally
-        if type(source) == "table" then
+        -- Static source (no dynamic/streaming): always filter locally
+        if not streaming_source and type(source) == "table" then
             apply_filter(state, source, new_query)
             return
         end
