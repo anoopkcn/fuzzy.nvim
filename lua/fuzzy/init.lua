@@ -115,6 +115,7 @@ function M.setup(user_opts)
         picker.open({
             title = " Grep ",
             debounce_ms = 100,
+            highlight_pattern = true,
             streaming_source = function(query, on_lines, on_done)
                 if query == "" then
                     on_done(0, {})

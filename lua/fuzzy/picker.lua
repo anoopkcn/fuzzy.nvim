@@ -73,6 +73,32 @@ local function close_picker(state)
     pcall(vim.api.nvim_buf_delete, state.buf, { force = true })
 end
 
+--- Find all matches of pattern in text (smart-case: case-insensitive if pattern is all lowercase)
+--- @param text string The text to search in
+--- @param pattern string The pattern to find
+--- @return table List of {start, end} positions (1-indexed, inclusive)
+local function find_pattern_matches(text, pattern)
+    if not pattern or pattern == "" then
+        return {}
+    end
+
+    local matches = {}
+    -- Smart-case: case-insensitive if pattern is all lowercase
+    local ignore_case = pattern == pattern:lower()
+    local search_text = ignore_case and text:lower() or text
+    local search_pattern = ignore_case and pattern:lower() or pattern
+
+    local start_pos = 1
+    while true do
+        local s, e = search_text:find(search_pattern, start_pos, true)  -- plain text search
+        if not s then break end
+        matches[#matches + 1] = { s, e }
+        start_pos = e + 1
+    end
+
+    return matches
+end
+
 local function render_results(state)
     if state.closed then
         return
@@ -102,6 +128,7 @@ local function render_results(state)
     local lines = { get_separator(state.width) }
     local line_idx = 2
     local visible_selected_row = nil
+    local line_to_text = {}  -- Track original text for pattern matching
 
     for i = state.scroll_offset + 1, math.min(state.scroll_offset + visible_rows, item_count) do
         local entry = items[i]
@@ -110,6 +137,7 @@ local function render_results(state)
             and (entry.display or entry.text or entry.item or tostring(entry))
             or entry
         lines[line_idx] = prefix .. text
+        line_to_text[line_idx] = { text = text, prefix_len = #prefix }
         if i == state.selected then
             visible_selected_row = line_idx
         end
@@ -137,6 +165,22 @@ local function render_results(state)
         end_col = #lines[1],
         hl_group = "FloatBorder",
     })
+
+    -- Highlight pattern matches in results
+    if state.highlight_pattern and state.query ~= "" then
+        for row, info in pairs(line_to_text) do
+            local matches = find_pattern_matches(info.text, state.query)
+            for _, m in ipairs(matches) do
+                -- Adjust positions for prefix offset (0-indexed for extmark)
+                local col_start = info.prefix_len + m[1] - 1
+                local col_end = info.prefix_len + m[2]
+                vim.api.nvim_buf_set_extmark(state.buf, ns, row, col_start, {
+                    end_col = col_end,
+                    hl_group = "Search",
+                })
+            end
+        end
+    end
 
     -- Highlight selected result line
     if visible_selected_row and lines[visible_selected_row] then
@@ -188,6 +232,7 @@ end
 ---   - title: string - Window title
 ---   - max_results: number - Max items to show (default 50)
 ---   - debounce_ms: number - Debounce time for external searches (default 100)
+---   - highlight_pattern: boolean - Highlight query matches in results (default false)
 function M.open(opts)
     opts = opts or {}
     local source = opts.source or {}
@@ -195,6 +240,7 @@ function M.open(opts)
     local on_select = opts.on_select or function() end
     local max_results = opts.max_results or 50
     local debounce_ms = opts.debounce_ms or 100
+    local highlight_pattern = opts.highlight_pattern or false
 
     local win_info = create_picker_win({ title = opts.title })
 
@@ -207,6 +253,7 @@ function M.open(opts)
         scroll_offset = 0,    -- Virtual scroll position
         display_items = {},
         max_results = max_results,
+        highlight_pattern = highlight_pattern,
         closed = false,
         debounce_timer = nil,
         current_handle = nil,
