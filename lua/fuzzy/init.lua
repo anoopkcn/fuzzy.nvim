@@ -114,22 +114,13 @@ function M.setup(user_opts)
     local function run_grep_interactive()
         picker.open({
             title = " Grep ",
-            filter_locally = false,
-            debounce_ms = 200,
-            source = function(query, callback)
+            debounce_ms = 100,
+            streaming_source = function(query, on_lines, on_done)
                 if query == "" then
-                    callback({})
-                    return
+                    on_done(0, {})
+                    return nil
                 end
-                runner.run_rg(query, function(lines, status)
-                    local items = {}
-                    for _, line in ipairs(lines or {}) do
-                        if line ~= "" then
-                            items[#items + 1] = line
-                        end
-                    end
-                    callback(items)
-                end)
+                return runner.run_rg_streaming(query, on_lines, on_done, { max_results = 200 })
             end,
             on_select = function(item)
                 if not item or item == "" then

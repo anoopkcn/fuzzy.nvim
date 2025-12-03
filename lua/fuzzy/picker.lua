@@ -62,6 +62,12 @@ local function close_picker(state)
         state.debounce_timer = nil
     end
 
+    -- Cancel in-flight search
+    if state.current_handle then
+        pcall(function() state.current_handle:kill() end)
+        state.current_handle = nil
+    end
+
     vim.cmd.stopinsert()
     pcall(vim.api.nvim_win_close, state.win, true)
     pcall(vim.api.nvim_buf_delete, state.buf, { force = true })
@@ -122,12 +128,12 @@ local function render_results(state)
     end
 end
 
-local function apply_filter(state)
-    if state.filter_locally and state.query ~= "" then
-        local scored = match.filter(state.query, state.source_items, state.max_results)
+local function apply_filter(state, items, query)
+    if query and query ~= "" then
+        local scored = match.filter(query, items, state.max_results)
         state.display_items = vim.iter(scored):map(function(e) return e.item end):totable()
     else
-        state.display_items = vim.list_slice(state.source_items, 1, state.max_results)
+        state.display_items = vim.list_slice(items, 1, state.max_results)
     end
     render_results(state)
 end
@@ -146,21 +152,29 @@ local function move_selection(state, delta)
     render_results(state)
 end
 
+--- Check if new_query is a refinement of base_query (starts with it)
+local function is_refinement(new_query, base_query)
+    if not base_query or base_query == "" then
+        return false
+    end
+    return vim.startswith(new_query, base_query)
+end
+
 --- Open an interactive picker
 --- @param opts table Options:
 ---   - source: table|function - Items to pick from, or function(query, callback) for dynamic sources
+---   - streaming_source: function(query, on_lines, on_done) - Streaming source with query refinement
 ---   - on_select: function(item) - Called when user selects an item
 ---   - title: string - Window title
 ---   - max_results: number - Max items to show (default 50)
----   - filter_locally: boolean - Filter items locally with fuzzy match (default true)
----   - debounce_ms: number - Debounce time for dynamic sources (default 150)
+---   - debounce_ms: number - Debounce time for external searches (default 100)
 function M.open(opts)
     opts = opts or {}
     local source = opts.source or {}
+    local streaming_source = opts.streaming_source
     local on_select = opts.on_select or function() end
     local max_results = opts.max_results or 50
-    local filter_locally = opts.filter_locally ~= false
-    local debounce_ms = opts.debounce_ms or 150
+    local debounce_ms = opts.debounce_ms or 100
 
     local win_info = create_picker_win({ title = opts.title })
 
@@ -170,64 +184,104 @@ function M.open(opts)
         width = win_info.width,
         query = "",
         selected = 1,
-        source_items = {},
         display_items = {},
         max_results = max_results,
-        filter_locally = filter_locally,
         closed = false,
         debounce_timer = nil,
+        current_handle = nil,
+        -- Query refinement cache
+        cache_query = nil,    -- The query used to fetch from external source
+        cached_items = {},    -- Results from that query
     }
 
-    local function update_source(query)
-        if type(source) == "function" then
-            source(query, function(items)
-                if state.closed then
-                    return
-                end
-                vim.schedule(function()
-                    state.source_items = items or {}
-                    apply_filter(state)
-                end)
-            end)
-        else
-            state.source_items = source
-            apply_filter(state)
+    local function cancel_search()
+        if state.current_handle then
+            pcall(function() state.current_handle:kill() end)
+            state.current_handle = nil
         end
     end
 
-    local function on_query_change()
-        state.selected = 1
-        if type(source) == "function" and not filter_locally then
-            -- Use vim.uv timer instead of vim.fn.timer_*
-            if state.debounce_timer then
-                state.debounce_timer:stop()
-            else
-                state.debounce_timer = vim.uv.new_timer()
-            end
-            state.debounce_timer:start(debounce_ms, 0, vim.schedule_wrap(function()
-                update_source(state.query)
-            end))
-        else
-            update_source(state.query)
+    --- Run external search and cache results
+    local function run_external_search(query)
+        cancel_search()
+        state.cache_query = query
+        state.cached_items = {}
+
+        if streaming_source then
+            state.current_handle = streaming_source(query, function(lines)
+                if state.closed then return end
+                for _, line in ipairs(lines) do
+                    state.cached_items[#state.cached_items + 1] = line
+                end
+                -- Filter with current query (may be more refined than cache_query)
+                apply_filter(state, state.cached_items, state.query)
+            end, function(_code, _stderr)
+                state.current_handle = nil
+            end)
+        elseif type(source) == "function" then
+            source(query, function(items)
+                if state.closed then return end
+                vim.schedule(function()
+                    state.cached_items = items or {}
+                    apply_filter(state, state.cached_items, state.query)
+                end)
+            end)
         end
+    end
+
+    local function on_query_change(new_query, old_query)
+        state.selected = 1
+
+        -- Static source: always filter locally
+        if type(source) == "table" then
+            apply_filter(state, source, new_query)
+            return
+        end
+
+        -- Dynamic/streaming source: use query refinement
+        if new_query == "" then
+            -- Empty query: clear cache and results
+            cancel_search()
+            state.cache_query = nil
+            state.cached_items = {}
+            state.display_items = {}
+            render_results(state)
+            return
+        end
+
+        -- Check if we can refine locally (new query extends cached query)
+        if is_refinement(new_query, state.cache_query) then
+            -- Filter cached results locally (instant)
+            apply_filter(state, state.cached_items, new_query)
+            return
+        end
+
+        -- Need new external search - debounce it
+        cancel_search()
+        if state.debounce_timer then
+            state.debounce_timer:stop()
+        else
+            state.debounce_timer = vim.uv.new_timer()
+        end
+        state.debounce_timer:start(debounce_ms, 0, vim.schedule_wrap(function()
+            run_external_search(state.query)
+        end))
     end
 
     -- Initialize prompt line
     vim.api.nvim_buf_set_lines(state.buf, 0, -1, false, { "> " })
 
-    -- Initial load
-    update_source("")
+    -- Initial render
+    render_results(state)
 
-    -- Keymaps using modern API
+    -- Keymaps
     local function map(modes, lhs, rhs)
         vim.keymap.set(modes, lhs, rhs, { buffer = state.buf, nowait = true })
     end
 
-    -- Close
     map({ "i", "n" }, "<Esc>", function() close_picker(state) end)
     map("n", "q", function() close_picker(state) end)
 
-    -- Select
     map({ "i", "n" }, "<CR>", function()
         if #state.display_items > 0 then
             local selected = state.display_items[state.selected]
@@ -236,7 +290,6 @@ function M.open(opts)
         end
     end)
 
-    -- Navigation - define once and reuse
     local function nav_down() move_selection(state, 1) end
     local function nav_up() move_selection(state, -1) end
 
@@ -249,26 +302,26 @@ function M.open(opts)
     map("i", "<Tab>", nav_down)
     map("i", "<S-Tab>", nav_up)
 
-    -- Handle text changes via autocmd
+    -- Handle text changes
     vim.api.nvim_create_autocmd("TextChangedI", {
         buffer = state.buf,
         callback = function()
             local line = vim.api.nvim_buf_get_lines(state.buf, 0, 1, false)[1] or ""
-            -- Ensure prompt prefix exists
             if not vim.startswith(line, "> ") then
                 line = "> " .. line:gsub("^>?%s*", "")
                 vim.api.nvim_buf_set_lines(state.buf, 0, 1, false, { line })
                 vim.api.nvim_win_set_cursor(state.win, { 1, #line })
             end
-            local query = line:sub(3)
-            if query ~= state.query then
-                state.query = query
-                on_query_change()
+            local new_query = line:sub(3)
+            if new_query ~= state.query then
+                local old_query = state.query
+                state.query = new_query
+                on_query_change(new_query, old_query)
             end
         end,
     })
 
-    -- Start in insert mode at end of prompt
+    -- Start in insert mode
     vim.cmd.startinsert({ bang = true })
     vim.api.nvim_win_set_cursor(state.win, { 1, 2 })
 

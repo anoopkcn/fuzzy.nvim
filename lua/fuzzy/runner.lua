@@ -22,10 +22,15 @@ local function has_fd_custom_limit(args)
 end
 
 -- ripgrep runner ----------------------------
-local function run_ripgrep(raw_args, callback)
+local function run_ripgrep(raw_args, callback, opts)
+    opts = opts or {}
     local args = { "rg", "--vimgrep", "--smart-case", "--color=never" }
+    -- Add result limit for interactive mode
+    if opts.max_results then
+        vim.list_extend(args, { "-m", tostring(opts.max_results) })
+    end
     vim.list_extend(args, parse.normalize_args(raw_args))
-    system.system_lines(args, callback)
+    return system.system_lines(args, callback)
 end
 
 local function run_grep_fallback(raw_args, callback)
@@ -40,11 +45,27 @@ local function run_grep_fallback(raw_args, callback)
     system.system_lines(cmd, callback)
 end
 
-function M.run_rg(raw_args, callback)
+function M.run_rg(raw_args, callback, opts)
     if HAS_RG then
-        return run_ripgrep(raw_args, callback)
+        return run_ripgrep(raw_args, callback, opts)
     end
     return run_grep_fallback(raw_args, callback)
+end
+
+--- Streaming ripgrep runner for interactive picker
+--- @param raw_args string|table Search pattern/args
+--- @param on_lines function(lines) Called incrementally as results arrive
+--- @param on_done function(code, stderr) Called on completion
+--- @param opts table|nil Options: max_results
+--- @return table|nil handle Process handle with :kill() method
+function M.run_rg_streaming(raw_args, on_lines, on_done, opts)
+    opts = opts or {}
+    local args = { "rg", "--vimgrep", "--smart-case", "--color=never" }
+    if opts.max_results then
+        vim.list_extend(args, { "-m", tostring(opts.max_results) })
+    end
+    vim.list_extend(args, parse.normalize_args(raw_args))
+    return system.system_lines_streaming(args, on_lines, on_done)
 end
 
 -- fd / find runner ---------------------------------------------------------
