@@ -82,16 +82,37 @@ local function render_results(state)
     local item_count = #items
     state.selected = math.min(state.selected, math.max(1, item_count))
 
-    -- Pre-allocate lines table
+    -- Virtual scrolling: only render visible items
+    -- Window height minus prompt (1) and separator (1) = available rows for results
+    local win_height = vim.api.nvim_win_get_height(state.win)
+    local visible_rows = win_height - 2
+
+    -- Adjust scroll offset to keep selected item visible
+    state.scroll_offset = state.scroll_offset or 0
+    if state.selected <= state.scroll_offset then
+        -- Selected is above visible area
+        state.scroll_offset = state.selected - 1
+    elseif state.selected > state.scroll_offset + visible_rows then
+        -- Selected is below visible area
+        state.scroll_offset = state.selected - visible_rows
+    end
+    state.scroll_offset = math.max(0, math.min(state.scroll_offset, math.max(0, item_count - visible_rows)))
+
+    -- Build lines for visible items only
     local lines = { get_separator(state.width) }
     local line_idx = 2
+    local visible_selected_row = nil
 
-    for i, entry in ipairs(items) do
+    for i = state.scroll_offset + 1, math.min(state.scroll_offset + visible_rows, item_count) do
+        local entry = items[i]
         local prefix = i == state.selected and "> " or "  "
         local text = type(entry) == "table"
             and (entry.display or entry.text or entry.item or tostring(entry))
             or entry
         lines[line_idx] = prefix .. text
+        if i == state.selected then
+            visible_selected_row = line_idx
+        end
         line_idx = line_idx + 1
     end
 
@@ -117,35 +138,13 @@ local function render_results(state)
         hl_group = "FloatBorder",
     })
 
-    -- Highlight selected result line and scroll into view
-    if item_count > 0 then
-        local sel_row = state.selected + 1  -- +1 for separator line
-        vim.api.nvim_buf_set_extmark(state.buf, ns, sel_row, 0, {
-            end_col = #lines[sel_row],
+    -- Highlight selected result line
+    if visible_selected_row and lines[visible_selected_row] then
+        vim.api.nvim_buf_set_extmark(state.buf, ns, visible_selected_row, 0, {
+            end_col = #lines[visible_selected_row],
             hl_group = "CursorLine",
             hl_eol = true,
         })
-
-        -- Scroll to keep selected item visible
-        -- target_line is 1-indexed line number in buffer
-        local target_line = sel_row + 1
-        local win_height = vim.api.nvim_win_get_height(state.win)
-        local info = vim.fn.getwininfo(state.win)[1]
-        local topline = info and info.topline or 1
-        local botline = topline + win_height - 1
-
-        if target_line > botline then
-            -- Scroll down: put selected at bottom
-            local new_top = target_line - win_height + 1
-            vim.api.nvim_win_call(state.win, function()
-                vim.fn.winrestview({ topline = new_top })
-            end)
-        elseif target_line < topline then
-            -- Scroll up: put selected at top (but not above line 1)
-            vim.api.nvim_win_call(state.win, function()
-                vim.fn.winrestview({ topline = math.max(1, target_line) })
-            end)
-        end
     end
 end
 
@@ -205,6 +204,7 @@ function M.open(opts)
         width = win_info.width,
         query = "",
         selected = 1,
+        scroll_offset = 0,    -- Virtual scroll position
         display_items = {},
         max_results = max_results,
         closed = false,
@@ -252,6 +252,7 @@ function M.open(opts)
 
     local function on_query_change(new_query, old_query)
         state.selected = 1
+        state.scroll_offset = 0
 
         -- Static source (no dynamic/streaming): always filter locally
         if not streaming_source and type(source) == "table" then
