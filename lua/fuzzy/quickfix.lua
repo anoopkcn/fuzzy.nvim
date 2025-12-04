@@ -224,29 +224,36 @@ function M.get_quickfix_info(opts)
     return get_quickfix_info(opts)
 end
 
+local function has_qf_items()
+    local info = vim.fn.getqflist({ size = 0 })
+    return info.size and info.size > 0
+end
+
 function M.cnext_cycle()
-    local qflist = vim.fn.getqflist()
-    if #qflist == 0 then
+    if not has_qf_items() then
         return
     end
-    local idx = vim.fn.getqflist({ idx = 0 }).idx
-    if idx >= #qflist then
-        vim.cmd("cfirst")
-    else
-        vim.cmd("cnext")
+
+    local before = vim.fn.getqflist({ idx = 0 }).idx or 0
+    vim.cmd("silent! cnext")
+    local after = vim.fn.getqflist({ idx = 0 }).idx or 0
+
+    if after == before then
+        vim.cmd("silent! cfirst")
     end
 end
 
 function M.cprev_cycle()
-    local qflist = vim.fn.getqflist()
-    if #qflist == 0 then
+    if not has_qf_items() then
         return
     end
-    local idx = vim.fn.getqflist({ idx = 0 }).idx
-    if idx <= 1 then
-        vim.cmd("clast")
-    else
-        vim.cmd("cprev")
+
+    local before = vim.fn.getqflist({ idx = 0 }).idx or 0
+    vim.cmd("silent! cprevious") -- or "silent! cprev"
+    local after = vim.fn.getqflist({ idx = 0 }).idx or 0
+
+    if after == before then
+        vim.cmd("silent! clast")
     end
 end
 
