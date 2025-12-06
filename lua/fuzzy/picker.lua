@@ -340,8 +340,12 @@ function M.open(opts)
     -- Initialize prompt line
     vim.api.nvim_buf_set_lines(state.buf, 0, -1, false, { "> " })
 
-    -- Initial render
-    render_results(state)
+    -- Initial population for static sources
+    if not streaming_source and type(source) == "table" then
+        apply_filter(state, source, "")
+    else
+        render_results(state)
+    end
 
     -- Keymaps
     local function map(modes, lhs, rhs)
