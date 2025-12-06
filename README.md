@@ -2,7 +2,7 @@
 
 A fast and lightweight Neovim plugin for fuzzy finding files, grep and managing buffers etc. 
 
-![display_img](https://github.com/user-attachments/assets/5c66bfaf-2c68-4310-9c6a-2109ba0de12f)
+![display-img](https://github.com/user-attachments/assets/570413aa-4c3e-40d7-b7ba-1ac37a816685)
 
 ## Features
 
@@ -375,6 +375,7 @@ fuzzy.pick({
 
 MIT
 
-## Author
+## Similar plugins
+- [telescope.nvim](https://github.com/nvim-telescope/telescope.nvim)
+- [fzf-lua](https://github.com/ibhagwan/fzf-lua)
 
-[@anoopkcn](https://github.com/anoopkcn)
