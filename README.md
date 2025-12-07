@@ -2,7 +2,7 @@
 
 A fast and lightweight Neovim plugin for fuzzy finding files, grep and managing buffers etc. 
 
-![display-img](https://github.com/user-attachments/assets/570413aa-4c3e-40d7-b7ba-1ac37a816685)
+![display-img](https://github.com/user-attachments/assets/6b529720-7dfb-43a4-a4fc-694675a3f586)
 
 ## Features
 
