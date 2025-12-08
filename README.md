@@ -22,6 +22,22 @@ Unlike heavier fuzzy finder plugins, fuzzy.nvim leverages external tools (ripgre
 
 ## Installation
 
+### Using neovim native [vim.pack](https://neovim.io/doc/user/pack.html#vim.pack)
+```lua
+vim.pack.add({ src = "https://github.com/anoopkcn/fuzzy.nvim" })
+require("fuzzy").setup()
+```
+
+**OR** manually:
+
+```sh
+git clone https://github.com/anoopkcn/fuzzy.nvim ~/.local/share/nvim/site/pack/plugins/start/fuzzy.nvim
+```
+Then in your `init.lua`:
+```lua
+require('fuzzy').setup()
+```
+
 ### Using [lazy.nvim](https://github.com/folke/lazy.nvim)
 
 ```lua
@@ -31,17 +47,6 @@ Unlike heavier fuzzy finder plugins, fuzzy.nvim leverages external tools (ripgre
     require('fuzzy').setup()
   end
 }
-```
-
-### Using native packages
-
-```sh
-git clone https://github.com/anoopkcn/fuzzy.nvim ~/.local/share/nvim/site/pack/plugins/start/fuzzy.nvim
-```
-
-Then in your `init.lua`:
-```lua
-require('fuzzy').setup()
 ```
 
 ## Configuration
