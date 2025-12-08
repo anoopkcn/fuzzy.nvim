@@ -1,150 +1,78 @@
--- Fuzzy completion for command-line mode
--- Provides fuzzy file and buffer completion
-
 local match = require("fuzzy.match")
 local config = require("fuzzy.config")
 
-local M = {}
-
--- Maximum completion results to show
 local MAX_COMPLETIONS = 50
-
--------------------------------------------------------------------------------
--- File completion
--------------------------------------------------------------------------------
-
-local file_cache = {
-    cwd = nil,
-    files = nil,
-    timestamp = 0,
-}
-
 local CACHE_TTL = 30
 local HAS_FD = vim.fn.executable("fd") == 1
 
-local function is_file_cache_valid()
-    if not file_cache.files then
-        return false
-    end
-    if file_cache.cwd ~= vim.fn.getcwd() then
-        return false
-    end
-    return (os.time() - file_cache.timestamp) <= CACHE_TTL
-end
+local file_cache = { cwd = nil, files = nil, timestamp = 0 }
 
-local function collect_files_fd(limit)
-    local result = vim.system({
-        "fd", "--hidden", "--follow", "--color", "never",
-        "--exclude", ".git", "--type", "f",
-        "--max-results", tostring(limit),
-    }, { text = true }):wait()
-
-    if result.code ~= 0 then
-        return {}
+local function get_files()
+    local cwd = vim.fn.getcwd()
+    if file_cache.files and file_cache.cwd == cwd and (os.time() - file_cache.timestamp) <= CACHE_TTL then
+        return file_cache.files
     end
 
+    local limit = config.get().file_match_limit or 600
     local files = {}
-    for line in result.stdout:gmatch("[^\r\n]+") do
-        if line ~= "" then
-            files[#files + 1] = line
+
+    if HAS_FD then
+        local result = vim.system({
+            "fd", "--hidden", "--follow", "--color", "never",
+            "--exclude", ".git", "--type", "f", "--max-results", tostring(limit),
+        }, { text = true }):wait()
+        if result.code == 0 then
+            for line in result.stdout:gmatch("[^\r\n]+") do
+                if line ~= "" then files[#files + 1] = line end
+            end
+        end
+    else
+        local ok, results = pcall(vim.fs.find, function() return true end, {
+            path = ".", type = "file", limit = limit,
+            skip = function(name) return name == ".git" end,
+        })
+        if ok then
+            files = vim.iter(results):map(function(p) return p:gsub("^%./", "") end):totable()
         end
     end
+
+    file_cache = { cwd = cwd, files = files, timestamp = os.time() }
     return files
 end
 
-local function collect_files_fallback(limit)
-    local ok, results = pcall(vim.fs.find, function() return true end, {
-        path = ".",
-        type = "file",
-        limit = limit,
-        skip = function(name) return name == ".git" end,
-    })
-
-    if not ok then
-        return {}
-    end
-
-    return vim.iter(results):map(function(p)
-        return p:gsub("^%./", "")
-    end):totable()
-end
-
-local function get_files()
-    if not is_file_cache_valid() then
-        local limit = config.get_file_match_limit() or 600
-        file_cache.cwd = vim.fn.getcwd()
-        file_cache.files = HAS_FD and collect_files_fd(limit) or collect_files_fallback(limit)
-        file_cache.timestamp = os.time()
-    end
-    return file_cache.files or {}
-end
-
-function M.complete_files(arg_lead, cmd_line, cursor_pos)
+local function complete_files(arg_lead)
     if arg_lead:match("^%-") then
-        return {
-            "--hidden", "--no-ignore", "--noignore", "--no-ignore-vcs",
-            "--follow", "--type", "--extension", "--exclude",
-            "--max-depth", "--max-results",
-        }
+        return { "--hidden", "--no-ignore", "--noignore", "--follow", "--type", "--extension", "--exclude", "--max-depth" }
     end
-
     local files = get_files()
-
     if arg_lead == "" then
         local results = {}
-        for i = 1, math.min(MAX_COMPLETIONS, #files) do
-            results[i] = files[i]
-        end
+        for i = 1, math.min(MAX_COMPLETIONS, #files) do results[i] = files[i] end
         table.sort(results)
         return results
     end
-
-    local scored = match.filter(arg_lead, files, MAX_COMPLETIONS)
-    return vim.iter(scored):map(function(e) return e.item end):totable()
+    return vim.iter(match.filter(arg_lead, files, MAX_COMPLETIONS)):map(function(e) return e.item end):totable()
 end
 
-function M.make_file_completer()
-    return function(arg_lead, cmd_line, cursor_pos)
-        return M.complete_files(arg_lead, cmd_line, cursor_pos)
-    end
-end
-
--------------------------------------------------------------------------------
--- Buffer completion
--------------------------------------------------------------------------------
-
-local function get_buffer_paths()
+local function complete_buffers(arg_lead)
     local paths = {}
     for _, buf in ipairs(vim.api.nvim_list_bufs()) do
         if vim.api.nvim_buf_is_loaded(buf) and vim.bo[buf].buflisted and vim.bo[buf].buftype == "" then
             local name = vim.api.nvim_buf_get_name(buf)
-            if name ~= "" then
-                paths[#paths + 1] = vim.fn.fnamemodify(name, ":.")
-            end
+            if name ~= "" then paths[#paths + 1] = vim.fn.fnamemodify(name, ":.") end
         end
     end
-    return paths
-end
-
-function M.complete_buffers(arg_lead, cmd_line, cursor_pos)
-    local buffers = get_buffer_paths()
-
     if arg_lead == "" then
         local results = {}
-        for i = 1, math.min(MAX_COMPLETIONS, #buffers) do
-            results[i] = buffers[i]
-        end
+        for i = 1, math.min(MAX_COMPLETIONS, #paths) do results[i] = paths[i] end
         return results
     end
-
-    local scored = match.filter(arg_lead, buffers, MAX_COMPLETIONS)
-    return vim.iter(scored):map(function(e) return e.item end):totable()
+    return vim.iter(match.filter(arg_lead, paths, MAX_COMPLETIONS)):map(function(e) return e.item end):totable()
 end
 
-function M.make_buffer_completer()
-    return function(arg_lead, cmd_line, cursor_pos)
-        return M.complete_buffers(arg_lead, cmd_line, cursor_pos)
-    end
-end
-
-return M
+return {
+    complete_files = complete_files,
+    complete_buffers = complete_buffers,
+    make_file_completer = function() return function(a) return complete_files(a) end end,
+    make_buffer_completer = function() return function(a) return complete_buffers(a) end end,
+}
