@@ -8,16 +8,22 @@ local HAS_RG = vim.fn.executable("rg") == 1
 local HAS_FD = vim.fn.executable("fd") == 1
 
 --- Run ripgrep or grep fallback
-function M.rg(raw_args, callback)
+---@param raw_args string|table
+---@param callback function
+---@param cwd? string Optional working directory
+function M.rg(raw_args, callback, cwd)
     local args = parse.normalize(raw_args)
     local cmd = HAS_RG
         and vim.list_extend({ "rg", "--vimgrep", "--smart-case", "--color=never" }, args)
         or vim.list_extend({ "grep", "-RnH", "--color=never", "--exclude-dir=.git" }, args)
-    system.run(cmd, callback)
+    system.run(cmd, callback, { cwd = cwd })
 end
 
 --- Run fd or vim.fs.find fallback
-function M.fd(raw_args, callback)
+---@param raw_args string|table
+---@param callback function
+---@param cwd? string Optional working directory
+function M.fd(raw_args, callback, cwd)
     local args = parse.normalize(raw_args)
     local limit = config.get().file_match_limit or 600
 
@@ -44,14 +50,14 @@ function M.fd(raw_args, callback)
             local truncated = code == 0 and not has_limit and #lines > limit
             if truncated then table.remove(lines) end
             callback(lines, code, truncated, limit, err)
-        end)
+        end, { cwd = cwd })
     else
         -- Fallback to vim.fs.find
         local pattern = vim.iter(args):find(function(a) return a:sub(1, 1) ~= "-" end)
         local predicate = pattern and function(name) return name:find(pattern, 1, true) end or function() return true end
 
         local ok, results = pcall(vim.fs.find, predicate, {
-            path = ".",
+            path = cwd or ".",
             type = "file",
             limit = limit + 1,
             skip = function(name) return not include_vcs and name == ".git" end,

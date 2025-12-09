@@ -1,8 +1,9 @@
 --- Run command asynchronously and collect output lines
 ---@param cmd table Command and arguments
 ---@param callback function(lines, code, stderr)
+---@param opts? { cwd?: string } Optional options (cwd for working directory)
 ---@return table|nil handle
-local function run(cmd, callback)
+local function run(cmd, callback, opts)
     local stdout, stderr = {}, {}
     local out_buf, err_buf = "", ""
 
@@ -16,8 +17,10 @@ local function run(cmd, callback)
         return buf
     end
 
+    opts = opts or {}
     local handle, err = vim.system(cmd, {
         text = true,
+        cwd = opts.cwd,
         stdout = function(_, data) out_buf = collect(out_buf, stdout, data) end,
         stderr = function(_, data) err_buf = collect(err_buf, stderr, data) end,
     }, function(obj)

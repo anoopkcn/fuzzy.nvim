@@ -29,6 +29,7 @@ end
 
 local function run(raw_args, bang)
     local trimmed = vim.trim(raw_args or "")
+    local netrw_dir = util.get_netrw_dir()
     local stat = trimmed ~= "" and vim.uv.fs_stat(trimmed)
 
     -- Direct file path
@@ -53,8 +54,9 @@ local function run(raw_args, bang)
         local items, first = {}, nil
         for i = 1, math.min(limit or #files, #files) do
             if files[i] ~= "" then
-                first = first or files[i]
-                items[#items + 1] = { filename = files[i], lnum = 1, col = 1, text = files[i] }
+                local filepath = netrw_dir and (netrw_dir .. "/" .. files[i]) or files[i]
+                first = first or filepath
+                items[#items + 1] = { filename = filepath, lnum = 1, col = 1, text = files[i] }
             end
         end
 
@@ -62,10 +64,11 @@ local function run(raw_args, bang)
             if open_file(first) then return end
         end
 
-        local count = quickfix.update(items, { title = "FuzzyFiles", command = "FuzzyFiles" })
+        local title = netrw_dir and ("FuzzyFiles [" .. vim.fn.fnamemodify(netrw_dir, ":~") .. "]") or "FuzzyFiles"
+        local count = quickfix.update(items, { title = title, command = "FuzzyFiles" })
         if truncated then vim.notify(("FuzzyFiles: showing first %d matches."):format(limit), vim.log.levels.INFO) end
         quickfix.open_if_results(count, "FuzzyFiles: no files matched.")
-    end)
+    end, netrw_dir)
 end
 
 return { run = run }

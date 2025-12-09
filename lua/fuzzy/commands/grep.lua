@@ -1,9 +1,11 @@
 local parse = require("fuzzy.parse")
 local quickfix = require("fuzzy.quickfix")
 local runner = require("fuzzy.runner")
+local util = require("fuzzy.util")
 
 local function run(raw_args, dedupe_lines)
     local label = dedupe_lines and "FuzzyGrep" or "FuzzyGrep!"
+    local netrw_dir = util.get_netrw_dir()
 
     runner.rg(raw_args, function(lines, status, err_lines)
         if status > 1 then
@@ -18,6 +20,7 @@ local function run(raw_args, dedupe_lines)
             for _, line in ipairs(lines) do
                 local e = parse.vimgrep(line)
                 if e then
+                    if netrw_dir then e.filename = netrw_dir .. "/" .. e.filename end
                     local key = e.filename .. ":" .. e.lnum
                     if seen[key] then
                         seen[key].count = seen[key].count + 1
@@ -40,16 +43,20 @@ local function run(raw_args, dedupe_lines)
         else
             for _, line in ipairs(lines) do
                 local e = parse.vimgrep(line)
-                if e then items[#items + 1] = e end
+                if e then
+                    if netrw_dir then e.filename = netrw_dir .. "/" .. e.filename end
+                    items[#items + 1] = e
+                end
             end
         end
 
-        local count = quickfix.update(items, { title = label, command = label })
+        local title = netrw_dir and (label .. " [" .. vim.fn.fnamemodify(netrw_dir, ":~") .. "]") or label
+        local count = quickfix.update(items, { title = title, command = label })
         if deduped > 0 then
             vim.notify(("%s: collapsed duplicate matches on %d line%s."):format(label, deduped, deduped == 1 and "" or "s"), vim.log.levels.INFO)
         end
         quickfix.open_if_results(count, label .. ": no matches found.")
-    end)
+    end, netrw_dir)
 end
 
 return { run = run }

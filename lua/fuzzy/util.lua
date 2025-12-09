@@ -10,6 +10,18 @@ function M.normalize_path(path)
     return vim.uv.fs_realpath(path) or vim.fs.normalize(path)
 end
 
+--- Get netrw directory if current buffer is netrw, otherwise nil
+---@return string|nil
+function M.get_netrw_dir()
+    if vim.bo.filetype == "netrw" then
+        local dir = vim.b.netrw_curdir
+        if dir and dir ~= "" then
+            return dir
+        end
+    end
+    return nil
+end
+
 --- Check if window is a quickfix window
 ---@param winid number
 ---@return boolean
