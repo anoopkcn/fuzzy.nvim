@@ -10,6 +10,37 @@ function M.normalize_path(path)
     return vim.uv.fs_realpath(path) or vim.fs.normalize(path)
 end
 
+--- Get all listed, loaded buffers with names
+---@return { bufnr: integer, path: string }[]
+function M.get_listed_buffers()
+    local bufs = {}
+    for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+        if vim.api.nvim_buf_is_loaded(buf) and vim.bo[buf].buflisted and vim.bo[buf].buftype == "" then
+            local name = vim.api.nvim_buf_get_name(buf)
+            if name ~= "" then bufs[#bufs + 1] = { bufnr = buf, path = name } end
+        end
+    end
+    return bufs
+end
+
+--- Find buffer by path (exact or normalized match)
+---@param path string
+---@return integer|nil bufnr
+function M.find_buffer_by_path(path)
+    local norm = M.normalize_path(path)
+    for _, b in ipairs(M.get_listed_buffers()) do
+        if b.path == path or M.normalize_path(b.path) == norm then return b.bufnr end
+    end
+end
+
+--- Join path with optional root directory
+---@param path string
+---@param root? string
+---@return string
+function M.with_root(path, root)
+    return root and vim.fs.joinpath(root, path) or path
+end
+
 --- Get netrw directory if current buffer is netrw, otherwise nil
 ---@return string|nil
 function M.get_netrw_dir()

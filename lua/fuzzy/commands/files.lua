@@ -3,20 +3,10 @@ local quickfix = require("fuzzy.quickfix")
 local runner = require("fuzzy.runner")
 local util = require("fuzzy.util")
 
-local function bufnr_for_path(path)
-    local norm = util.normalize_path(path)
-    if not norm then return nil end
-    for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-        if vim.api.nvim_buf_is_loaded(buf) then
-            local name = vim.api.nvim_buf_get_name(buf)
-            if name ~= "" and util.normalize_path(name) == norm then return buf end
-        end
-    end
-end
 
 local function open_file(path)
     util.ensure_normal_window()
-    local buf = bufnr_for_path(path)
+    local buf = util.find_buffer_by_path(path)
     if buf and vim.api.nvim_buf_is_valid(buf) then
         local ok = pcall(vim.api.nvim_set_current_buf, buf)
         if not ok then vim.notify("FuzzyFiles: failed to switch to buffer.", vim.log.levels.ERROR) end
@@ -54,7 +44,7 @@ local function run(raw_args, bang)
         local items, first = {}, nil
         for i = 1, math.min(limit or #files, #files) do
             if files[i] ~= "" then
-                local filepath = netrw_dir and (netrw_dir .. "/" .. files[i]) or files[i]
+                local filepath = util.with_root(files[i], netrw_dir)
                 first = first or filepath
                 items[#items + 1] = { filename = filepath, lnum = 1, col = 1, text = files[i] }
             end

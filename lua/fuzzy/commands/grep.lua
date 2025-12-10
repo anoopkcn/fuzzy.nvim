@@ -20,7 +20,7 @@ local function run(raw_args, dedupe_lines)
             for _, line in ipairs(lines) do
                 local e = parse.vimgrep(line)
                 if e then
-                    if netrw_dir then e.filename = netrw_dir .. "/" .. e.filename end
+                    e.filename = util.with_root(e.filename, netrw_dir)
                     local key = e.filename .. ":" .. e.lnum
                     if seen[key] then
                         seen[key].count = seen[key].count + 1
@@ -44,7 +44,7 @@ local function run(raw_args, dedupe_lines)
             for _, line in ipairs(lines) do
                 local e = parse.vimgrep(line)
                 if e then
-                    if netrw_dir then e.filename = netrw_dir .. "/" .. e.filename end
+                    e.filename = util.with_root(e.filename, netrw_dir)
                     items[#items + 1] = e
                 end
             end

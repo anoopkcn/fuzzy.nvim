@@ -3,24 +3,6 @@ local quickfix = require("fuzzy.quickfix")
 local match = require("fuzzy.match")
 local util = require("fuzzy.util")
 
-local function get_buffers()
-    local bufs = {}
-    for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-        if vim.api.nvim_buf_is_loaded(buf) and vim.bo[buf].buflisted and vim.bo[buf].buftype == "" then
-            local name = vim.api.nvim_buf_get_name(buf)
-            if name ~= "" then bufs[#bufs + 1] = { bufnr = buf, path = name } end
-        end
-    end
-    return bufs
-end
-
-local function find_buffer(path)
-    local norm = util.normalize_path(path)
-    for _, b in ipairs(get_buffers()) do
-        if b.path == path or util.normalize_path(b.path) == norm then return b.bufnr end
-    end
-end
-
 local function switch_to(bufnr)
     util.ensure_normal_window()
     local ok = pcall(vim.api.nvim_set_current_buf, bufnr)
@@ -33,7 +15,7 @@ local function run(raw_args, bang)
 
     -- Exact path match
     if pattern ~= "" then
-        local buf = find_buffer(pattern)
+        local buf = util.find_buffer_by_path(pattern)
         if buf then
             if bang or config.get().open_single_result then
                 switch_to(buf)
@@ -47,7 +29,7 @@ local function run(raw_args, bang)
     end
 
     -- Filter buffers
-    local bufs = get_buffers()
+    local bufs = util.get_listed_buffers()
     if pattern ~= "" then
         local paths = vim.iter(bufs):map(function(b) return b.path end):totable()
         local scored = match.filter(pattern, paths)

@@ -1,8 +1,9 @@
 local match = require("fuzzy.match")
 local config = require("fuzzy.config")
+local util = require("fuzzy.util")
 
 local MAX_COMPLETIONS = 50
-local CACHE_TTL = 30
+local CACHE_TTL = 120
 local HAS_FD = vim.fn.executable("fd") == 1
 
 local file_cache = { cwd = nil, files = nil, timestamp = 0 }
@@ -55,13 +56,9 @@ local function complete_files(arg_lead)
 end
 
 local function complete_buffers(arg_lead)
-    local paths = {}
-    for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-        if vim.api.nvim_buf_is_loaded(buf) and vim.bo[buf].buflisted and vim.bo[buf].buftype == "" then
-            local name = vim.api.nvim_buf_get_name(buf)
-            if name ~= "" then paths[#paths + 1] = vim.fn.fnamemodify(name, ":.") end
-        end
-    end
+    local paths = vim.iter(util.get_listed_buffers())
+        :map(function(b) return vim.fn.fnamemodify(b.path, ":.") end)
+        :totable()
     if arg_lead == "" then
         local results = {}
         for i = 1, math.min(MAX_COMPLETIONS, #paths) do results[i] = paths[i] end
