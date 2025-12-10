@@ -1,6 +1,11 @@
 local M = {}
 
+---@class FuzzyQfContext
+---@field fuzzy boolean Always true for fuzzy quickfix lists
+---@field cmd string Command that created this list
+
 local CONTEXT = { fuzzy = true }
+---@type table<string, integer> Command name -> quickfix ID cache
 local qf_ids = {}
 
 local function get_info(opts)
@@ -12,28 +17,24 @@ local function is_fuzzy(ctx)
     return type(ctx) == "table" and ctx.fuzzy
 end
 
-local function find_or_create(cmd)
-    -- Try cached id
-    if qf_ids[cmd] then
-        local info = get_info({ id = qf_ids[cmd], context = 1 })
-        if info and is_fuzzy(info.context) then return info end
-    end
-
-    -- Search existing
-    local max = (get_info({ nr = "$" }) or {}).nr or 0
-    for nr = max, 1, -1 do
-        local info = get_info({ nr = nr, context = 1, id = 0 })
-        if info and is_fuzzy(info.context) and info.context.cmd == cmd then
-            qf_ids[cmd] = info.id
-            return info
-        end
-    end
-
-    -- Create new
+local function create_new(cmd)
     vim.fn.setqflist({}, " ", { nr = "$", title = cmd, context = vim.tbl_extend("force", CONTEXT, { cmd = cmd }) })
     local info = get_info({ nr = 0, id = 0 })
     if info then qf_ids[cmd] = info.id end
     return info
+end
+
+local function find_or_create(cmd)
+    -- Try cached id first (O(1) lookup)
+    if qf_ids[cmd] then
+        local info = get_info({ id = qf_ids[cmd], context = 1 })
+        if info and is_fuzzy(info.context) then return info end
+        qf_ids[cmd] = nil -- Cache invalid, clear it
+    end
+
+    -- Skip O(n) search - just create new list
+    -- Old lists will be reused if user manually navigates to them
+    return create_new(cmd)
 end
 
 local function activate(nr)
@@ -43,6 +44,9 @@ local function activate(nr)
     elseif delta < 0 then pcall(vim.cmd, "silent! colder " .. -delta) end
 end
 
+---@param items table[] Quickfix items
+---@param opts? { title?: string, command?: string }
+---@return integer count Number of items
 function M.update(items, opts)
     opts = opts or {}
     local cmd = opts.command or "Fuzzy"
@@ -55,6 +59,8 @@ function M.update(items, opts)
     return #items
 end
 
+---@param count integer Number of results
+---@param empty_msg? string Message to show if no results
 function M.open_if_results(count, empty_msg)
     if count == 0 then
         vim.notify(empty_msg or "No matches.", vim.log.levels.INFO)
@@ -63,6 +69,7 @@ function M.open_if_results(count, empty_msg)
     end
 end
 
+--- Show quickfix history selector
 function M.select_from_history()
     local max = (get_info({ nr = "$" }) or {}).nr or 0
     local lists = {}
@@ -86,6 +93,7 @@ function M.select_from_history()
     end)
 end
 
+--- Go to next quickfix entry, cycling to first if at end
 function M.cnext_cycle()
     local info = get_info({ size = 0, idx = 0 })
     if not info or info.size == 0 then return end
@@ -94,6 +102,7 @@ function M.cnext_cycle()
     if (get_info({ idx = 0 }) or {}).idx == before then vim.cmd("silent! cfirst") end
 end
 
+--- Go to previous quickfix entry, cycling to last if at beginning
 function M.cprev_cycle()
     local info = get_info({ size = 0, idx = 0 })
     if not info or info.size == 0 then return end
