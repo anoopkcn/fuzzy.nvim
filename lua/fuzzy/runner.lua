@@ -8,9 +8,9 @@ local HAS_RG = vim.fn.executable("rg") == 1
 local HAS_FD = vim.fn.executable("fd") == 1
 
 --- Run ripgrep or grep fallback
----@param raw_args string|table
----@param callback function
----@param cwd? string Optional working directory
+---@param raw_args string|string[] Search arguments
+---@param callback fun(lines: string[], code: integer, stderr: string[])
+---@param cwd? string Working directory
 function M.rg(raw_args, callback, cwd)
     local args = parse.normalize(raw_args)
     local cmd = HAS_RG
@@ -20,9 +20,9 @@ function M.rg(raw_args, callback, cwd)
 end
 
 --- Run fd or vim.fs.find fallback
----@param raw_args string|table
----@param callback function
----@param cwd? string Optional working directory
+---@param raw_args string|string[] Search arguments
+---@param callback fun(files: string[], code: integer, truncated: boolean, limit: integer, stderr: string[])
+---@param cwd? string Working directory
 function M.fd(raw_args, callback, cwd)
     local args = parse.normalize(raw_args)
     local limit = config.get().file_match_limit or 600
