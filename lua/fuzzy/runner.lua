@@ -37,7 +37,7 @@ function M.fd(raw_args, callback, cwd)
     end)
 
     if HAS_FD then
-        local cmd = { "fd", "--hidden", "--follow", "--color=never", "--exclude", ".git" }
+        local cmd = { "fd", "--hidden", "--color=never", "--exclude", ".git" }
         if include_vcs then cmd[#cmd + 1] = "--no-ignore-vcs" end
         if not has_limit then vim.list_extend(cmd, { "--max-results", tostring(limit + 1) }) end
         -- Add --full-path if any arg contains /

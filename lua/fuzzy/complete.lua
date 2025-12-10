@@ -18,7 +18,7 @@ local function get_files()
 
     if HAS_FD then
         local result = vim.system({
-            "fd", "--hidden", "--follow", "--color", "never",
+            "fd", "--hidden", "--color", "never",
             "--exclude", ".git", "--type", "f", "--max-results", tostring(limit),
         }, { text = true }):wait()
         if result.code == 0 then
