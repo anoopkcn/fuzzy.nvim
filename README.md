@@ -1,23 +1,23 @@
 # fuzzy.nvim
-For workflows using neovim's **quickfix lists**. `fuzzy.nvim` populates the quickfixlist with fuzzy search results for files, grep searches, and buffers.
+For workflows using neovim's **quickfix lists**. `fuzzy.nvim` populates the quickfixlist with fuzzy search results for files, grep searches, and buffers, etc.
 
 ![display-img](https://github.com/user-attachments/assets/3dbe6725-2613-432f-a825-bc2530e8d675)
 
 ## Features
 
-- **Fast grep search** using `ripgrep` (fallback to `grep -R`)
+- **`:FuzzyGrep` - Fast grep search** using `ripgrep` (fallback to `grep -R`)
     - Equivalent to the default vim command `:copen | silent grep <pattern>` but smarter
-- **File finding** using `fd` (fallback to `vim.fs.find`)
-- **Buffer switching** with fuzzy filtering
+- **`:FuzzyFiles` - File finding** using `fd` (fallback to `vim.fs.find`)
+- **`:FuzzyBuffers` - Buffer switching** with fuzzy filtering
 - **Full control** over search arguments via `ripgrep`/`fd` arguments
 - **Explorer-friendly** execute commands with respect to current Explorer directory
-- **Quickfix history navigation** for easy access to previous searches
 
 ## Requirements
 
 - Neovim 0.11+
-- [ripgrep](https://github.com/BurntSushi/ripgrep) (rg) - for `:FuzzyGrep` (fallback: `grep -R`)
-- [fd](https://github.com/sharkdp/fd) - for `:FuzzyFiles` (fallback: `vim.fs.find`)
+- (Optional) For best performance:
+    - [ripgrep](https://github.com/BurntSushi/ripgrep) (rg) - for `:FuzzyGrep` (fallback: `grep -R`)
+    - [fd](https://github.com/sharkdp/fd) - for `:FuzzyFiles` (fallback: `vim.fs.find`)
 
 ## Installation
 
