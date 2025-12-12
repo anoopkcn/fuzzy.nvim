@@ -70,13 +70,16 @@ function M.open_if_results(count, empty_msg)
 end
 
 --- Show quickfix history selector
-function M.select_from_history()
+---@param fuzzy_only? boolean Only show fuzzy-created lists
+function M.select_from_history(fuzzy_only)
     local max = (get_info({ nr = "$" }) or {}).nr or 0
     local lists = {}
     for nr = max, 1, -1 do
         local info = get_info({ nr = nr, context = 1, title = 1, size = 1 })
         if info and not (is_fuzzy(info.context) and info.context.cmd == "FuzzyList") then
-            lists[#lists + 1] = { nr = nr, title = info.title or ("Quickfix " .. nr), size = info.size or 0 }
+            if not fuzzy_only or is_fuzzy(info.context) then
+                lists[#lists + 1] = { nr = nr, title = info.title or ("Quickfix " .. nr), size = info.size or 0 }
+            end
         end
     end
 

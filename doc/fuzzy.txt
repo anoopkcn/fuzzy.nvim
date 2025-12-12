@@ -155,10 +155,12 @@ Browse and select from quickfix list history.
 Alias: :List
 
 Syntax: >
-    :FuzzyList
+    :FuzzyList[!]
 <
-Shows all quickfix lists in the history stack. Uses |vim.ui.select()| when
-available (e.g., with dressing.nvim).
+Without [!]: Shows all quickfix lists in history.
+With [!]:    Shows only lists created by fuzzy commands.
+
+Uses |vim.ui.select()| when available (e.g., with dressing.nvim).
 
 ------------------------------------------------------------------------------
 3.5 FuzzyNext / FuzzyPrev                            *:FuzzyNext* *:FuzzyPrev*

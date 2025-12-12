@@ -22,7 +22,9 @@ function M.setup(opts)
         require("fuzzy.commands.buffers").run(o.args, o.bang)
     end, { nargs = "*", bang = true, complete = complete.make_buffer_completer(), desc = "Find open buffers" })
 
-    cmd("FuzzyList", quickfix.select_from_history, { desc = "Pick quickfix from history" })
+    cmd("FuzzyList", function(o)
+        quickfix.select_from_history(o.bang)
+    end, { bang = true, desc = "Pick quickfix from history" })
 
     vim.api.nvim_create_user_command("FuzzyNext", quickfix.cnext_cycle, { desc = "Next quickfix entry (cycles)" })
     vim.api.nvim_create_user_command("FuzzyPrev", quickfix.cprev_cycle, { desc = "Previous quickfix entry (cycles)" })

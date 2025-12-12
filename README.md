@@ -79,11 +79,13 @@ Alias: `:Buffers`
 
 Default behavior opens the quickfix list even if there's a single match. Add `!` to switch to the buffer directly if only one match is found.
 
-### `:FuzzyList`
+### `:FuzzyList[!]`
 
 Browse and select from quickfix list history.
 
 Alias: `:List`
+
+Default behavior shows all quickfix lists. Add `!` to show only lists created by fuzzy commands.
 
 ### `:FuzzyNext` / `:FuzzyPrev`
 
