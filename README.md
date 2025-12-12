@@ -38,7 +38,7 @@ require("fuzzy").setup()
 }
 ```
 
-## Configuration
+## Configuration (optional)
 
 ```lua
 require('fuzzy').setup({
