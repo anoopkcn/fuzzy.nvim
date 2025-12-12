@@ -53,26 +53,17 @@ function M.get_netrw_dir()
     return nil
 end
 
---- Check if window is a quickfix window
----@param winid number
----@return boolean
-function M.is_quickfix_window(winid)
-    local ok, buf = pcall(vim.api.nvim_win_get_buf, winid)
-    return ok and vim.bo[buf].buftype == "quickfix"
-end
-
---- Switch to a normal window from quickfix, creating split if needed
-function M.ensure_normal_window()
-    if not M.is_quickfix_window(vim.api.nvim_get_current_win()) then
-        return
-    end
+--- Switch to a buffer, reusing existing window if visible
+---@param bufnr integer
+---@return boolean success
+function M.switch_to_buffer(bufnr)
     for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
-        if not M.is_quickfix_window(win) then
+        if vim.api.nvim_win_get_buf(win) == bufnr then
             vim.api.nvim_set_current_win(win)
-            return
+            return true
         end
     end
-    vim.cmd.split()
+    return pcall(vim.api.nvim_set_current_buf, bufnr)
 end
 
 return M

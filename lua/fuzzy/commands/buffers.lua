@@ -4,8 +4,7 @@ local match = require("fuzzy.match")
 local util = require("fuzzy.util")
 
 local function switch_to(bufnr)
-    util.ensure_normal_window()
-    local ok = pcall(vim.api.nvim_set_current_buf, bufnr)
+    local ok = util.switch_to_buffer(bufnr)
     if not ok then vim.notify("FuzzyBuffers: failed to switch.", vim.log.levels.ERROR) end
     return ok
 end
