@@ -15,7 +15,7 @@ end
 function M.get_listed_buffers()
     local bufs = {}
     for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-        if vim.api.nvim_buf_is_loaded(buf) and vim.bo[buf].buflisted and vim.bo[buf].buftype == "" then
+        if vim.api.nvim_buf_is_loaded(buf) and vim.bo[buf].buflisted then
             local name = vim.api.nvim_buf_get_name(buf)
             if name ~= "" then bufs[#bufs + 1] = { bufnr = buf, path = name } end
         end
