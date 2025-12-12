@@ -5,10 +5,12 @@ For workflows using neovim's **quickfix lists**. `fuzzy.nvim` populates the quic
 
 ## Features
 
-- **Fast grep search** using `ripgrep` fallbacking to `grep -R`
-- **File finding** using `fd` fallbacking to `vim.fs.find`
+- **Fast grep search** using `ripgrep` (fallback to `grep -R`)
+    - Equivalent to the default vim command `:copen | silent grep <pattern>` but smarter
+- **File finding** using `fd` (fallback to `vim.fs.find`)
 - **Buffer switching** with fuzzy filtering
-- **Full control** over search arguments via `ripgrep`/`fd` options with built-in fallbacks
+- **Full control** over search arguments via `ripgrep`/`fd` arguments
+- **Explorer-friendly** execute commands with respect to current Explorer directory
 - **Quickfix history navigation** for easy access to previous searches
 
 ## Requirements
