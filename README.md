@@ -27,16 +27,6 @@ vim.pack.add({ src = "https://github.com/anoopkcn/fuzzy.nvim" })
 require("fuzzy").setup()
 ```
 
-**OR** manually:
-
-```sh
-git clone https://github.com/anoopkcn/fuzzy.nvim ~/.local/share/nvim/site/pack/plugins/start/fuzzy.nvim
-```
-Then in your `init.lua`:
-```lua
-require('fuzzy').setup()
-```
-
 ### Using [lazy.nvim](https://github.com/folke/lazy.nvim)
 
 ```lua
@@ -57,8 +47,6 @@ require('fuzzy').setup({
 })
 ```
 
-### Configuration Options
-
 - **`open_single_result`** (boolean, default: `false`)
   When enabled, `:FuzzyFiles` and `:FuzzyBuffers` will automatically open a single match instead of showing the quickfix list. Use the `!` modifier to override per-command.
 
@@ -75,29 +63,13 @@ Alias: `:Grep`
 
 Default behavior collapses multiple matches on the same line into a single quickfix entry. Add `!` to keep every match.
 
-**Examples:**
-```vim
-:FuzzyGrep TODO
-:FuzzyGrep! TODO              " keep every match on duplicate lines
-:FuzzyGrep function.*init
-:FuzzyGrep -t lua require
-:FuzzyGrep -i error -g '*.yml'
-:FuzzyGrep "TODO|FIXME" -g '*.js'
-```
-
 ### `:FuzzyFiles[!] [fd arguments]`
 
 Find files using fd.
 
 Alias: `:Files`
 
-**Examples:**
-```vim
-:FuzzyFiles .lua$
-:FuzzyFiles! init.lua         " open directly if single match
-:FuzzyFiles -e go --max-depth 2
-:FuzzyFiles --no-ignore config " include gitignored files
-```
+Default behavior opens the quickfix list even if there's a single match. Add `!` to open the file directly if only one match is found.
 
 ### `:FuzzyBuffers[!] [pattern]`
 
@@ -105,12 +77,7 @@ List and filter open buffers.
 
 Alias: `:Buffers`
 
-**Examples:**
-```vim
-:FuzzyBuffers          " show all buffers in quickfix
-:FuzzyBuffers! init    " switch directly if single match
-:FuzzyBuffers lua      " filter buffers matching 'lua'
-```
+Default behavior opens the quickfix list even if there's a single match. Add `!` to switch to the buffer directly if only one match is found.
 
 ### `:FuzzyList`
 
@@ -121,18 +88,6 @@ Alias: `:List`
 ### `:FuzzyNext` / `:FuzzyPrev`
 
 Navigate quickfix entries with cycling (wraps around at ends).
-
-## Quickfix Navigation
-
-All fuzzy commands populate the quickfix list:
-
-```vim
-:cnext      " Next item
-:cprev      " Previous item
-:copen      " Open quickfix window
-:cclose     " Close quickfix window
-<CR>        " Jump to item (in quickfix window)
-```
 
 ## Example Configuration
 
