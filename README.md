@@ -93,8 +93,8 @@ Alias: `:Files`
 ```vim
 :FuzzyFiles .lua$
 :FuzzyFiles! init.lua         " open directly if single match
-:FuzzyFiles --noignore config " include gitignored files
 :FuzzyFiles -e go --max-depth 2
+:FuzzyFiles --no-ignore config " include gitignored files
 ```
 
 ### `:FuzzyBuffers[!] [pattern]`

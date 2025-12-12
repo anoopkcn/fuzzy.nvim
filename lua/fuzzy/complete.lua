@@ -43,7 +43,7 @@ end
 
 local function complete_files(arg_lead)
     if arg_lead:match("^%-") then
-        return { "--hidden", "--no-ignore", "--noignore", "--follow", "--type", "--extension", "--exclude", "--max-depth" }
+        return { "--hidden", "--no-ignore", "--follow", "--type", "--extension", "--exclude", "--max-depth" }
     end
     local files = get_files()
     if arg_lead == "" then

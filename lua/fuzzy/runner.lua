@@ -27,10 +27,6 @@ function M.fd(raw_args, callback, cwd)
     local args = parse.normalize(raw_args)
     local limit = config.get().file_match_limit or 600
 
-    -- Check for --noignore flag
-    local include_vcs = vim.tbl_contains(args, "--noignore")
-    args = vim.iter(args):filter(function(a) return a ~= "--noignore" end):totable()
-
     -- Check for custom limit
     local has_limit = vim.iter(args):any(function(a)
         return a == "--max-results" or a == "-n" or a:match("^%-n%d+$")
@@ -38,7 +34,6 @@ function M.fd(raw_args, callback, cwd)
 
     if HAS_FD then
         local cmd = { "fd", "--hidden", "--color=never", "--exclude", ".git" }
-        if include_vcs then cmd[#cmd + 1] = "--no-ignore-vcs" end
         if not has_limit then vim.list_extend(cmd, { "--max-results", tostring(limit + 1) }) end
         -- Add --full-path if any arg contains /
         if vim.iter(args):any(function(a) return a:find("/", 1, true) end) then
@@ -60,7 +55,7 @@ function M.fd(raw_args, callback, cwd)
             path = cwd or ".",
             type = "file",
             limit = limit + 1,
-            skip = function(name) return not include_vcs and name == ".git" end,
+            skip = function(name) return name == ".git" end,
         })
 
         if not ok then
