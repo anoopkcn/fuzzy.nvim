@@ -49,7 +49,7 @@ local function run(raw_args, bang)
     end
 
     local items = vim.iter(bufs):map(function(b)
-        return { filename = b.path, lnum = 1, col = 1, text = ("[%d] %s"):format(b.bufnr, b.path) }
+        return { bufnr = b.bufnr, lnum = 1, col = 1, text = ("[%d] %s"):format(b.bufnr, b.path) }
     end):totable()
     local count = quickfix.update(items, { title = "FuzzyBuffers", command = "FuzzyBuffers" })
     quickfix.open_if_results(count, "FuzzyBuffers: no matching buffers.")
