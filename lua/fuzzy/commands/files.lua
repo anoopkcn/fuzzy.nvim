@@ -5,7 +5,6 @@ local util = require("fuzzy.util")
 
 
 local function open_file(path)
-    util.ensure_normal_window()
     local buf = util.find_buffer_by_path(path)
     if buf and vim.api.nvim_buf_is_valid(buf) then
         local ok = pcall(vim.api.nvim_set_current_buf, buf)
