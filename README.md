@@ -43,15 +43,15 @@ require("fuzzy").setup()
 ```lua
 require('fuzzy').setup({
   open_single_result = false,  -- Open single result directly (default: false)
-  file_match_limit = 600,      -- Max files to show in FuzzyFiles (default: 600)
+  file_match_limit = 10000,     -- Max files to show in FuzzyFiles (default: 10000)
 })
 ```
 
 - **`open_single_result`** (boolean, default: `false`)
   When enabled, `:FuzzyFiles` and `:FuzzyBuffers` will automatically open a single match instead of showing the quickfix list. Use the `!` modifier to override per-command.
 
-- **`file_match_limit`** (number, default: `600`)
-  Maximum number of file results to display in the quickfix list.
+- **`file_match_limit`** (number, default: `10000`)
+  Maximum number of file results to display in the quickfix list. Results stream incrementally so large result sets don't cause UI hangs.
 
 ## Commands
 

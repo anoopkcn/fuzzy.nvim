@@ -7,56 +7,62 @@ local function run(raw_args, dedupe_lines)
     local label = dedupe_lines and "FuzzyGrep" or "FuzzyGrep!"
     local netrw_dir = util.get_netrw_dir()
 
-    runner.rg(raw_args, function(lines, status, err_lines)
-        if status > 1 then
-            local msg = (err_lines and #err_lines > 0) and err_lines or lines
-            vim.notify(table.concat(msg, "\n") or (label .. ": ripgrep failed."), vim.log.levels.ERROR)
-            return
-        end
+    local title = netrw_dir and (label .. " [" .. vim.fn.fnamemodify(netrw_dir, ":~") .. "]") or label
+    local updater = quickfix.stream_updater({
+        command = label,
+        title = title,
+        empty_msg = label .. ": no matches found.",
+    })
 
-        local items, deduped = {}, 0
-        if dedupe_lines then
-            local seen, order = {}, {}
-            for _, line in ipairs(lines) do
-                local e = parse.vimgrep(line)
-                if e then
-                    e.filename = util.with_root(e.filename, netrw_dir)
-                    local key = e.filename .. ":" .. e.lnum
-                    if seen[key] then
-                        seen[key].count = seen[key].count + 1
-                        if e.col < seen[key].col then seen[key].col = e.col end
-                    else
-                        e.count = 1
-                        seen[key], order[#order + 1] = e, key
+    -- Dedup state persists across batches
+    local seen = dedupe_lines and {} or nil
+
+    -- Accumulate lines from libuv thread, schedule batch pushes
+    local line_batch = {}
+    local batch_scheduled = false
+
+    runner.rg_stream(raw_args, {
+        cwd = netrw_dir,
+        on_line = function(line)
+            line_batch[#line_batch + 1] = line
+            if not batch_scheduled then
+                batch_scheduled = true
+                vim.schedule(function()
+                    local batch = line_batch
+                    line_batch = {}
+                    batch_scheduled = false
+                    local items = {}
+                    for _, raw_line in ipairs(batch) do
+                        local e = parse.vimgrep(raw_line)
+                        if e then
+                            e.filename = util.with_root(e.filename, netrw_dir)
+                            if seen then
+                                local key = e.filename .. ":" .. e.lnum
+                                if not seen[key] then
+                                    seen[key] = true
+                                    items[#items + 1] = e
+                                end
+                            else
+                                items[#items + 1] = e
+                            end
+                        end
                     end
-                end
+                    if #items > 0 then
+                        updater.push(items)
+                    end
+                end)
             end
-            for _, key in ipairs(order) do
-                local e = seen[key]
-                if e.count > 1 then
-                    deduped = deduped + 1
-                    e.user_data = { fuzzy_match_count = e.count }
-                end
-                e.count = nil
-                items[#items + 1] = e
+        end,
+        on_exit = function(code, err_lines)
+            if code > 1 then
+                updater.stop()
+                local msg = (err_lines and #err_lines > 0) and table.concat(err_lines, "\n") or (label .. ": ripgrep failed.")
+                vim.notify(msg, vim.log.levels.ERROR)
+                return
             end
-        else
-            for _, line in ipairs(lines) do
-                local e = parse.vimgrep(line)
-                if e then
-                    e.filename = util.with_root(e.filename, netrw_dir)
-                    items[#items + 1] = e
-                end
-            end
-        end
-
-        local title = netrw_dir and (label .. " [" .. vim.fn.fnamemodify(netrw_dir, ":~") .. "]") or label
-        local count = quickfix.update(items, { title = title, command = label })
-        if deduped > 0 then
-            vim.notify(("%s: collapsed duplicate matches on %d line%s."):format(label, deduped, deduped == 1 and "" or "s"), vim.log.levels.INFO)
-        end
-        quickfix.open_if_results(count, label .. ": no matches found.")
-    end, netrw_dir)
+            updater.finish()
+        end,
+    })
 end
 
 return { run = run }

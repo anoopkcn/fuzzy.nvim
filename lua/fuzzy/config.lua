@@ -5,7 +5,7 @@ local M = {}
 ---@field file_match_limit integer Maximum number of files to return from fd
 local defaults = {
     open_single_result = false,
-    file_match_limit = 600,
+    file_match_limit = 10000,
 }
 
 ---@type FuzzyConfig
@@ -22,10 +22,8 @@ M.commands = {
 ---@param opts? FuzzyConfig
 function M.setup(opts)
     if opts then
-        vim.validate({
-            open_single_result = { opts.open_single_result, "boolean", true },
-            file_match_limit = { opts.file_match_limit, "number", true },
-        })
+        vim.validate("open_single_result", opts.open_single_result, "boolean", true)
+        vim.validate("file_match_limit", opts.file_match_limit, "number", true)
     end
     config = vim.tbl_deep_extend("force", defaults, opts or {})
 end

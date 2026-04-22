@@ -96,6 +96,73 @@ function M.select_from_history(fuzzy_only)
     end)
 end
 
+--- Create a streaming updater that batches items and flushes to quickfix on a timer
+---@param opts { command: string, title?: string, interval_ms?: number, empty_msg?: string }
+---@return { push: fun(items: table[]), finish: fun(), stop: fun(), count: fun(): integer }
+function M.stream_updater(opts)
+    local cmd = opts.command or "Fuzzy"
+    local interval = opts.interval_ms or 80
+    local info = find_or_create(cmd)
+    local pending = {}
+    local total_count = 0
+    local first_flush = true
+    local timer = vim.uv.new_timer()
+    local opened = false
+
+    local function flush()
+        if #pending == 0 or not info then return end
+        local batch = pending
+        pending = {}
+        total_count = total_count + #batch
+
+        local action = first_flush and "r" or "a"
+        first_flush = false
+        local ctx = vim.tbl_extend("force", CONTEXT, { cmd = cmd })
+        pcall(vim.fn.setqflist, {}, action, {
+            id = info.id,
+            items = batch,
+            title = opts.title or cmd,
+            context = ctx,
+        })
+        activate((get_info({ id = info.id, nr = 0 }) or info).nr)
+
+        if not opened then
+            opened = true
+            vim.cmd.copen()
+            -- Return focus to previous window so user isn't trapped in qf
+            vim.cmd.wincmd("p")
+        end
+    end
+
+    timer:start(interval, interval, vim.schedule_wrap(function()
+        flush()
+    end))
+
+    return {
+        push = function(items)
+            vim.list_extend(pending, items)
+        end,
+        finish = function()
+            timer:stop()
+            timer:close()
+            flush()
+            if total_count == 0 then
+                vim.notify(opts.empty_msg or "No matches.", vim.log.levels.INFO)
+            elseif not opened then
+                vim.cmd.copen()
+            end
+        end,
+        stop = function()
+            timer:stop()
+            timer:close()
+            pending = {}
+        end,
+        count = function()
+            return total_count + #pending
+        end,
+    }
+end
+
 --- Go to next quickfix entry, cycling to first if at end
 function M.cnext_cycle()
     local info = get_info({ size = 0, idx = 0 })

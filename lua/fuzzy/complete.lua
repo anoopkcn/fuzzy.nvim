@@ -6,7 +6,43 @@ local MAX_COMPLETIONS = 50
 local CACHE_TTL = 120
 local HAS_FD = vim.fn.executable("fd") == 1
 
-local file_cache = { cwd = nil, files = nil, timestamp = 0 }
+local file_cache = { cwd = nil, files = nil, timestamp = 0, warming = false }
+
+--- Warm the file cache asynchronously in the background
+local function warm_cache()
+    local cwd = vim.fn.getcwd()
+    if file_cache.warming then return end
+    if file_cache.files and file_cache.cwd == cwd and (os.time() - file_cache.timestamp) <= CACHE_TTL then
+        return
+    end
+
+    file_cache.warming = true
+    local limit = config.get().file_match_limit or 10000
+
+    if HAS_FD then
+        local system = require("fuzzy.system")
+        system.run({
+            "fd", "--hidden", "--color", "never",
+            "--exclude", ".git", "--type", "f", "--max-results", tostring(limit),
+        }, function(lines, code)
+            file_cache.warming = false
+            if code == 0 then
+                file_cache = { cwd = cwd, files = lines, timestamp = os.time(), warming = false }
+            end
+        end, { cwd = cwd })
+    else
+        -- Fallback is synchronous but fast for small directories
+        local ok, results = pcall(vim.fs.find, function() return true end, {
+            path = ".", type = "file", limit = limit,
+            skip = function(name) return name == ".git" end,
+        })
+        file_cache.warming = false
+        if ok then
+            local files = vim.iter(results):map(function(p) return p:gsub("^%./", "") end):totable()
+            file_cache = { cwd = cwd, files = files, timestamp = os.time(), warming = false }
+        end
+    end
+end
 
 local function get_files()
     local cwd = vim.fn.getcwd()
@@ -14,31 +50,9 @@ local function get_files()
         return file_cache.files
     end
 
-    local limit = config.get().file_match_limit or 600
-    local files = {}
-
-    if HAS_FD then
-        local result = vim.system({
-            "fd", "--hidden", "--color", "never",
-            "--exclude", ".git", "--type", "f", "--max-results", tostring(limit),
-        }, { text = true }):wait()
-        if result.code == 0 then
-            for line in result.stdout:gmatch("[^\r\n]+") do
-                if line ~= "" then files[#files + 1] = line end
-            end
-        end
-    else
-        local ok, results = pcall(vim.fs.find, function() return true end, {
-            path = ".", type = "file", limit = limit,
-            skip = function(name) return name == ".git" end,
-        })
-        if ok then
-            files = vim.iter(results):map(function(p) return p:gsub("^%./", "") end):totable()
-        end
-    end
-
-    file_cache = { cwd = cwd, files = files, timestamp = os.time() }
-    return files
+    -- Return stale/empty cache, trigger async refresh
+    warm_cache()
+    return file_cache.files or {}
 end
 
 local function complete_files(arg_lead)
@@ -70,6 +84,7 @@ end
 return {
     complete_files = complete_files,
     complete_buffers = complete_buffers,
+    warm_cache = warm_cache,
     make_file_completer = function() return function(a) return complete_files(a) end end,
     make_buffer_completer = function() return function(a) return complete_buffers(a) end end,
 }

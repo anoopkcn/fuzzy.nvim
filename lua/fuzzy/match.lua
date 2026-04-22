@@ -37,6 +37,11 @@ local string_lower = string.lower
 local math_max = math.max
 local math_min = math.min
 
+-- Module-level reusable flat arrays to avoid per-call allocations
+local _D = {}
+local _Match = {}
+local _D_size = 0
+
 local function is_lower(byte)
     return byte >= BYTE_a and byte <= BYTE_z
 end
@@ -68,17 +73,6 @@ local function compute_bonus(haystack_bytes, i)
     end
 
     return 0
-end
-
---- Convert string to byte array for fast access
----@param str string
----@return table bytes
-local function to_bytes(str)
-    local bytes = {}
-    for i = 1, #str do
-        bytes[i] = string_byte(str, i)
-    end
-    return bytes
 end
 
 --- Check if needle matches haystack (case-insensitive)
@@ -130,68 +124,77 @@ function M.score(needle, haystack)
     local needle_lower = string_lower(needle)
     local haystack_lower = string_lower(haystack)
 
-    -- Pre-compute byte arrays for fast access
-    local needle_lower_bytes = to_bytes(needle_lower)
-    local haystack_lower_bytes = to_bytes(haystack_lower)
-    local haystack_bytes = to_bytes(haystack)
+    -- Pre-compute byte arrays using multi-return string.byte
+    local needle_lower_bytes = { string_byte(needle_lower, 1, n) }
+    local haystack_lower_bytes = { string_byte(haystack_lower, 1, m) }
+    local haystack_bytes = { string_byte(haystack, 1, m) }
 
     -- Quick check: does needle match at all?
     if not has_match(needle_lower_bytes, haystack_lower_bytes) then
         return SCORE_MIN, nil
     end
 
-    -- Dynamic programming approach
-    -- D[i][j] = best score for matching needle[1..i] to haystack[1..j]
-    -- Match[i][j] = best score ending with a match at position j
+    -- Dynamic programming with reusable flat arrays
+    -- Index as [i * stride + j + 1] (1-indexed Lua)
+    local stride = m + 1
+    local needed = (n + 1) * stride
 
-    local D = {}
-    local Match = {}
-    for i = 0, n do
-        D[i] = {}
-        Match[i] = {}
-        for j = 0, m do
-            D[i][j] = SCORE_MIN
-            Match[i][j] = SCORE_MIN
+    -- Grow arrays if needed, zero the portion we use
+    if needed > _D_size then
+        for k = _D_size + 1, needed do
+            _D[k] = SCORE_MIN
+            _Match[k] = SCORE_MIN
+        end
+        _D_size = needed
+    else
+        for k = 1, needed do
+            _D[k] = SCORE_MIN
+            _Match[k] = SCORE_MIN
         end
     end
 
-    D[0][0] = 0
+    -- D[0][0] = 0
+    _D[1] = 0
+    -- D[0][j] = 0 for j = 1..m
     for j = 1, m do
-        D[0][j] = 0
+        _D[j + 1] = 0
     end
 
     for i = 1, n do
         local prev_score = SCORE_MIN
         local gap_score = i == n and SCORE_GAP_TRAILING or SCORE_GAP_INNER
         local nc = needle_lower_bytes[i]
+        local row_base = i * stride
 
         for j = i, m do
             local hc = haystack_lower_bytes[j]
+            local idx = row_base + j + 1
 
             if nc == hc then
                 local bonus = compute_bonus(haystack_bytes, j)
 
                 -- Score for starting a new match sequence
-                local score1 = D[i - 1][j - 1] + bonus
+                local prev_row_prev_col = (i - 1) * stride + j
+                local score1 = _D[prev_row_prev_col] + bonus
 
                 -- Score for continuing a match sequence
-                local score2 = Match[i - 1][j - 1] + SCORE_MATCH_CONSECUTIVE
+                local score2 = _Match[prev_row_prev_col] + SCORE_MATCH_CONSECUTIVE
 
                 local match_score = math_max(score1, score2)
-                Match[i][j] = match_score
+                _Match[idx] = match_score
 
                 -- Best score so far
-                D[i][j] = math_max(prev_score + gap_score, match_score)
+                _D[idx] = math_max(prev_score + gap_score, match_score)
             else
-                Match[i][j] = SCORE_MIN
-                D[i][j] = prev_score + gap_score
+                _Match[idx] = SCORE_MIN
+                _D[idx] = prev_score + gap_score
             end
 
-            prev_score = D[i][j]
+            prev_score = _D[idx]
         end
     end
 
-    return D[n][m], nil
+    return _D[n * stride + m + 1], nil
 end
 
 --- Sort a list of strings by fuzzy match score against a pattern

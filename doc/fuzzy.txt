@@ -111,7 +111,8 @@ Default behavior:
   • Respects .gitignore
   • Includes hidden files
   • Excludes .git directory
-  • Limits results to 600 files (configurable)
+  • Limits results to 10000 files (configurable)
+  • Results stream incrementally (no UI hang on large directories)
 
 Examples: >
     :FuzzyFiles .lua$
@@ -177,7 +178,7 @@ Syntax: >
 Setup the plugin in your init.lua: >
     require('fuzzy').setup({
         open_single_result = false,
-        file_match_limit = 600,
+        file_match_limit = 10000,
     })
 <
 ------------------------------------------------------------------------------
@@ -194,9 +195,10 @@ per-command.
                                                   *g:fuzzy_file_match_limit*
 file_match_limit~
     Type: number
-    Default: 600
+    Default: 10000
 
-Maximum number of file results to display in quickfix list.
+Maximum number of file results to display in quickfix list. Results stream
+incrementally so large result sets do not block the UI.
 
 ==============================================================================
 5. FUNCTIONS                                                *fuzzy-functions*

@@ -33,31 +33,57 @@ local function run(raw_args, bang)
         return
     end
 
-    runner.fd(raw_args, function(files, status, truncated, limit, err_lines)
-        if status ~= 0 then
-            local msg = (err_lines and #err_lines > 0) and err_lines or files
-            vim.notify(table.concat(msg, "\n") or "FuzzyFiles: failed.", vim.log.levels.ERROR)
-            return
-        end
+    local title = netrw_dir and ("FuzzyFiles [" .. vim.fn.fnamemodify(netrw_dir, ":~") .. "]") or "FuzzyFiles"
+    local updater = quickfix.stream_updater({
+        command = "FuzzyFiles",
+        title = title,
+        empty_msg = "FuzzyFiles: no files matched.",
+    })
 
-        local items, first = {}, nil
-        for i = 1, math.min(limit or #files, #files) do
-            if files[i] ~= "" then
-                local filepath = util.with_root(files[i], netrw_dir)
-                first = first or filepath
-                items[#items + 1] = { filename = filepath, lnum = 1, col = 1, text = files[i] }
+    -- Accumulate lines from libuv thread, schedule batch pushes
+    local line_batch = {}
+    local batch_scheduled = false
+    local first_file = nil
+
+    runner.fd_stream(raw_args, {
+        cwd = netrw_dir,
+        on_line = function(line)
+            if line ~= "" then
+                line_batch[#line_batch + 1] = line
             end
-        end
+            if not batch_scheduled and #line_batch > 0 then
+                batch_scheduled = true
+                vim.schedule(function()
+                    local batch = line_batch
+                    line_batch = {}
+                    batch_scheduled = false
+                    local items = {}
+                    for i = 1, #batch do
+                        local filepath = util.with_root(batch[i], netrw_dir)
+                        if not first_file then first_file = filepath end
+                        items[i] = { filename = filepath, lnum = 1, col = 1, text = batch[i] }
+                    end
+                    updater.push(items)
+                end)
+            end
+        end,
+        on_exit = function(code, err_lines)
+            if code ~= 0 then
+                updater.stop()
+                local msg = (err_lines and #err_lines > 0) and table.concat(err_lines, "\n") or "FuzzyFiles: failed."
+                vim.notify(msg, vim.log.levels.ERROR)
+                return
+            end
 
-        if (config.get().open_single_result or bang) and #items == 1 and first then
-            if open_file(first) then return end
-        end
-
-        local title = netrw_dir and ("FuzzyFiles [" .. vim.fn.fnamemodify(netrw_dir, ":~") .. "]") or "FuzzyFiles"
-        local count = quickfix.update(items, { title = title, command = "FuzzyFiles" })
-        if truncated then vim.notify(("FuzzyFiles: showing first %d matches."):format(limit), vim.log.levels.INFO) end
-        quickfix.open_if_results(count, "FuzzyFiles: no files matched.")
-    end, netrw_dir)
+            local count = updater.count()
+            if (config.get().open_single_result or bang) and count == 1 and first_file then
+                updater.stop()
+                open_file(first_file)
+            else
+                updater.finish()
+            end
+        end,
+    })
 end
 
 return { run = run }

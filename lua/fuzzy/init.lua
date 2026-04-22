@@ -28,6 +28,12 @@ function M.setup(opts)
 
     vim.api.nvim_create_user_command("FuzzyNext", quickfix.cnext_cycle, { desc = "Next quickfix entry (cycles)" })
     vim.api.nvim_create_user_command("FuzzyPrev", quickfix.cprev_cycle, { desc = "Previous quickfix entry (cycles)" })
+
+    -- Warm file completion cache asynchronously
+    vim.api.nvim_create_autocmd({ "VimEnter", "DirChanged" }, {
+        group = vim.api.nvim_create_augroup("FuzzyComplete", { clear = true }),
+        callback = function() complete.warm_cache() end,
+    })
 end
 
 function M.grep(args, dedupe) require("fuzzy.commands.grep").run(args, dedupe) end
