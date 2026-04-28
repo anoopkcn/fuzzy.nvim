@@ -16,6 +16,14 @@ local HL = {
 }
 
 local WINHL = ("Normal:%s,FloatBorder:%s,FloatTitle:%s"):format(HL.normal, HL.border, HL.title)
+local CONTENT_WINHL = ("Normal:%s"):format(HL.normal)
+
+local function divider_line(width)
+    local fillchars = vim.opt.fillchars:get()
+    local horiz = type(fillchars) == "table" and fillchars.horiz or nil
+    if type(horiz) ~= "string" or horiz == "" then horiz = "-" end
+    return horiz:rep(width)
+end
 
 local function set_default_hl(name, link)
     vim.api.nvim_set_hl(0, name, { default = true, link = link })
@@ -44,43 +52,74 @@ local function open(opts)
     local max_h = vim.o.lines - cmdh - 6
     local height = math.max(3, math.min(opts.height or 15, max_h))
 
+    local frame_buf = vim.api.nvim_create_buf(false, true)
     local input_buf = vim.api.nvim_create_buf(false, true)
     local result_buf = vim.api.nvim_create_buf(false, true)
+    vim.bo[frame_buf].bufhidden = "wipe"
     vim.bo[input_buf].bufhidden = "wipe"
     vim.bo[result_buf].bufhidden = "wipe"
 
     local width = math.min(80, math.floor(vim.o.columns * 0.6))
-    local total_h = height + 5
-    local input_row = math.max(0, math.floor((vim.o.lines - total_h) / 2)) + 1
-    local result_row = input_row + 3
-    local col = math.max(0, math.floor((vim.o.columns - width) / 2))
+    local frame_height = height + 2
+    local total_h = frame_height + 2
+    local frame_row = 0
+    local frame_col = math.max(0, math.floor((vim.o.columns - (width + 2)) / 2))
+    local input_row = frame_row + 1
+    local result_row = frame_row + 3
+    local content_col = frame_col + 1
+
+    local blank = (" "):rep(width)
+    local frame_lines = { blank, divider_line(width) }
+    for i = 1, height do
+        frame_lines[#frame_lines + 1] = blank
+    end
+    vim.api.nvim_buf_set_lines(frame_buf, 0, -1, false, frame_lines)
+    vim.api.nvim_buf_set_extmark(frame_buf, ns, 1, 0, {
+        end_col = width, hl_group = HL.border, priority = 100,
+    })
+    vim.bo[frame_buf].modifiable = false
+
+    local frame_win = vim.api.nvim_open_win(frame_buf, false, {
+        relative = "editor",
+        row = frame_row,
+        col = frame_col,
+        width = width,
+        height = frame_height,
+        style = "minimal",
+        border = "rounded",
+        focusable = false,
+        zindex = 40,
+        title = " " .. prompt .. " ",
+        title_pos = "center",
+    })
 
     local result_win = vim.api.nvim_open_win(result_buf, false, {
         relative = "editor",
         row = result_row,
-        col = col,
+        col = content_col,
         width = width,
         height = height,
         style = "minimal",
-        border = "rounded",
+        border = "none",
         focusable = false,
+        zindex = 50,
     })
 
     local input_win = vim.api.nvim_open_win(input_buf, true, {
         relative = "editor",
         row = input_row,
-        col = col,
+        col = content_col,
         width = width,
         height = 1,
         style = "minimal",
-        border = "rounded",
-        title = " " .. prompt .. " ",
-        title_pos = "left",
+        border = "none",
+        zindex = 60,
     })
 
     vim.wo[result_win].wrap = false
-    vim.wo[result_win].winhighlight = WINHL
-    vim.wo[input_win].winhighlight = WINHL
+    vim.wo[frame_win].winhighlight = WINHL
+    vim.wo[result_win].winhighlight = CONTENT_WINHL
+    vim.wo[input_win].winhighlight = CONTENT_WINHL
 
     local current = items
     local cursor = 1
@@ -149,6 +188,7 @@ local function open(opts)
         vim.cmd.stopinsert()
         if vim.api.nvim_win_is_valid(input_win) then vim.api.nvim_win_close(input_win, true) end
         if vim.api.nvim_win_is_valid(result_win) then vim.api.nvim_win_close(result_win, true) end
+        if vim.api.nvim_win_is_valid(frame_win) then vim.api.nvim_win_close(frame_win, true) end
     end
 
     local function accept()
