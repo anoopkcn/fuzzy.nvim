@@ -16,6 +16,7 @@ local config = vim.deepcopy(defaults)
 -- Command names (centralized for consistency)
 M.commands = {
     GREP = "FuzzyGrep",
+    GREP_IN = "FuzzyGrepIn",
     FILES = "FuzzyFiles",
     BUFFERS = "FuzzyBuffers",
     LIST = "FuzzyList",

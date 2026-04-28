@@ -11,6 +11,31 @@ function M.setup(opts)
         vim.api.nvim_create_user_command(name:gsub("^Fuzzy", ""), fn, vim.tbl_extend("force", copts, { desc = copts.desc .. " (alias)" }))
     end
 
+    cmd("FuzzyGrepIn", function(o)
+        local parse = require("fuzzy.parse")
+        local dir_raw, rest_raw = parse.split_first(o.args)
+        if not dir_raw then
+            vim.notify("FuzzyGrepIn: provide a directory.", vim.log.levels.INFO)
+            return
+        end
+        local dir = vim.fn.fnamemodify(vim.fn.expand(dir_raw), ":p"):gsub("[/\\]+$", "")
+        local stat = vim.uv.fs_stat(dir)
+        if not stat or stat.type ~= "directory" then
+            vim.notify("FuzzyGrepIn: '" .. dir_raw .. "' is not a valid directory.", vim.log.levels.ERROR)
+            return
+        end
+        if o.bang then
+            require("fuzzy.picker").open_for("grep_in", {
+                dir = dir,
+                initial_query = rest_raw ~= "" and rest_raw or nil,
+            })
+        elseif rest_raw ~= "" then
+            require("fuzzy.commands.grep_in").run(dir, rest_raw)
+        else
+            vim.notify("FuzzyGrepIn: provide a search pattern.", vim.log.levels.INFO)
+        end
+    end, { nargs = "+", bang = true, complete = "file", desc = "Run ripgrep in a specific directory" })
+
     cmd("FuzzyGrep", function(o)
         if o.bang then
             require("fuzzy.picker").open_for("grep", {
@@ -58,5 +83,15 @@ function M.setup(opts)
 end
 
 function M.grep(args) require("fuzzy.commands.grep").run(args) end
+
+function M.grep_in(dir, args)
+    local expanded = vim.fn.fnamemodify(vim.fn.expand(dir), ":p"):gsub("[/\\]+$", "")
+    local stat = vim.uv.fs_stat(expanded)
+    if not stat or stat.type ~= "directory" then
+        vim.notify("fuzzy.grep_in: '" .. dir .. "' is not a valid directory.", vim.log.levels.ERROR)
+        return
+    end
+    require("fuzzy.commands.grep_in").run(expanded, args)
+end
 
 return M

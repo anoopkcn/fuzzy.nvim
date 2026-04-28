@@ -361,8 +361,13 @@ local function open_live_grep(opts)
     opts = opts or {}
 
     local dedupe_lines = require("fuzzy.config").get().grep_dedupe
-    local label = dedupe_lines and "FuzzyGrep" or "FuzzyGrep!"
-    local netrw_dir = util.get_netrw_dir()
+    local netrw_dir = opts.dir or util.get_netrw_dir()
+    local label
+    if opts.dir then
+        label = dedupe_lines and "FuzzyGrepIn" or "FuzzyGrepIn!"
+    else
+        label = dedupe_lines and "FuzzyGrep" or "FuzzyGrep!"
+    end
     local title = netrw_dir and (label .. " [" .. vim.fn.fnamemodify(netrw_dir, ":~") .. "]") or label
 
     local timer = vim.uv.new_timer()
@@ -591,6 +596,8 @@ local function open_for(kind, opts)
         })
     elseif kind == "grep" then
         return open_live_grep(opts)
+    elseif kind == "grep_in" then
+        return open_live_grep({ dir = opts.dir, initial_query = opts.initial_query })
     end
 end
 

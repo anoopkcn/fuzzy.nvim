@@ -42,6 +42,52 @@ function M.args(raw)
     return args
 end
 
+--- Split the first shell-token off a raw string, preserving the raw remainder.
+--- The first token is fully unquoted/unescaped; the remainder is returned verbatim
+--- so it can be re-parsed later (e.g. as rg arguments or an initial picker query).
+---@param raw string
+---@return string|nil first_token, string raw_rest
+function M.split_first(raw)
+    if not raw or raw == "" then return nil, "" end
+    local i = 1
+    while i <= #raw and raw:sub(i, i):match("%s") do i = i + 1 end
+    if i > #raw then return nil, "" end
+
+    local token = {}
+    local quote = nil
+    local escapes = { n = "\n", r = "\r", t = "\t" }
+
+    while i <= #raw do
+        local ch = raw:sub(i, i)
+        if quote == "'" then
+            if ch == "'" then quote = nil else token[#token + 1] = ch end
+        elseif quote == '"' then
+            if ch == '"' then
+                quote = nil
+            elseif ch == "\\" and raw:sub(i + 1, i + 1):match('["$`\\nrt]') then
+                local nc = raw:sub(i + 1, i + 1)
+                token[#token + 1] = escapes[nc] or nc
+                i = i + 1
+            else
+                token[#token + 1] = ch
+            end
+        elseif ch:match("%s") then
+            local j = i
+            while j <= #raw and raw:sub(j, j):match("%s") do j = j + 1 end
+            return table.concat(token), j <= #raw and raw:sub(j) or ""
+        elseif ch == "'" or ch == '"' then
+            quote = ch
+        elseif ch == "\\" and raw:sub(i + 1, i + 1) ~= "" then
+            token[#token + 1] = raw:sub(i + 1, i + 1)
+            i = i + 1
+        else
+            token[#token + 1] = ch
+        end
+        i = i + 1
+    end
+    return #token > 0 and table.concat(token) or nil, ""
+end
+
 --- Normalize arguments: expand tilde, handle string or table input
 ---@param input string|table
 ---@return table

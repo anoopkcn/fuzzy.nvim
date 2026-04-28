@@ -10,12 +10,16 @@ CONTENTS                                                      *fuzzy-contents*
 2. Requirements ............................ |fuzzy-requirements|
 3. Commands ................................ |fuzzy-commands|
     3.1 FuzzyGrep .......................... |:FuzzyGrep|
-    3.2 FuzzyFiles ......................... |:FuzzyFiles|
-    3.3 FuzzyBuffers ....................... |:FuzzyBuffers|
-    3.4 FuzzyList .......................... |:FuzzyList|
-    3.5 FuzzyNext / FuzzyPrev .............. |:FuzzyNext|
+    3.2 FuzzyGrepIn ........................ |:FuzzyGrepIn|
+    3.3 FuzzyFiles ......................... |:FuzzyFiles|
+    3.4 FuzzyBuffers ....................... |:FuzzyBuffers|
+    3.5 FuzzyList .......................... |:FuzzyList|
+    3.6 FuzzyNext / FuzzyPrev .............. |:FuzzyNext|
 4. Configuration ........................... |fuzzy-configuration|
 5. Functions ............................... |fuzzy-functions|
+    5.1 fuzzy.setup() ...................... |fuzzy.setup()|
+    5.2 fuzzy.grep() ....................... |fuzzy.grep()|
+    5.3 fuzzy.grep_in() .................... |fuzzy.grep_in()|
 6. Examples ................................ |fuzzy-examples|
 
 ==============================================================================
@@ -113,7 +117,33 @@ Common ripgrep options:
 See `rg --help` for full options.
 
 ------------------------------------------------------------------------------
-3.2 FuzzyFiles                                                  *:FuzzyFiles*
+3.2 FuzzyGrepIn                                                *:FuzzyGrepIn*
+
+Grep inside a specific directory instead of the current working directory.
+
+Alias: :GrepIn
+
+Syntax: >
+    :FuzzyGrepIn[!] <dir> [pattern] [rg options]
+<
+`dir` is expanded (supports ~ and $ENV variables) and must be a valid
+directory. A clear error is shown if it does not exist.
+
+Without [!]: Streams ripgrep results for [pattern] inside <dir> to the
+             quickfix list. Requires both a directory and a pattern.
+With [!]:    Opens a live grep picker scoped to <dir>. Optionally pre-fills
+             the picker with [pattern].
+
+Deduplication is controlled by |fuzzy-grep_dedupe|.
+
+Examples: >
+    :FuzzyGrepIn! $VIMRUNTIME/doc          " live grep vim help docs
+    :FuzzyGrepIn! $VIMRUNTIME/doc autocmd  " picker pre-filled
+    :FuzzyGrepIn ~/.config/nvim TODO       " stream to quickfix
+    :FuzzyGrepIn ~/projects/foo -t lua require
+<
+------------------------------------------------------------------------------
+3.3 FuzzyFiles                                                  *:FuzzyFiles*
 
 Find files using fd.
 
@@ -151,7 +181,7 @@ Common fd options:
 See `fd --help` for full options.
 
 ------------------------------------------------------------------------------
-3.3 FuzzyBuffers                                              *:FuzzyBuffers*
+3.4 FuzzyBuffers                                              *:FuzzyBuffers*
 
 List and filter open buffers.
 
@@ -174,7 +204,7 @@ Examples: >
     :FuzzyBuffers! init         " open picker pre-filled with 'init'
 <
 ------------------------------------------------------------------------------
-3.4 FuzzyList                                                    *:FuzzyList*
+3.5 FuzzyList                                                    *:FuzzyList*
 
 Browse and select from quickfix list history.
 
@@ -189,7 +219,7 @@ With [!]:    Shows only lists created by fuzzy commands.
 Uses |vim.ui.select()| when available (e.g., with dressing.nvim).
 
 ------------------------------------------------------------------------------
-3.5 FuzzyNext / FuzzyPrev                            *:FuzzyNext* *:FuzzyPrev*
+3.6 FuzzyNext / FuzzyPrev                            *:FuzzyNext* *:FuzzyPrev*
 
 Navigate quickfix entries with cycling.
 
@@ -266,6 +296,22 @@ fuzzy.grep({args})
         fuzzy.grep({ 'TODO', '-t', 'lua' })
         fuzzy.grep({ '-F', 'function(args)' })  -- literal search
 <
+------------------------------------------------------------------------------
+                                                              *fuzzy.grep_in()*
+fuzzy.grep_in({dir}, {args})
+    Programmatically grep inside a specific directory and populate the
+    quickfix list. ~ and $ENV variables in {dir} are expanded automatically.
+
+    Parameters: ~
+        {dir}    (string) Directory to search in
+        {args}   (table|string) Ripgrep arguments (pattern and options)
+
+    Example: >
+        local fuzzy = require('fuzzy')
+
+        fuzzy.grep_in('$VIMRUNTIME/doc', { 'autocmd' })
+        fuzzy.grep_in('~/.config/nvim', { 'TODO', '-t', 'lua' })
+<
 ==============================================================================
 6. EXAMPLES                                                  *fuzzy-examples*
 
@@ -305,17 +351,16 @@ Search specific file types~
 <
 Search help documentation~
 >
-    local function grep_help()
-        local pattern = vim.fn.input('Search help: ')
-        if vim.trim(pattern) ~= '' then
-            local dirs = vim.api.nvim_get_runtime_file('doc/', true)
-            local args = { pattern, '--type-add', 'help:*.txt', '-t', 'help' }
-            vim.list_extend(args, dirs)
-            require('fuzzy').grep(args)
-        end
-    end
+    -- Live grep picker scoped to vim runtime help docs
+    vim.keymap.set('n', '<leader>fh', '<CMD>GrepIn! $VIMRUNTIME/doc<CR>', { desc = 'Search help' })
 
-    vim.keymap.set('n', '<leader>fh', grep_help, { desc = 'Search help' })
+    -- Or programmatically (populates quickfix)
+    vim.keymap.set('n', '<leader>fH', function()
+        local word = vim.fn.expand('<cword>')
+        if word ~= '' then
+            require('fuzzy').grep_in('$VIMRUNTIME/doc', { word })
+        end
+    end, { desc = 'Grep help for word' })
 <
 ==============================================================================
 vim:tw=78:ts=8:ft=help:norl:

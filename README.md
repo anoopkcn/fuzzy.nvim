@@ -9,6 +9,7 @@ For workflows using neovim's **quickfix lists**. `fuzzy.nvim` populates the quic
     - Equivalent to the default vim command `:copen | silent grep <pattern>` but smarter
     - Live grep picker highlights matched text within results
     - Per-session result cache: refining a query (e.g. `foo` → `foobar`) filters instantly from cache; same query typed again skips grep entirely
+- **`:FuzzyGrepIn` - Grep inside a specific directory** (e.g. vim help docs, a subdirectory, `$VIMRUNTIME/doc`)
 - **`:FuzzyFiles` - File finding** using `fd` (fallback to `vim.fs.find`)
 - **`:FuzzyBuffers` - Buffer switching** with fuzzy filtering
 - **Full control** over search arguments via `ripgrep`/`fd` arguments
@@ -88,9 +89,26 @@ The live grep picker caches results per session:
 - Typing the exact same query again serves results from cache, skipping grep entirely.
 - Matched text is highlighted within each result line.
 
-### `:FuzzyFiles[!] [fd arguments]`
+### `:FuzzyGrepIn[!] <dir> [pattern] [rg options]`
 
-Find files using fd.
+Grep inside a specific directory instead of the current working directory.
+
+Alias: `:GrepIn`
+
+- `:GrepIn dir pattern` — streams results for `pattern` inside `dir` to the quickfix list.
+- `:GrepIn! dir` — opens a live grep picker scoped to `dir`.
+- `:GrepIn! dir pattern` — opens the picker pre-filled with `pattern`, scoped to `dir`.
+
+`dir` is expanded (supports `~` and `$ENV` variables) and must be a valid directory.
+
+Examples:
+```
+:GrepIn! $VIMRUNTIME/doc          " live grep vim help docs
+:GrepIn! ~/.config/nvim TODO      " search for TODO in nvim config
+:GrepIn /path/to/project error    " stream results to quickfix
+```
+
+### `:FuzzyFiles[!] [fd arguments]`
 
 Alias: `:Files`
 
@@ -152,6 +170,9 @@ vim.keymap.set('n', '<leader>fW', function()
     local word = vim.fn.expand('<cWORD>')
     if word ~= '' then fuzzy.grep({ '-F', word }) end
 end, { desc = 'Grep WORD (literal)' })
+
+-- Live grep inside vim help docs
+vim.keymap.set('n', '<leader>fh', '<CMD>GrepIn! $VIMRUNTIME/doc<CR>', { desc = 'Search help docs' })
 ```
 
 ## API
@@ -169,6 +190,18 @@ Programmatically run a grep search and populate the quickfix list.
 ```lua
 fuzzy.grep({ 'TODO', '-t', 'lua' })
 fuzzy.grep({ '-F', 'function(args)' })  -- literal search
+```
+
+### `fuzzy.grep_in(dir, args)`
+
+Programmatically grep inside a specific directory.
+
+- `dir` (string) - Directory to search in (supports `~` and `$ENV`)
+- `args` (table|string) - Ripgrep arguments (pattern and options)
+
+```lua
+fuzzy.grep_in('$VIMRUNTIME/doc', { 'autocmd' })
+fuzzy.grep_in('~/.config/nvim', { 'TODO', '-t', 'lua' })
 ```
 
 ## License
