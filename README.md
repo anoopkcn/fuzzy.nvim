@@ -7,6 +7,8 @@ For workflows using neovim's **quickfix lists**. `fuzzy.nvim` populates the quic
 
 - **`:FuzzyGrep` - Fast grep search** using `ripgrep` (fallback to `grep -R`)
     - Equivalent to the default vim command `:copen | silent grep <pattern>` but smarter
+    - Live grep picker highlights matched text within results
+    - Per-session result cache: refining a query (e.g. `foo` → `foobar`) filters instantly from cache; same query typed again skips grep entirely
 - **`:FuzzyFiles` - File finding** using `fd` (fallback to `vim.fs.find`)
 - **`:FuzzyBuffers` - Buffer switching** with fuzzy filtering
 - **Full control** over search arguments via `ripgrep`/`fd` arguments
@@ -67,6 +69,11 @@ Alias: `:Grep`
 
 Default behavior collapses multiple matches on the same line into a single quickfix entry. Add `!` to keep every match.
 Run without a pattern to open a live grep picker that streams matches as you type. `:Grep pattern` still streams directly to quickfix.
+
+The live grep picker caches results per session:
+- Refining a query (e.g. `foo` → `foobar`) instantly filters cached results while grep runs in the background for completeness.
+- Typing the exact same query again serves results from cache, skipping grep entirely.
+- Matched text is highlighted within each result line.
 
 ### `:FuzzyFiles[!] [fd arguments]`
 

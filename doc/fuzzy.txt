@@ -28,6 +28,7 @@ functionality for maximum performance.
 
 Features:
   • Fast grep search using ripgrep with smart case matching
+  • Live grep picker with per-session result cache and match highlighting
   • File finding using fd with gitignore support
   • Buffer switching with fuzzy filtering
   • Quickfix history navigation
@@ -77,6 +78,13 @@ quickfix entry. Add [!] to keep every match.
 
 Run without a pattern to open a live grep picker that streams matches as you
 type. :FuzzyGrep {pattern} still streams directly to quickfix.
+
+The live grep picker includes a per-session result cache:
+  • Prefix narrowing: typing a longer query (e.g. "foobar" after "foo")
+    instantly filters the cached "foo" results while grep runs in the
+    background for completeness.
+  • Exact hit: typing the same query again skips grep entirely.
+  • Matched text is highlighted within each result line.
 
 Examples: >
     :FuzzyGrep                         " open live grep picker
