@@ -14,6 +14,7 @@ For workflows using neovim's **quickfix lists**. `fuzzy.nvim` populates the quic
 - **`:FuzzyBuffers` - Buffer switching** with fuzzy filtering
 - **Full control** over search arguments via `ripgrep`/`fd` arguments
 - **Explorer-friendly** execute commands with respect to current Explorer directory
+- **!** Add `!` to any command to open an interactive picker instead of populating the quickfix list
 
 ## Requirements
 
