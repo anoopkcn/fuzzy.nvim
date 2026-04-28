@@ -3,11 +3,9 @@ local M = {}
 ---@class FuzzyConfig
 ---@field open_single_result boolean Auto-open when only one result matches
 ---@field file_match_limit integer Maximum number of files to return from fd
----@field cmdline_tab_picker boolean Open floating picker on <Tab> after :Grep / :Files / :Buffers
 local defaults = {
     open_single_result = false,
     file_match_limit = 10000,
-    cmdline_tab_picker = true,
 }
 
 ---@type FuzzyConfig
@@ -26,7 +24,6 @@ function M.setup(opts)
     if opts then
         vim.validate("open_single_result", opts.open_single_result, "boolean", true)
         vim.validate("file_match_limit", opts.file_match_limit, "number", true)
-        vim.validate("cmdline_tab_picker", opts.cmdline_tab_picker, "boolean", true)
     end
     config = vim.tbl_deep_extend("force", defaults, opts or {})
 end
