@@ -730,7 +730,7 @@ local function open_live_grep(opts)
     })
 end
 
----@param kind "files"|"buffers"|"grep"
+---@param kind "files"|"buffers"|"grep"|"grep_in"
 ---@param opts? { bang?: boolean, initial_query?: string }
 local function open_for(kind, opts)
     opts = opts or {}
