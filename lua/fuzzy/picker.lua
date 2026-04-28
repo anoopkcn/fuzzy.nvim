@@ -51,6 +51,7 @@ set_default_hl(HL.file,   "Normal")
 ---@field highlight_fn? fun(query: string, line: string): integer[]|nil
 ---@field prompt? string
 ---@field height? integer
+---@field initial_query? string
 
 ---@class FuzzyPickerController
 ---@field set_items fun(items: any[])
@@ -315,7 +316,15 @@ local function open(opts)
     imap("<C-c>", close)
 
     render()
-    vim.cmd.startinsert()
+    if opts.initial_query and opts.initial_query ~= "" then
+        vim.api.nvim_buf_set_lines(input_buf, 0, 1, false, { opts.initial_query })
+        update_current(opts.initial_query, true)
+        if on_change then on_change(opts.initial_query, controller) end
+        render()
+        vim.cmd("startinsert!")
+    else
+        vim.cmd.startinsert()
+    end
     return controller
 end
 
@@ -351,7 +360,7 @@ end
 local function open_live_grep(opts)
     opts = opts or {}
 
-    local dedupe_lines = not opts.bang
+    local dedupe_lines = require("fuzzy.config").get().grep_dedupe
     local label = dedupe_lines and "FuzzyGrep" or "FuzzyGrep!"
     local netrw_dir = util.get_netrw_dir()
     local title = netrw_dir and (label .. " [" .. vim.fn.fnamemodify(netrw_dir, ":~") .. "]") or label
@@ -527,6 +536,7 @@ local function open_live_grep(opts)
     return open({
         items = {},
         prompt = "Grep",
+        initial_query = opts.initial_query,
         filter_items = false,
         highlight_matches = true,
         highlight_fn = grep_highlight,
@@ -541,7 +551,7 @@ local function open_live_grep(opts)
 end
 
 ---@param kind "files"|"buffers"|"grep"
----@param opts? { bang?: boolean }
+---@param opts? { bang?: boolean, initial_query?: string }
 local function open_for(kind, opts)
     opts = opts or {}
     if kind == "files" then
@@ -554,6 +564,7 @@ local function open_for(kind, opts)
         return open({
             items = items,
             prompt = "Files",
+            initial_query = opts.initial_query,
             on_select = function(path) util.open_file(path) end,
         })
     elseif kind == "buffers" then
@@ -572,6 +583,7 @@ local function open_for(kind, opts)
         return open({
             items = items,
             prompt = "Buffers",
+            initial_query = opts.initial_query,
             on_select = function(rel)
                 local bufnr = by_path[rel]
                 if bufnr then util.switch_to_buffer(bufnr) end

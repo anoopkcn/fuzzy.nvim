@@ -12,26 +12,34 @@ function M.setup(opts)
     end
 
     cmd("FuzzyGrep", function(o)
-        if o.args ~= "" then
-            require("fuzzy.commands.grep").run(o.args, not o.bang)
+        if o.bang then
+            require("fuzzy.picker").open_for("grep", {
+                initial_query = o.args ~= "" and o.args or nil,
+            })
+        elseif o.args ~= "" then
+            require("fuzzy.commands.grep").run(o.args)
         else
-            require("fuzzy.picker").open_for("grep", { bang = o.bang })
+            vim.notify("FuzzyGrep: provide a search pattern.", vim.log.levels.INFO)
         end
     end, { nargs = "*", bang = true, complete = "file", desc = "Run ripgrep and open quickfix" })
 
     cmd("FuzzyFiles", function(o)
-        if o.args ~= "" then
-            require("fuzzy.commands.files").run(o.args, o.bang)
+        if o.bang then
+            require("fuzzy.picker").open_for("files", {
+                initial_query = o.args ~= "" and o.args or nil,
+            })
         else
-            require("fuzzy.picker").open_for("files")
+            require("fuzzy.commands.files").run(o.args, false)
         end
     end, { nargs = "*", bang = true, complete = complete.make_file_completer(), desc = "Find files using fd" })
 
     cmd("FuzzyBuffers", function(o)
-        if o.args == "" then
-            require("fuzzy.picker").open_for("buffers")
+        if o.bang then
+            require("fuzzy.picker").open_for("buffers", {
+                initial_query = o.args ~= "" and o.args or nil,
+            })
         else
-            require("fuzzy.commands.buffers").run(o.args, o.bang)
+            require("fuzzy.commands.buffers").run(o.args, false)
         end
     end, { nargs = "*", bang = true, complete = complete.make_buffer_completer(), desc = "Find open buffers" })
 
@@ -49,6 +57,6 @@ function M.setup(opts)
     })
 end
 
-function M.grep(args, dedupe) require("fuzzy.commands.grep").run(args, dedupe) end
+function M.grep(args) require("fuzzy.commands.grep").run(args) end
 
 return M

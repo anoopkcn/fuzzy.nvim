@@ -52,8 +52,14 @@ Install via your package manager:
 ==============================================================================
 3. COMMANDS                                                  *fuzzy-commands*
 
-All fuzzy commands populate the quickfix list. Use standard quickfix
-navigation: >
+All commands follow a consistent convention:
+
+    No [!]  Populate the quickfix list.
+    [!]     Open the interactive picker.
+
+Passing arguments to the [!] form pre-fills the picker's search query.
+
+Use standard quickfix navigation: >
     :cnext      " Next item
     :cprev      " Previous item
     :copen      " Open quickfix window
@@ -73,11 +79,10 @@ The command uses ripgrep with these default flags:
   --vimgrep       Output in vim-compatible format
   --smart-case    Case insensitive unless pattern contains uppercase
 
-Default: Multiple matches on the same line are collapsed into a single
-quickfix entry. Add [!] to keep every match.
-
-Run without a pattern to open a live grep picker that streams matches as you
-type. :FuzzyGrep {pattern} still streams directly to quickfix.
+Without [!]: Streams ripgrep results directly to the quickfix list.
+             Requires a pattern; shows a notification if none is given.
+With [!]:    Opens a live grep picker that streams matches as you type.
+             Optionally pre-fills the picker with [pattern].
 
 The live grep picker includes a per-session result cache:
   • Prefix narrowing: typing a longer query (e.g. "foobar" after "foo")
@@ -86,14 +91,15 @@ The live grep picker includes a per-session result cache:
   • Exact hit: typing the same query again skips grep entirely.
   • Matched text is highlighted within each result line.
 
+Deduplication is controlled by |fuzzy-grep_dedupe|.
+
 Examples: >
-    :FuzzyGrep                         " open live grep picker
-    :FuzzyGrep TODO
-    :FuzzyGrep! TODO                    " keep all matches
+    :FuzzyGrep TODO                    " stream to quickfix
     :FuzzyGrep function.*init
     :FuzzyGrep -t lua require
     :FuzzyGrep -i error -g '*.yml'
-    :FuzzyGrep "TODO|FIXME" -g '*.js'
+    :FuzzyGrep! TODO                   " open picker pre-filled with 'TODO'
+    :FuzzyGrep!                        " open live grep picker (empty)
 <
 Common ripgrep options:
     -t TYPE     Search only files of TYPE (lua, py, js, etc.)
@@ -116,9 +122,11 @@ Alias: :Files
 Syntax: >
     :FuzzyFiles[!] [fd arguments]
 <
-The [!] modifier opens a single result directly instead of showing quickfix.
+Without [!]: Runs fd and streams results to the quickfix list.
+With [!]:    Opens the file picker (from cache). Optionally pre-fills
+             the picker with [fd arguments] as a query.
 
-Default behavior:
+Default fd behavior:
   • Searches from current working directory
   • Respects .gitignore
   • Includes hidden files
@@ -127,10 +135,12 @@ Default behavior:
   • Results stream incrementally (no UI hang on large directories)
 
 Examples: >
-    :FuzzyFiles .lua$
-    :FuzzyFiles! init.lua               " open directly if single match
+    :FuzzyFiles                        " stream all files to quickfix
+    :FuzzyFiles .lua$                  " stream filtered results to quickfix
     :FuzzyFiles -e go --max-depth 2
-    :FuzzyFiles --no-ignore config      " include gitignored files
+    :FuzzyFiles --no-ignore config
+    :FuzzyFiles!                       " open file picker
+    :FuzzyFiles! init                  " open picker pre-filled with 'init'
 <
 Common fd options:
     -e EXT          Filter by extension
@@ -150,15 +160,18 @@ Alias: :Buffers
 Syntax: >
     :FuzzyBuffers[!] [pattern]
 <
-Without [!]: Shows matching buffers in quickfix list.
-With [!]:    Opens buffer directly if single match.
+Without [!]: Shows all open buffers (optionally filtered by [pattern])
+             in the quickfix list.
+With [!]:    Opens the interactive buffer picker. Optionally pre-fills
+             the picker with [pattern].
 
 Only includes listed buffers (excludes quickfix, help, terminal, etc.)
 
 Examples: >
     :FuzzyBuffers               " all buffers in quickfix
-    :FuzzyBuffers! init         " switch directly if single match
-    :FuzzyBuffers lua           " filter buffers matching 'lua'
+    :FuzzyBuffers lua           " quickfix filtered by 'lua'
+    :FuzzyBuffers!              " open buffer picker
+    :FuzzyBuffers! init         " open picker pre-filled with 'init'
 <
 ------------------------------------------------------------------------------
 3.4 FuzzyList                                                    *:FuzzyList*
@@ -191,6 +204,7 @@ Setup the plugin in your init.lua: >
     require('fuzzy').setup({
         open_single_result = false,
         file_match_limit = 10000,
+        grep_dedupe = true,
     })
 <
 ------------------------------------------------------------------------------
@@ -199,9 +213,8 @@ open_single_result~
     Type: boolean
     Default: false
 
-When enabled, :FuzzyFiles and :FuzzyBuffers will automatically open a single
-match instead of showing the quickfix list. Use the [!] modifier to override
-per-command.
+When enabled, :FuzzyFiles and :FuzzyBuffers (quickfix path) automatically
+open/switch when only one result matches.
 
 ------------------------------------------------------------------------------
                                                   *g:fuzzy_file_match_limit*
@@ -211,6 +224,16 @@ file_match_limit~
 
 Maximum number of file results to display in quickfix list. Results stream
 incrementally so large result sets do not block the UI.
+
+------------------------------------------------------------------------------
+                                                      *g:fuzzy_grep_dedupe*
+grep_dedupe~
+    Type: boolean
+    Default: true
+
+Collapse multiple matches on the same file:line into a single entry.
+Applies to both the quickfix path (:FuzzyGrep pattern) and the live-grep
+picker (:FuzzyGrep!). Set to false to show every individual match.
 
 ==============================================================================
 5. FUNCTIONS                                                *fuzzy-functions*
@@ -230,12 +253,11 @@ fuzzy.setup({opts})
 <
 ------------------------------------------------------------------------------
                                                                 *fuzzy.grep()*
-fuzzy.grep({args}, {dedupe})
-    Programmatically run a grep search.
+fuzzy.grep({args})
+    Programmatically run a grep search and populate the quickfix list.
 
     Parameters: ~
         {args}   (table|string) Ripgrep arguments
-        {dedupe} (boolean|nil) Collapse duplicate line matches (default: true)
 
     Example: >
         local fuzzy = require('fuzzy')
@@ -252,18 +274,24 @@ Keybinding setup~
     local fuzzy = require('fuzzy')
     fuzzy.setup()
 
-    vim.keymap.set('n', '<leader>/', ':Grep ', { desc = 'Grep' })
-    vim.keymap.set('n', '<leader>ff', ':Files ', { desc = 'Find files' })
-    vim.keymap.set('n', '<leader>fb', ':Buffers! ', { desc = 'Switch buffer' })
+    -- Picker workflow (interactive)
+    vim.keymap.set('n', '<leader>/', '<CMD>Grep!<CR>', { desc = 'Live grep picker' })
+    vim.keymap.set('n', '<leader>ff', '<CMD>Files!<CR>', { desc = 'File picker' })
+    vim.keymap.set('n', '<leader>fb', '<CMD>Buffers!<CR>', { desc = 'Buffer picker' })
+
+    -- Quickfix workflow (type a pattern, results stream to QF)
+    vim.keymap.set('n', '<leader>fg', ':Grep ', { desc = 'Grep → QF' })
+
+    -- Quickfix history
     vim.keymap.set('n', '<leader>fl', '<CMD>FuzzyList<CR>', { desc = 'History' })
 
-    -- Grep word under cursor
+    -- Grep word under cursor → QF
     vim.keymap.set('n', '<leader>fw', function()
         local word = vim.fn.expand('<cword>')
         if word ~= '' then fuzzy.grep({ word }) end
     end, { desc = 'Grep word' })
 
-    -- Grep WORD (literal)
+    -- Grep WORD (literal) → QF
     vim.keymap.set('n', '<leader>fW', function()
         local word = vim.fn.expand('<cWORD>')
         if word ~= '' then fuzzy.grep({ '-F', word }) end
@@ -271,8 +299,9 @@ Keybinding setup~
 <
 Search specific file types~
 >
-    :FuzzyGrep TODO -t lua           " Lua files only
-    :FuzzyGrep error -t py -t js     " Python and JavaScript
+    :FuzzyGrep TODO -t lua           " Lua files only → QF
+    :FuzzyGrep! TODO -t lua          " same, but in picker
+    :FuzzyGrep error -t py -t js     " Python and JavaScript → QF
 <
 Search help documentation~
 >

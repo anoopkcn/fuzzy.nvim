@@ -40,20 +40,35 @@ require("fuzzy").setup()
 }
 ```
 
+## Convention
+
+All commands follow the same rule:
+
+| Form | Behaviour |
+|---|---|
+| `:Command [args]` | Populate the **quickfix list** |
+| `:Command! [args]` | Open the interactive **picker** |
+
+Passing arguments to the `!` form pre-fills the picker's search query.
+
 ## Configuration (optional)
 
 ```lua
 require('fuzzy').setup({
-  open_single_result = false,  -- Open single result directly (default: false)
-  file_match_limit = 10000,     -- Max files to show in FuzzyFiles (default: 10000)
+  open_single_result = false,  -- Auto-open when only one result matches (default: false)
+  file_match_limit = 10000,    -- Max files in FuzzyFiles picker/QF (default: 10000)
+  grep_dedupe = true,          -- Deduplicate grep results by file:line (default: true)
 })
 ```
 
 - **`open_single_result`** (boolean, default: `false`)
-  When enabled, `:FuzzyFiles` and `:FuzzyBuffers` will automatically open a single match instead of showing the quickfix list. Use the `!` modifier to override per-command.
+  When enabled, `:FuzzyFiles` and `:FuzzyBuffers` (QF path) automatically open/switch when only one result matches.
 
 - **`file_match_limit`** (number, default: `10000`)
-  Maximum number of file results to display in the quickfix list. Results stream incrementally so large result sets don't cause UI hangs.
+  Maximum number of file results to display. Results stream incrementally so large directories don't cause UI hangs.
+
+- **`grep_dedupe`** (boolean, default: `true`)
+  Collapse multiple matches on the same file:line into a single entry. Applies to both the quickfix and live-grep picker paths. Set to `false` to show every match.
 
 ## Commands
 
@@ -63,8 +78,10 @@ Search for patterns in files using ripgrep.
 
 Alias: `:Grep`
 
-Default behavior collapses multiple matches on the same line into a single quickfix entry. Add `!` to keep every match.
-Run without a pattern to open a live grep picker that streams matches as you type. `:Grep pattern` still streams directly to quickfix.
+- `:Grep pattern` — streams results directly to the quickfix list.
+- `:Grep!` — opens a live grep picker that streams matches as you type.
+- `:Grep! pattern` — opens the picker pre-filled with the pattern.
+- `:Grep` (no args, no `!`) — shows a notification asking for a pattern.
 
 The live grep picker caches results per session:
 - Refining a query (e.g. `foo` → `foobar`) instantly filters cached results while grep runs in the background for completeness.
@@ -77,7 +94,10 @@ Find files using fd.
 
 Alias: `:Files`
 
-Default behavior opens the quickfix list even if there's a single match. Add `!` to open the file directly if only one match is found.
+- `:Files` — runs fd and streams all results to the quickfix list.
+- `:Files path` — streams fd results filtered by path/pattern to quickfix.
+- `:Files!` — opens the file picker (from cache).
+- `:Files! query` — opens the picker pre-filled with the query.
 
 ### `:FuzzyBuffers[!] [pattern]`
 
@@ -85,7 +105,10 @@ List and filter open buffers.
 
 Alias: `:Buffers`
 
-Default behavior opens the quickfix list even if there's a single match. Add `!` to switch to the buffer directly if only one match is found.
+- `:Buffers` — all open buffers in the quickfix list.
+- `:Buffers pattern` — quickfix list filtered by pattern.
+- `:Buffers!` — opens the interactive buffer picker.
+- `:Buffers! query` — opens the picker pre-filled with the query.
 
 ### `:FuzzyList[!]`
 
@@ -103,27 +126,28 @@ Navigate quickfix entries with cycling (wraps around at ends).
 
 ```lua
 local fuzzy = require('fuzzy')
-fuzzy.setup()
+fuzzy.setup({
+  grep_dedupe = true,  -- deduplicate grep results (default)
+})
 
--- Grep
-vim.keymap.set('n', '<leader>/', ':Grep ', { desc = 'Grep' })
+-- Picker workflow (interactive)
+vim.keymap.set('n', '<leader>/', '<CMD>Grep!<CR>', { desc = 'Live grep picker' })
+vim.keymap.set('n', '<leader>ff', '<CMD>Files!<CR>', { desc = 'File picker' })
+vim.keymap.set('n', '<leader>fb', '<CMD>Buffers!<CR>', { desc = 'Buffer picker' })
 
--- Files
-vim.keymap.set('n', '<leader>ff', ':Files ', { desc = 'Find files' })
-
--- Buffers
-vim.keymap.set('n', '<leader>fb', ':Buffers! ', { desc = 'Switch buffer' })
+-- Quickfix workflow (type a pattern, results stream to QF)
+vim.keymap.set('n', '<leader>fg', ':Grep ', { desc = 'Grep → QF' })
 
 -- Quickfix history
 vim.keymap.set('n', '<leader>fl', '<CMD>FuzzyList<CR>', { desc = 'Quickfix history' })
 
--- Grep word under cursor
+-- Grep word under cursor → QF
 vim.keymap.set('n', '<leader>fw', function()
     local word = vim.fn.expand('<cword>')
     if word ~= '' then fuzzy.grep({ word }) end
 end, { desc = 'Grep word' })
 
--- Grep WORD (literal)
+-- Grep WORD (literal) → QF
 vim.keymap.set('n', '<leader>fW', function()
     local word = vim.fn.expand('<cWORD>')
     if word ~= '' then fuzzy.grep({ '-F', word }) end
@@ -136,12 +160,11 @@ end, { desc = 'Grep WORD (literal)' })
 
 Initialize the plugin with optional configuration.
 
-### `fuzzy.grep(args, dedupe)`
+### `fuzzy.grep(args)`
 
-Programmatically run a grep search.
+Programmatically run a grep search and populate the quickfix list.
 
 - `args` (table|string) - Ripgrep arguments
-- `dedupe` (boolean) - Collapse duplicate line matches (default: true)
 
 ```lua
 fuzzy.grep({ 'TODO', '-t', 'lua' })

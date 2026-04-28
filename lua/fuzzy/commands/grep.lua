@@ -3,7 +3,8 @@ local quickfix = require("fuzzy.quickfix")
 local runner = require("fuzzy.runner")
 local util = require("fuzzy.util")
 
-local function run(raw_args, dedupe_lines)
+local function run(raw_args)
+    local dedupe_lines = require("fuzzy.config").get().grep_dedupe
     local label = dedupe_lines and "FuzzyGrep" or "FuzzyGrep!"
     local netrw_dir = util.get_netrw_dir()
 
