@@ -48,6 +48,7 @@ set_default_hl(HL.file,   "Normal")
 ---@field format_item? fun(item: any): string
 ---@field filter_items? boolean
 ---@field highlight_matches? boolean
+---@field highlight_fn? fun(query: string, line: string): integer[]|nil
 ---@field prompt? string
 ---@field height? integer
 
@@ -72,6 +73,7 @@ local function open(opts)
     local format_item = opts.format_item or function(item) return item end
     local filter_items = opts.filter_items ~= false
     local highlight_matches = opts.highlight_matches ~= false
+    local highlight_fn = opts.highlight_fn or match.positions
 
     local cmdh = vim.o.cmdheight
     local max_h = vim.o.lines - cmdh - 6
@@ -182,7 +184,7 @@ local function open(opts)
             })
 
             if highlight_matches and query ~= "" then
-                local pos = match.positions(query, line)
+                local pos = highlight_fn(query, line)
                 if pos then
                     for _, p in ipairs(pos) do
                         vim.api.nvim_buf_set_extmark(result_buf, ns, row, p - 1, {
@@ -321,6 +323,29 @@ local LIVE_GREP_DEBOUNCE_MS = 150
 
 local function grep_display(item)
     return item.display
+end
+
+-- Highlight the query as a literal substring within the text portion of a
+-- grep display line ("filename:lnum:col:text"). Falls back to match.positions
+-- if the display cannot be parsed.
+local function grep_highlight(query, line)
+    -- locate start of text after "filename:lnum:col:"
+    local text_start = line:match("^[^:]+:%d+:%d+:()")
+    if not text_start then return match.positions(query, line) end
+
+    local text = line:sub(text_start)
+    local lower_q = query:lower()
+    local lower_t = text:lower()
+
+    local s = lower_t:find(lower_q, 1, true)
+    if not s then return nil end
+
+    local offset = text_start - 1
+    local positions = {}
+    for i = 1, #query do
+        positions[i] = offset + s + i - 1
+    end
+    return positions
 end
 
 local function open_live_grep(opts)
@@ -503,7 +528,8 @@ local function open_live_grep(opts)
         items = {},
         prompt = "Grep",
         filter_items = false,
-        highlight_matches = false,
+        highlight_matches = true,
+        highlight_fn = grep_highlight,
         format_item = grep_display,
         on_change = schedule_search,
         on_close = stop_all,
