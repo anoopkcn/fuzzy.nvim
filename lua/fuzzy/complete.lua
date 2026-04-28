@@ -85,6 +85,7 @@ return {
     complete_files = complete_files,
     complete_buffers = complete_buffers,
     warm_cache = warm_cache,
+    get_files = get_files,
     make_file_completer = function() return function(a) return complete_files(a) end end,
     make_buffer_completer = function() return function(a) return complete_buffers(a) end end,
 }

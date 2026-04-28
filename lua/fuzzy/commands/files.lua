@@ -4,18 +4,6 @@ local runner = require("fuzzy.runner")
 local util = require("fuzzy.util")
 
 
-local function open_file(path)
-    local buf = util.find_buffer_by_path(path)
-    if buf and vim.api.nvim_buf_is_valid(buf) then
-        local ok = pcall(vim.api.nvim_set_current_buf, buf)
-        if not ok then vim.notify("FuzzyFiles: failed to switch to buffer.", vim.log.levels.ERROR) end
-        return ok
-    end
-    local ok, err = pcall(vim.cmd.edit, vim.fn.fnameescape(path))
-    if not ok then vim.notify(("FuzzyFiles: %s"):format(err), vim.log.levels.ERROR) end
-    return ok
-end
-
 local function run(raw_args, bang)
     local trimmed = vim.trim(raw_args or "")
     local netrw_dir = util.get_netrw_dir()
@@ -24,7 +12,7 @@ local function run(raw_args, bang)
     -- Direct file path
     if stat and stat.type == "file" then
         if bang or config.get().open_single_result then
-            open_file(trimmed)
+            util.open_file(trimmed)
         else
             local items = {{ filename = trimmed, lnum = 1, col = 1, text = trimmed }}
             quickfix.update(items, { title = "FuzzyFiles", command = "FuzzyFiles" })
@@ -78,7 +66,7 @@ local function run(raw_args, bang)
             local count = updater.count()
             if (config.get().open_single_result or bang) and count == 1 and first_file then
                 updater.stop()
-                open_file(first_file)
+                util.open_file(first_file)
             else
                 updater.finish()
             end

@@ -197,6 +197,36 @@ function M.score(needle, haystack)
     return _D[n * stride + m + 1], nil
 end
 
+--- Greedy left-to-right byte positions where needle matched haystack
+--- (case-insensitive). Returns nil if no match. Suitable for highlighting;
+--- the DP scorer in M.score may pick different positions for ranking.
+---@param needle string
+---@param haystack string
+---@return integer[]|nil 1-indexed byte positions in haystack
+function M.positions(needle, haystack)
+    if needle == nil or needle == "" then return nil end
+    if #needle > #haystack then return nil end
+    local nlow = string_lower(needle)
+    local hlow = string_lower(haystack)
+    local positions = {}
+    local hi = 1
+    for ni = 1, #nlow do
+        local nc = string_byte(nlow, ni)
+        local found = false
+        while hi <= #hlow do
+            if string_byte(hlow, hi) == nc then
+                positions[ni] = hi
+                found = true
+                hi = hi + 1
+                break
+            end
+            hi = hi + 1
+        end
+        if not found then return nil end
+    end
+    return positions
+end
+
 --- Sort a list of strings by fuzzy match score against a pattern
 ---@param pattern string the search pattern
 ---@param items table list of strings to sort

@@ -53,6 +53,21 @@ function M.get_netrw_dir()
     return nil
 end
 
+--- Open a file: switch to existing buffer if loaded, else :edit
+---@param path string
+---@return boolean success
+function M.open_file(path)
+    local buf = M.find_buffer_by_path(path)
+    if buf and vim.api.nvim_buf_is_valid(buf) then
+        local ok = pcall(vim.api.nvim_set_current_buf, buf)
+        if not ok then vim.notify("Fuzzy: failed to switch to buffer.", vim.log.levels.ERROR) end
+        return ok
+    end
+    local ok, err = pcall(vim.cmd.edit, vim.fn.fnameescape(path))
+    if not ok then vim.notify(("Fuzzy: %s"):format(err), vim.log.levels.ERROR) end
+    return ok
+end
+
 --- Switch to a buffer, reusing existing window if visible
 ---@param bufnr integer
 ---@return boolean success
