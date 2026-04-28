@@ -30,8 +30,11 @@ end
 
 --- Clear tracking for a command
 ---@param cmd_name string
-local function untrack(cmd_name)
-    active_handles[cmd_name] = nil
+---@param handle vim.SystemObj
+local function untrack(cmd_name, handle)
+    if active_handles[cmd_name] == handle then
+        active_handles[cmd_name] = nil
+    end
 end
 
 --- Run ripgrep or grep fallback (batch mode)
@@ -56,11 +59,12 @@ function M.rg_stream(raw_args, opts)
     local cmd = HAS_RG
         and vim.list_extend({ "rg", "--vimgrep", "--smart-case", "--color=never" }, args)
         or vim.list_extend({ "grep", "-RnH", "--color=never", "--exclude-dir=.git" }, args)
-    local handle = system.run_stream(cmd, {
+    local handle
+    handle = system.run_stream(cmd, {
         cwd = opts.cwd,
         on_line = opts.on_line,
         on_exit = function(code, stderr)
-            untrack("rg")
+            if handle then untrack("rg", handle) end
             opts.on_exit(code, stderr)
         end,
     })
@@ -139,11 +143,12 @@ function M.fd_stream(raw_args, opts)
         end
         vim.list_extend(cmd, args)
 
-        local handle = system.run_stream(cmd, {
+        local handle
+        handle = system.run_stream(cmd, {
             cwd = opts.cwd,
             on_line = opts.on_line,
             on_exit = function(code, stderr)
-                untrack("fd")
+                if handle then untrack("fd", handle) end
                 opts.on_exit(code, stderr)
             end,
         })

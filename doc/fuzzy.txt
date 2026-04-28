@@ -75,7 +75,11 @@ The command uses ripgrep with these default flags:
 Default: Multiple matches on the same line are collapsed into a single
 quickfix entry. Add [!] to keep every match.
 
+Run without a pattern to open a live grep picker that streams matches as you
+type. :FuzzyGrep {pattern} still streams directly to quickfix.
+
 Examples: >
+    :FuzzyGrep                         " open live grep picker
     :FuzzyGrep TODO
     :FuzzyGrep! TODO                    " keep all matches
     :FuzzyGrep function.*init
@@ -179,6 +183,7 @@ Setup the plugin in your init.lua: >
     require('fuzzy').setup({
         open_single_result = false,
         file_match_limit = 10000,
+        cmdline_tab_picker = true,
     })
 <
 ------------------------------------------------------------------------------
@@ -199,6 +204,15 @@ file_match_limit~
 
 Maximum number of file results to display in quickfix list. Results stream
 incrementally so large result sets do not block the UI.
+
+------------------------------------------------------------------------------
+                                               *g:fuzzy_cmdline_tab_picker*
+cmdline_tab_picker~
+    Type: boolean
+    Default: true
+
+When enabled, pressing <Tab> after :Grep, :Files, or :Buffers opens the
+floating picker for that command.
 
 ==============================================================================
 5. FUNCTIONS                                                *fuzzy-functions*

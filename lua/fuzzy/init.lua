@@ -12,7 +12,11 @@ function M.setup(opts)
     end
 
     cmd("FuzzyGrep", function(o)
-        if o.args ~= "" then require("fuzzy.commands.grep").run(o.args, not o.bang) end
+        if o.args ~= "" then
+            require("fuzzy.commands.grep").run(o.args, not o.bang)
+        else
+            require("fuzzy.picker").open_for("grep", { bang = o.bang })
+        end
     end, { nargs = "*", bang = true, complete = "file", desc = "Run ripgrep and open quickfix" })
 
     cmd("FuzzyFiles", function(o)
@@ -44,23 +48,25 @@ function M.setup(opts)
         callback = function() complete.warm_cache() end,
     })
 
-    -- <Tab> on `:Files ` / `:Buffers ` (empty arg-lead) opens a live fuzzy picker
+    -- <Tab> on `:Grep ` / `:Files ` / `:Buffers ` (empty arg-lead) opens a live fuzzy picker
     if config.get().cmdline_tab_picker then
         vim.keymap.set("c", "<Tab>", function()
             if vim.fn.getcmdtype() ~= ":" then return "<Tab>" end
-            local cname, rest = vim.fn.getcmdline():match("^%s*(%a+)%s+(.*)$")
+            local cname, bang, rest = vim.fn.getcmdline():match("^%s*(%a+)(!?)%s+(.*)$")
             if not cname then return "<Tab>" end
             local lower = cname:lower()
             local kind
-            if lower == "files" or lower == "fuzzyfiles" then
+            if lower == "grep" or lower == "fuzzygrep" then
+                kind = "grep"
+            elseif lower == "files" or lower == "fuzzyfiles" then
                 kind = "files"
             elseif lower == "buffers" or lower == "fuzzybuffers" then
                 kind = "buffers"
             end
             if not kind or rest ~= "" then return "<Tab>" end
-            vim.schedule(function() require("fuzzy.picker").open_for(kind) end)
+            vim.schedule(function() require("fuzzy.picker").open_for(kind, { bang = bang == "!" }) end)
             return "<C-c>"
-        end, { expr = true, desc = "Fuzzy picker for :Files / :Buffers" })
+        end, { expr = true, desc = "Fuzzy picker for :Grep / :Files / :Buffers" })
     end
 end
 

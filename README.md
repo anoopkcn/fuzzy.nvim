@@ -44,6 +44,7 @@ require("fuzzy").setup()
 require('fuzzy').setup({
   open_single_result = false,  -- Open single result directly (default: false)
   file_match_limit = 10000,     -- Max files to show in FuzzyFiles (default: 10000)
+  cmdline_tab_picker = true,    -- Open picker on <Tab> after :Grep/:Files/:Buffers
 })
 ```
 
@@ -52,6 +53,9 @@ require('fuzzy').setup({
 
 - **`file_match_limit`** (number, default: `10000`)
   Maximum number of file results to display in the quickfix list. Results stream incrementally so large result sets don't cause UI hangs.
+
+- **`cmdline_tab_picker`** (boolean, default: `true`)
+  When enabled, pressing `<Tab>` after `:Grep `, `:Files `, or `:Buffers ` opens the floating picker.
 
 ## Commands
 
@@ -62,6 +66,7 @@ Search for patterns in files using ripgrep.
 Alias: `:Grep`
 
 Default behavior collapses multiple matches on the same line into a single quickfix entry. Add `!` to keep every match.
+Run without a pattern to open a live grep picker that streams matches as you type. `:Grep pattern` still streams directly to quickfix.
 
 ### `:FuzzyFiles[!] [fd arguments]`
 

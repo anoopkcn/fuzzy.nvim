@@ -3,7 +3,7 @@ local M = {}
 ---@class FuzzyConfig
 ---@field open_single_result boolean Auto-open when only one result matches
 ---@field file_match_limit integer Maximum number of files to return from fd
----@field cmdline_tab_picker boolean Open floating picker on <Tab> after :Files / :Buffers
+---@field cmdline_tab_picker boolean Open floating picker on <Tab> after :Grep / :Files / :Buffers
 local defaults = {
     open_single_result = false,
     file_match_limit = 10000,
