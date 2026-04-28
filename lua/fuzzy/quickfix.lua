@@ -129,8 +129,6 @@ function M.stream_updater(opts)
         if not opened then
             opened = true
             vim.cmd.copen()
-            -- Return focus to previous window so user isn't trapped in qf
-            vim.cmd.wincmd("p")
         end
     end
 
