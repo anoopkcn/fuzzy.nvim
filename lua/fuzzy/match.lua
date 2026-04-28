@@ -37,10 +37,26 @@ local string_lower = string.lower
 local math_max = math.max
 local math_min = math.min
 
--- Module-level reusable flat arrays to avoid per-call allocations
+-- Module-level reusable flat arrays to avoid per-call allocations.
+-- _D / _Match: dynamic-programming grids (flat, indexed as i*stride + j+1).
+-- _NB / _HBL / _HB: byte scratch for needle-lower, haystack-lower, haystack.
+-- Sizes grow monotonically; entries past the current logical length are stale
+-- but never read because the score loop is driven by explicit n / m lengths.
 local _D = {}
 local _Match = {}
 local _D_size = 0
+local _NB = {}
+local _HBL = {}
+local _HB = {}
+
+--- Fill scratch[1..len] with the bytes of s. Returns len.
+--- Uses single-return string_byte per index — zero allocation, JIT-friendly.
+local function fill_bytes(scratch, s, len)
+    for k = 1, len do
+        scratch[k] = string_byte(s, k)
+    end
+    return len
+end
 
 local function is_lower(byte)
     return byte >= BYTE_a and byte <= BYTE_z
@@ -77,12 +93,11 @@ end
 
 --- Check if needle matches haystack (case-insensitive)
 ---@param needle_lower_bytes table pre-lowercased needle bytes
+---@param needle_len number
 ---@param haystack_lower_bytes table pre-lowercased haystack bytes
+---@param haystack_len number
 ---@return boolean matches
-local function has_match(needle_lower_bytes, haystack_lower_bytes)
-    local needle_len = #needle_lower_bytes
-    local haystack_len = #haystack_lower_bytes
-
+local function has_match(needle_lower_bytes, needle_len, haystack_lower_bytes, haystack_len)
     local j = 1
     for i = 1, haystack_len do
         if haystack_lower_bytes[i] == needle_lower_bytes[j] then
@@ -124,33 +139,33 @@ function M.score(needle, haystack)
     local needle_lower = string_lower(needle)
     local haystack_lower = string_lower(haystack)
 
-    -- Pre-compute byte arrays using multi-return string.byte
-    local needle_lower_bytes = { string_byte(needle_lower, 1, n) }
-    local haystack_lower_bytes = { string_byte(haystack_lower, 1, m) }
-    local haystack_bytes = { string_byte(haystack, 1, m) }
+    -- Fill module-level scratch byte arrays in place (no per-call allocation).
+    fill_bytes(_NB, needle_lower, n)
+    fill_bytes(_HBL, haystack_lower, m)
+    fill_bytes(_HB, haystack, m)
 
     -- Quick check: does needle match at all?
-    if not has_match(needle_lower_bytes, haystack_lower_bytes) then
+    if not has_match(_NB, n, _HBL, m) then
         return SCORE_MIN, nil
     end
 
-    -- Dynamic programming with reusable flat arrays
-    -- Index as [i * stride + j + 1] (1-indexed Lua)
+    -- Dynamic programming with reusable flat arrays.
+    -- Index as [i * stride + j + 1] (1-indexed Lua).
+    --
+    -- Why no per-call clear: the body writes _D[idx]/_Match[idx] for every
+    -- (i in 1..n, j in i..m), and only reads cells that were either initialized
+    -- in row 0 below (`_D[1..m+1] = 0`) or written earlier in the same call.
+    -- Cells (i,j) with j < i are never touched, so stale values from prior
+    -- calls are harmless. We only need a one-time grow when sizing up.
     local stride = m + 1
     local needed = (n + 1) * stride
 
-    -- Grow arrays if needed, zero the portion we use
     if needed > _D_size then
         for k = _D_size + 1, needed do
             _D[k] = SCORE_MIN
             _Match[k] = SCORE_MIN
         end
         _D_size = needed
-    else
-        for k = 1, needed do
-            _D[k] = SCORE_MIN
-            _Match[k] = SCORE_MIN
-        end
     end
 
     -- D[0][0] = 0
@@ -163,15 +178,15 @@ function M.score(needle, haystack)
     for i = 1, n do
         local prev_score = SCORE_MIN
         local gap_score = i == n and SCORE_GAP_TRAILING or SCORE_GAP_INNER
-        local nc = needle_lower_bytes[i]
+        local nc = _NB[i]
         local row_base = i * stride
 
         for j = i, m do
-            local hc = haystack_lower_bytes[j]
+            local hc = _HBL[j]
             local idx = row_base + j + 1
 
             if nc == hc then
-                local bonus = compute_bonus(haystack_bytes, j)
+                local bonus = compute_bonus(_HB, j)
 
                 -- Score for starting a new match sequence
                 local prev_row_prev_col = (i - 1) * stride + j

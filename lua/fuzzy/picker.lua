@@ -21,6 +21,13 @@ local HL = {
 local WINHL = ("Normal:%s,FloatBorder:%s,FloatTitle:%s"):format(HL.normal, HL.border, HL.title)
 local CONTENT_WINHL = ("Normal:%s"):format(HL.normal)
 
+-- Filter debounce: short, just enough to coalesce keystrokes from key-repeat
+-- so a held-down key doesn't queue a synchronous filter pass per repeat.
+local FILTER_DEBOUNCE_MS = 30
+-- Render throttle: ~30Hz coalescing of streamed appends. Direct user actions
+-- (typing, moving cursor, selecting) still render immediately.
+local RENDER_THROTTLE_MS = 33
+
 local function divider_line(width)
     local fillchars = vim.opt.fillchars:get()
     local horiz = type(fillchars) == "table" and fillchars.horiz or nil
@@ -157,8 +164,39 @@ local function open(opts)
     local closed = false
     local controller = {}
 
+    local filter_timer = vim.uv.new_timer()
+    local render_timer = vim.uv.new_timer()
+    local timers_closed = false
+    local render_pending = false
+
+    local function close_timers()
+        if timers_closed then return end
+        timers_closed = true
+        filter_timer:stop(); filter_timer:close()
+        render_timer:stop(); render_timer:close()
+    end
+
+    -- Run a user-supplied callback without taking down the picker. We notify
+    -- on schedule (notify isn't safe from libuv contexts in all cases).
+    local function safe_call(fn, ...)
+        if not fn then return true end
+        local ok, err = pcall(fn, ...)
+        if not ok then
+            local msg = "Fuzzy: callback error: " .. tostring(err)
+            vim.schedule(function() vim.notify(msg, vim.log.levels.ERROR) end)
+        end
+        return ok, err
+    end
+
     local function item_text(item)
-        local text = format_item(item)
+        local ok, text = pcall(format_item, item)
+        if not ok then
+            vim.schedule(function()
+                vim.notify("Fuzzy: format_item error: " .. tostring(text),
+                    vim.log.levels.ERROR)
+            end)
+            return ""
+        end
         return text and tostring(text) or ""
     end
 
@@ -187,8 +225,8 @@ local function open(opts)
             })
 
             if highlight_matches and query ~= "" then
-                local pos = highlight_fn(query, line)
-                if pos then
+                local ok, pos = pcall(highlight_fn, query, line)
+                if ok and pos then
                     for _, p in ipairs(pos) do
                         vim.api.nvim_buf_set_extmark(result_buf, ns, row, p - 1, {
                             end_col = p, hl_group = HL.match, priority = 200,
@@ -206,11 +244,16 @@ local function open(opts)
         end
     end
 
+    -- Cap scored results to a small multiple of visible rows.
+    -- match.filter still walks every item to score, but trims after sort.
+    local match_limit = math.max(height * 10, 200)
+
     local function update_current(query, reset_cursor)
         if filter_items and query ~= "" then
-            current = vim.iter(match.filter(query, items))
-                :map(function(e) return e.item end)
-                :totable()
+            local scored = match.filter(query, items, match_limit)
+            local out = {}
+            for i = 1, #scored do out[i] = scored[i].item end
+            current = out
         else
             current = items
         end
@@ -224,6 +267,20 @@ local function open(opts)
         end
     end
 
+    -- Coalescing renderer for streamed appends: arms a single timer that
+    -- fires the next render at ~RENDER_THROTTLE_MS. Direct user actions still
+    -- call render() inline so they feel instant.
+    local function render_soon()
+        if closed or timers_closed then return end
+        if render_pending then return end
+        render_pending = true
+        render_timer:start(RENDER_THROTTLE_MS, 0, vim.schedule_wrap(function()
+            render_pending = false
+            if closed then return end
+            render()
+        end))
+    end
+
     function controller.set_items(new_items)
         items = new_items or {}
         update_current(vim.api.nvim_buf_get_lines(input_buf, 0, 1, false)[1] or "", true)
@@ -234,7 +291,7 @@ local function open(opts)
         if not new_items or #new_items == 0 then return end
         vim.list_extend(items, new_items)
         update_current(vim.api.nvim_buf_get_lines(input_buf, 0, 1, false)[1] or "", false)
-        render()
+        render_soon()
     end
 
     function controller.get_items()
@@ -252,21 +309,33 @@ local function open(opts)
     local function update_filter()
         local query = vim.api.nvim_buf_get_lines(input_buf, 0, 1, false)[1] or ""
         if on_change then
-            on_change(query, controller)
+            -- on_change runs immediately so live-grep can do its own (longer)
+            -- internal debounce; we still debounce the local filter+render.
+            safe_call(on_change, query, controller)
             if not filter_items then return end
         end
-        update_current(query, true)
-        render()
+        if timers_closed then return end
+        filter_timer:stop()
+        filter_timer:start(FILTER_DEBOUNCE_MS, 0, vim.schedule_wrap(function()
+            if closed then return end
+            local q = vim.api.nvim_buf_get_lines(input_buf, 0, 1, false)[1] or ""
+            update_current(q, true)
+            render()
+        end))
     end
+
+    local cleanup_group  -- assigned after autocmds register
 
     local function close()
         if closed then return end
         closed = true
-        if on_close then on_close() end
-        vim.cmd.stopinsert()
-        if vim.api.nvim_win_is_valid(input_win) then vim.api.nvim_win_close(input_win, true) end
-        if vim.api.nvim_win_is_valid(result_win) then vim.api.nvim_win_close(result_win, true) end
-        if vim.api.nvim_win_is_valid(frame_win) then vim.api.nvim_win_close(frame_win, true) end
+        close_timers()
+        safe_call(on_close)
+        if cleanup_group then pcall(vim.api.nvim_del_augroup_by_id, cleanup_group) end
+        pcall(vim.cmd.stopinsert)
+        if vim.api.nvim_win_is_valid(input_win) then pcall(vim.api.nvim_win_close, input_win, true) end
+        if vim.api.nvim_win_is_valid(result_win) then pcall(vim.api.nvim_win_close, result_win, true) end
+        if vim.api.nvim_win_is_valid(frame_win) then pcall(vim.api.nvim_win_close, frame_win, true) end
     end
 
     controller.close = close
@@ -276,7 +345,7 @@ local function open(opts)
             local query = vim.api.nvim_buf_get_lines(input_buf, 0, 1, false)[1] or ""
             close()
             if query:match("%S") then
-                on_submit(query)
+                safe_call(on_submit, query)
             end
             return
         end
@@ -285,7 +354,7 @@ local function open(opts)
         local visible_items = current
         local all_items = items
         close()
-        if picked then on_select(picked, visible_items, all_items) end
+        if picked then safe_call(on_select, picked, visible_items, all_items) end
     end
 
     controller.accept = accept
@@ -298,6 +367,30 @@ local function open(opts)
     vim.api.nvim_create_autocmd("BufLeave", {
         buffer = input_buf,
         once = true,
+        callback = close,
+    })
+
+    -- Fallbacks if BufLeave doesn't fire (buffer wiped externally) or the user
+    -- closes the input window via :q. Keep in one group so we don't leak.
+    cleanup_group = vim.api.nvim_create_augroup(
+        "fuzzy.picker.cleanup." .. input_buf, { clear = true })
+
+    vim.api.nvim_create_autocmd("BufWipeout", {
+        group = cleanup_group,
+        buffer = input_buf,
+        callback = close,
+    })
+
+    vim.api.nvim_create_autocmd("WinClosed", {
+        group = cleanup_group,
+        pattern = { tostring(input_win), tostring(result_win), tostring(frame_win) },
+        callback = close,
+    })
+
+    -- Reflowing floats correctly across resize is more code than it's worth;
+    -- close the picker on resize so the user can re-open at the new dims.
+    vim.api.nvim_create_autocmd("VimResized", {
+        group = cleanup_group,
         callback = close,
     })
 
@@ -332,7 +425,7 @@ local function open(opts)
                 local vis = current
                 local all = items
                 close()
-                on_quickfix(vis, all)
+                safe_call(on_quickfix, vis, all)
             end)
         end
     end
@@ -341,7 +434,7 @@ local function open(opts)
     if opts.initial_query and opts.initial_query ~= "" then
         vim.api.nvim_buf_set_lines(input_buf, 0, 1, false, { opts.initial_query })
         update_current(opts.initial_query, true)
-        if on_change then on_change(opts.initial_query, controller) end
+        if on_change then safe_call(on_change, opts.initial_query, controller) end
         render()
         vim.cmd("startinsert!")
     else
@@ -398,8 +491,19 @@ local function open_live_grep(opts)
     local handle
 
     local cache = {}
-    local cache_count = 0
+    local cache_order = {}  -- FIFO insertion order; oldest at index 1
     local MAX_CACHE_SIZE = 30
+
+    local function cache_put(key, entry)
+        if cache[key] == nil then
+            cache_order[#cache_order + 1] = key
+            if #cache_order > MAX_CACHE_SIZE then
+                local oldest = table.remove(cache_order, 1)
+                cache[oldest] = nil
+            end
+        end
+        cache[key] = entry
+    end
 
     local function find_best_prefix(query)
         local best_key = nil
@@ -521,10 +625,7 @@ local function open_live_grep(opts)
             on_exit = function()
                 if gen == generation then
                     handle = nil
-                    if cache_count < MAX_CACHE_SIZE then
-                        cache[query] = { items = picker.get_items(), complete = true }
-                        cache_count = cache_count + 1
-                    end
+                    cache_put(query, { items = picker.get_items(), complete = true })
                 end
             end,
         })
