@@ -15,6 +15,7 @@ CONTENTS                                                      *fuzzy-contents*
     3.4 FuzzyBuffers ....................... |:FuzzyBuffers|
     3.5 FuzzyList .......................... |:FuzzyList|
     3.6 FuzzyNext / FuzzyPrev .............. |:FuzzyNext|
+    3.7 Picker keymaps ..................... |fuzzy-picker-keys|
 4. Configuration ........................... |fuzzy-configuration|
 5. Functions ............................... |fuzzy-functions|
     5.1 fuzzy.setup() ...................... |fuzzy.setup()|
@@ -36,6 +37,7 @@ Features:
   • File finding using fd with gitignore support
   • Buffer switching with fuzzy filtering
   • Quickfix history navigation
+  • Send picker results to quickfix with a single key (<M-q> by default)
   • Single-file direct opening
   • Full control over search arguments
 
@@ -62,6 +64,13 @@ All commands follow a consistent convention:
     [!]     Open the interactive picker.
 
 Passing arguments to the [!] form pre-fills the picker's search query.
+
+Inside any picker, press <M-q> (Alt+q, configurable via |fuzzy-send_to_qf_key|)
+to send the currently visible (filtered) results to the quickfix list and
+close the picker. This works for all picker types:
+  • FuzzyGrep!    → populates the FuzzyGrep quickfix list
+  • FuzzyFiles!   → populates the FuzzyFiles quickfix list
+  • FuzzyBuffers! → populates the FuzzyBuffers quickfix list
 
 Use standard quickfix navigation: >
     :cnext      " Next item
@@ -227,6 +236,21 @@ Syntax: >
     :FuzzyNext      " Next entry (cycles to first at end)
     :FuzzyPrev      " Previous entry (cycles to last at beginning)
 <
+------------------------------------------------------------------------------
+3.7 Picker keymaps                                      *fuzzy-picker-keys*
+
+All interactive pickers share the same insert-mode keymaps:
+
+    <CR>            Accept selection and open / jump to result
+    <C-n> / <Down>  Move to next result
+    <C-p> / <Up>    Move to previous result
+    <Esc> / <C-c>   Close picker without selecting
+    <M-q>           Send visible (filtered) results to quickfix and close
+                    (key is configurable, see |fuzzy-send_to_qf_key|)
+
+The <M-q> key respects the current filter query: only items visible in the
+picker at that moment are sent to quickfix. This lets you narrow results
+with a query and then export that subset to the quickfix list.
 ==============================================================================
 4. CONFIGURATION                                        *fuzzy-configuration*
 
@@ -235,6 +259,7 @@ Setup the plugin in your init.lua: >
         open_single_result = false,
         file_match_limit = 10000,
         grep_dedupe = true,
+        send_to_qf_key = "<M-q>",
     })
 <
 ------------------------------------------------------------------------------
@@ -265,6 +290,22 @@ Collapse multiple matches on the same file:line into a single entry.
 Applies to both the quickfix path (:FuzzyGrep pattern) and the live-grep
 picker (:FuzzyGrep!). Set to false to show every individual match.
 
+------------------------------------------------------------------------------
+                                                   *fuzzy-send_to_qf_key*
+send_to_qf_key~
+    Type: string|false
+    Default: "<M-q>"
+
+Key (in insert mode) that sends the currently visible picker results to the
+quickfix list and closes the picker. Works in all interactive pickers
+(:FuzzyGrep!, :FuzzyFiles!, :FuzzyBuffers!, :FuzzyGrepIn!).
+
+Set to false to disable the mapping entirely. >
+    require('fuzzy').setup({ send_to_qf_key = false })
+<
+To use a different key: >
+    require('fuzzy').setup({ send_to_qf_key = "<C-q>" })
+<
 ==============================================================================
 5. FUNCTIONS                                                *fuzzy-functions*
 

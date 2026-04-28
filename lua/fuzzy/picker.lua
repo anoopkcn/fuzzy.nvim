@@ -45,6 +45,7 @@ set_default_hl(HL.file,   "Normal")
 ---@field on_submit? fun(query: string)
 ---@field on_change? fun(query: string, picker: FuzzyPickerController)
 ---@field on_close? fun()
+---@field on_quickfix? fun(visible_items: any[], all_items: any[])
 ---@field format_item? fun(item: any): string
 ---@field filter_items? boolean
 ---@field highlight_matches? boolean
@@ -71,6 +72,7 @@ local function open(opts)
     local on_submit = opts.on_submit
     local on_change = opts.on_change
     local on_close = opts.on_close
+    local on_quickfix = opts.on_quickfix
     local format_item = opts.format_item or function(item) return item end
     local filter_items = opts.filter_items ~= false
     local highlight_matches = opts.highlight_matches ~= false
@@ -323,6 +325,18 @@ local function open(opts)
     imap("<Esc>", close)
     imap("<C-c>", close)
 
+    if on_quickfix then
+        local qf_key = require("fuzzy.config").get().send_to_qf_key
+        if qf_key and qf_key ~= "" then
+            imap(qf_key, function()
+                local vis = current
+                local all = items
+                close()
+                on_quickfix(vis, all)
+            end)
+        end
+    end
+
     render()
     if opts.initial_query and opts.initial_query ~= "" then
         vim.api.nvim_buf_set_lines(input_buf, 0, 1, false, { opts.initial_query })
@@ -561,6 +575,18 @@ local function open_live_grep(opts)
             snapshot_quickfix(all_items)
             jump_to_result(item)
         end,
+        on_quickfix = function(visible_items)
+            if #visible_items == 0 then
+                vim.notify("Fuzzy: no items to send to quickfix.", vim.log.levels.INFO)
+                return
+            end
+            local qf_items = vim.iter(visible_items)
+                :map(function(item) return item.qf end)
+                :filter(function(qf) return qf ~= nil end)
+                :totable()
+            quickfix.update(qf_items, { title = title, command = label })
+            quickfix.open_if_results(#qf_items)
+        end,
     })
 end
 
@@ -580,15 +606,28 @@ local function open_for(kind, opts)
             prompt = "Files",
             initial_query = opts.initial_query,
             on_select = function(path) util.open_file(path) end,
+            on_quickfix = function(visible_items)
+                if #visible_items == 0 then
+                    vim.notify("Fuzzy: no items to send to quickfix.", vim.log.levels.INFO)
+                    return
+                end
+                local qf_items = vim.iter(visible_items):map(function(path)
+                    return { filename = vim.fn.fnamemodify(path, ":p"), lnum = 1, col = 1, text = path }
+                end):totable()
+                quickfix.update(qf_items, { title = "FuzzyFiles", command = "FuzzyFiles" })
+                quickfix.open_if_results(#qf_items)
+            end,
         })
     elseif kind == "buffers" then
         local bufs = util.get_listed_buffers()
         local items = {}
         local by_path = {}
+        local by_path_abs = {}
         for _, b in ipairs(bufs) do
             local rel = vim.fn.fnamemodify(b.path, ":.")
             items[#items + 1] = rel
             by_path[rel] = b.bufnr
+            by_path_abs[rel] = b.path
         end
         if #items == 0 then
             vim.notify("Fuzzy: no listed buffers.", vim.log.levels.INFO)
@@ -601,6 +640,18 @@ local function open_for(kind, opts)
             on_select = function(rel)
                 local bufnr = by_path[rel]
                 if bufnr then util.switch_to_buffer(bufnr) end
+            end,
+            on_quickfix = function(visible_items)
+                if #visible_items == 0 then
+                    vim.notify("Fuzzy: no items to send to quickfix.", vim.log.levels.INFO)
+                    return
+                end
+                local qf_items = vim.iter(visible_items):map(function(rel)
+                    local bufnr = by_path[rel]
+                    return { bufnr = bufnr, filename = by_path_abs[rel] or rel, lnum = 1, col = 1, text = rel }
+                end):totable()
+                quickfix.update(qf_items, { title = "FuzzyBuffers", command = "FuzzyBuffers" })
+                quickfix.open_if_results(#qf_items)
             end,
         })
     elseif kind == "grep" then

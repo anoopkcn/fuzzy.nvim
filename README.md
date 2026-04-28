@@ -15,6 +15,7 @@ For workflows using neovim's **quickfix lists**. `fuzzy.nvim` populates the quic
 - **Full control** over search arguments via `ripgrep`/`fd` arguments
 - **Explorer-friendly** execute commands with respect to current Explorer directory
 - **!** Add `!` to any command to open an interactive picker instead of populating the quickfix list
+- **`<M-q>` in any picker** sends the currently visible (filtered) results to the quickfix list and closes the picker
 
 ## Requirements
 
@@ -53,6 +54,20 @@ All commands follow the same rule:
 
 Passing arguments to the `!` form pre-fills the picker's search query.
 
+## Picker Keymaps
+
+Inside any interactive picker (`!` form):
+
+| Key | Action |
+|---|---|
+| `<CR>` | Accept selection / jump to result |
+| `<C-n>` / `<Down>` | Next result |
+| `<C-p>` / `<Up>` | Previous result |
+| `<Esc>` / `<C-c>` | Close picker |
+| `<M-q>` | Send visible results to quickfix and close |
+
+`<M-q>` respects the current filter: only items visible in the picker are sent. The key is configurable via `send_to_qf_key` (see [Configuration](#configuration-optional)).
+
 ## Configuration (optional)
 
 ```lua
@@ -60,6 +75,7 @@ require('fuzzy').setup({
   open_single_result = false,  -- Auto-open when only one result matches (default: false)
   file_match_limit = 10000,    -- Max files in FuzzyFiles picker/QF (default: 10000)
   grep_dedupe = true,          -- Deduplicate grep results by file:line (default: true)
+  send_to_qf_key = "<M-q>",   -- Key to send picker results to QF (false to disable)
 })
 ```
 
@@ -71,6 +87,9 @@ require('fuzzy').setup({
 
 - **`grep_dedupe`** (boolean, default: `true`)
   Collapse multiple matches on the same file:line into a single entry. Applies to both the quickfix and live-grep picker paths. Set to `false` to show every match.
+
+- **`send_to_qf_key`** (string|false, default: `"<M-q>"`)
+  Insert-mode key used inside any picker to send the currently visible (filtered) results to the quickfix list and close the picker. Set to `false` to disable.
 
 ## Commands
 
