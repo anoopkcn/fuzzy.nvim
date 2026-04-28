@@ -598,22 +598,32 @@ local function open_live_grep(opts)
         cancel_stream()
     end
 
+    local function result_key(item)
+        local qf = item and item.qf
+        if not qf then return nil end
+        if dedupe_lines then
+            return ("%s:%s"):format(qf.filename or "", qf.lnum or "")
+        end
+        return ("%s:%s:%s:%s"):format(qf.filename or "", qf.lnum or "", qf.col or "", qf.text or "")
+    end
+
     local function to_result(raw_line, seen)
         local e = parse.vimgrep(raw_line)
         if not e then return nil end
 
         local display_path = e.filename  -- relative path from rg (short, readable)
         e.filename = util.with_root(e.filename, netrw_dir)
-        if seen then
-            local key = e.filename .. ":" .. e.lnum
-            if seen[key] then return nil end
-            seen[key] = true
-        end
-
-        return {
+        local result = {
             display = ("%s:%d:%d:%s"):format(display_path, e.lnum, e.col, e.text),
             qf = e,
         }
+        if seen then
+            local key = result_key(result)
+            if key and seen[key] then return nil end
+            if key then seen[key] = true end
+        end
+
+        return result
     end
 
     local function snapshot_quickfix(results)
@@ -634,7 +644,11 @@ local function open_live_grep(opts)
     end
 
     local function start_stream(query, picker, gen)
-        local seen = dedupe_lines and {} or nil
+        local seen = {}
+        for _, item in ipairs(picker.get_items()) do
+            local key = result_key(item)
+            if key then seen[key] = true end
+        end
         local line_batch = {}
         local batch_scheduled = false
 
