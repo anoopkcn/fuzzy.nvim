@@ -730,7 +730,7 @@ local function open_live_grep(opts)
     })
 end
 
----@param kind "files"|"buffers"|"grep"|"grep_in"
+---@param kind "files"|"buffers"|"grep"|"grep_in"|"helptags"
 ---@param opts? { bang?: boolean, initial_query?: string }
 local function open_for(kind, opts)
     opts = opts or {}
@@ -798,6 +798,50 @@ local function open_for(kind, opts)
         return open_live_grep(opts)
     elseif kind == "grep_in" then
         return open_live_grep({ dir = opts.dir, initial_query = opts.initial_query })
+    elseif kind == "helptags" then
+        local helptags = require("fuzzy.commands.helptags")
+        local tag_entries = helptags.collect()
+        if #tag_entries == 0 then
+            vim.notify("FuzzyHelp: no help tags found.", vim.log.levels.INFO)
+            return
+        end
+
+        -- Items are "tagname  filename.txt" strings — unique because tags are deduped.
+        -- Filtering operates on the full string so users can match by tag or by file.
+        local display_items = {}
+        local display_to_entry = {}
+        for _, entry in ipairs(tag_entries) do
+            local display = entry.tag .. "  " .. entry.filename_short
+            display_items[#display_items + 1] = display
+            display_to_entry[display] = entry
+        end
+
+        return open({
+            items = display_items,
+            prompt = "Help",
+            initial_query = opts.initial_query,
+            on_select = function(display)
+                local entry = display_to_entry[display]
+                if not entry then return end
+                local ok, err = pcall(vim.cmd, { cmd = "help", args = { entry.tag } })
+                if not ok then
+                    vim.notify("FuzzyHelp: " .. tostring(err), vim.log.levels.ERROR)
+                end
+            end,
+            on_quickfix = function(visible_items)
+                if #visible_items == 0 then
+                    vim.notify("Fuzzy: no items to send to quickfix.", vim.log.levels.INFO)
+                    return
+                end
+                local entries = vim.iter(visible_items)
+                    :map(function(display) return display_to_entry[display] end)
+                    :filter(function(e) return e ~= nil end)
+                    :totable()
+                local qf_items = helptags.to_qf_items(entries)
+                quickfix.update(qf_items, { title = "FuzzyHelp", command = "FuzzyHelp" })
+                quickfix.open_if_results(#qf_items)
+            end,
+        })
     end
 end
 

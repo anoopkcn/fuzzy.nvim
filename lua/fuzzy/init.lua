@@ -74,6 +74,11 @@ function M.setup(opts)
 
     vim.api.nvim_create_user_command("FuzzyNext", quickfix.cnext_cycle, { desc = "Next quickfix entry (cycles)" })
     vim.api.nvim_create_user_command("FuzzyPrev", quickfix.cprev_cycle, { desc = "Previous quickfix entry (cycles)" })
+    vim.api.nvim_create_user_command("FuzzyHelp", function(o)
+        require("fuzzy.picker").open_for("helptags", {
+            initial_query = o.args ~= "" and o.args or nil,
+        })
+    end, { nargs = "*", complete = "help", desc = "Browse and open help tags" })
 
     -- Warm file completion cache asynchronously
     vim.api.nvim_create_autocmd({ "VimEnter", "DirChanged" }, {

@@ -16,6 +16,7 @@ CONTENTS                                                      *fuzzy-contents*
     3.5 FuzzyList .......................... |:FuzzyList|
     3.6 FuzzyNext / FuzzyPrev .............. |:FuzzyNext|
     3.7 Picker keymaps ..................... |fuzzy-picker-keys|
+    3.8 FuzzyHelp .......................... |:FuzzyHelp|
 4. Configuration ........................... |fuzzy-configuration|
 5. Functions ............................... |fuzzy-functions|
     5.1 fuzzy.setup() ...................... |fuzzy.setup()|
@@ -32,6 +33,7 @@ plugins, fuzzy leverages external tools (ripgrep and fd) and native Vim
 functionality for maximum performance.
 
 Features:
+  • Help tag browser with language-priority-aware tag discovery
   • Fast grep search using ripgrep with smart case matching
   • Live grep picker with per-session result cache and match highlighting
   • File finding using fd with gitignore support
@@ -65,12 +67,15 @@ All commands follow a consistent convention:
 
 Passing arguments to the [!] form pre-fills the picker's search query.
 
+Note: |:FuzzyHelp| always opens the picker regardless of [!].
+
 Inside any picker, press <M-q> (Alt+q, configurable via |fuzzy-send_to_qf_key|)
 to send the currently visible (filtered) results to the quickfix list and
 close the picker. This works for all picker types:
   • FuzzyGrep!    → populates the FuzzyGrep quickfix list
   • FuzzyFiles!   → populates the FuzzyFiles quickfix list
   • FuzzyBuffers! → populates the FuzzyBuffers quickfix list
+  • FuzzyHelp     → populates the FuzzyHelp quickfix list (entries jump to tag location)
 
 Use standard quickfix navigation: >
     :cnext      " Next item
@@ -251,6 +256,36 @@ All interactive pickers share the same insert-mode keymaps:
 The <M-q> key respects the current filter query: only items visible in the
 picker at that moment are sent to quickfix. This lets you narrow results
 with a query and then export that subset to the quickfix list.
+------------------------------------------------------------------------------
+3.8 FuzzyHelp                                                    *:FuzzyHelp*
+
+Browse and open Neovim/Vim help tags.
+
+Syntax: >
+    :FuzzyHelp [query]
+<
+Always opens the interactive picker. Unlike other fuzzy commands, there is no
+quickfix-only mode — the picker is the primary interface.
+
+Tag discovery reads doc/tags and doc/tags-{lang} files across the full
+|runtimepath|. Language priority follows |'helplang'|, with "en" appended as
+a fallback. Duplicate tags resolve in language-priority then runtimepath
+order, matching Vim's own tag resolution.
+
+Each picker entry shows:  tagname  filename.txt
+
+Filtering matches against both the tag name and the filename, so you can
+narrow by topic (e.g. "autocmd") or by plugin file (e.g. "lsp.txt").
+
+Press <CR> to open the tag with |:help|.
+Press <M-q> (|fuzzy-send_to_qf_key|) to export visible tags to the quickfix
+list. Quickfix entries resolve to the exact tag location in the help file.
+
+Examples: >
+    :FuzzyHelp                   " open help tag picker
+    :FuzzyHelp autocmd           " open picker pre-filled with 'autocmd'
+    :FuzzyHelp lsp.txt           " filter to tags from lsp.txt
+<
 ==============================================================================
 4. CONFIGURATION                                        *fuzzy-configuration*
 
@@ -365,6 +400,7 @@ Keybinding setup~
     vim.keymap.set('n', '<leader>/', '<CMD>Grep!<CR>', { desc = 'Live grep picker' })
     vim.keymap.set('n', '<leader>ff', '<CMD>Files!<CR>', { desc = 'File picker' })
     vim.keymap.set('n', '<leader>fb', '<CMD>Buffers!<CR>', { desc = 'Buffer picker' })
+    vim.keymap.set('n', '<leader>fh', '<CMD>FuzzyHelp<CR>', { desc = 'Help tag picker' })
 
     -- Quickfix workflow (type a pattern, results stream to QF)
     vim.keymap.set('n', '<leader>fg', ':Grep ', { desc = 'Grep → QF' })
@@ -392,16 +428,16 @@ Search specific file types~
 <
 Search help documentation~
 >
-    -- Live grep picker scoped to vim runtime help docs
-    vim.keymap.set('n', '<leader>fh', '<CMD>GrepIn! $VIMRUNTIME/doc<CR>', { desc = 'Search help' })
+    -- Help tag picker (browse all help tags)
+    vim.keymap.set('n', '<leader>fh', '<CMD>FuzzyHelp<CR>', { desc = 'Help tag picker' })
 
-    -- Or programmatically (populates quickfix)
-    vim.keymap.set('n', '<leader>fH', function()
-        local word = vim.fn.expand('<cword>')
-        if word ~= '' then
-            require('fuzzy').grep_in('$VIMRUNTIME/doc', { word })
-        end
-    end, { desc = 'Grep help for word' })
+    -- Help tag picker pre-filled with word under cursor
+    vim.keymap.set('n', 'K', function()
+        vim.cmd('FuzzyHelp ' .. vim.fn.expand('<cword>'))
+    end, { desc = 'Help for word' })
+
+    -- Live grep picker scoped to vim runtime help docs
+    vim.keymap.set('n', '<leader>fH', '<CMD>GrepIn! $VIMRUNTIME/doc<CR>', { desc = 'Grep help docs' })
 <
 ==============================================================================
 vim:tw=78:ts=8:ft=help:norl:
