@@ -151,6 +151,7 @@ local function open(opts)
 
     local current = items
     local cursor = 1
+    local scroll = 0
     local closed = false
     local controller = {}
 
@@ -159,12 +160,11 @@ local function open(opts)
         return text and tostring(text) or ""
     end
 
-    local function visible_count() return math.min(height, #current) end
-
     local function render()
-        local n = visible_count()
+        local total = #current
+        local n = math.min(height, math.max(0, total - scroll))
         local lines = {}
-        for i = 1, n do lines[i] = item_text(current[i]) end
+        for i = 1, n do lines[i] = item_text(current[scroll + i]) end
         vim.api.nvim_buf_set_lines(result_buf, 0, -1, false, lines)
         vim.api.nvim_buf_clear_namespace(result_buf, ns, 0, -1)
 
@@ -196,16 +196,17 @@ local function open(opts)
             end
         end
 
-        if cursor >= 1 and cursor <= n then
-            vim.api.nvim_buf_set_extmark(result_buf, ns, cursor - 1, 0, {
-                end_row = cursor, hl_group = HL.sel, hl_eol = true, priority = 50,
+        local cursor_row = cursor - scroll - 1
+        if cursor_row >= 0 and cursor_row < n then
+            vim.api.nvim_buf_set_extmark(result_buf, ns, cursor_row, 0, {
+                end_row = cursor_row + 1, hl_group = HL.sel, hl_eol = true, priority = 50,
             })
         end
     end
 
     local function update_current(query, reset_cursor)
         if filter_items and query ~= "" then
-            current = vim.iter(match.filter(query, items, height))
+            current = vim.iter(match.filter(query, items))
                 :map(function(e) return e.item end)
                 :totable()
         else
@@ -214,8 +215,10 @@ local function open(opts)
 
         if reset_cursor then
             cursor = 1
+            scroll = 0
         else
-            cursor = math.max(1, math.min(cursor, visible_count()))
+            cursor = math.max(1, math.min(cursor, math.max(1, #current)))
+            scroll = math.max(0, math.min(scroll, math.max(0, #current - height)))
         end
     end
 
@@ -301,9 +304,14 @@ local function open(opts)
     end
 
     local function move(delta)
-        local n = visible_count()
-        if n == 0 then return end
-        cursor = math.max(1, math.min(n, cursor + delta))
+        local total = #current
+        if total == 0 then return end
+        cursor = math.max(1, math.min(total, cursor + delta))
+        if cursor < scroll + 1 then
+            scroll = cursor - 1
+        elseif cursor > scroll + height then
+            scroll = cursor - height
+        end
         render()
     end
 
@@ -437,6 +445,7 @@ local function open_live_grep(opts)
         local e = parse.vimgrep(raw_line)
         if not e then return nil end
 
+        local display_path = e.filename  -- relative path from rg (short, readable)
         e.filename = util.with_root(e.filename, netrw_dir)
         if seen then
             local key = e.filename .. ":" .. e.lnum
@@ -445,7 +454,7 @@ local function open_live_grep(opts)
         end
 
         return {
-            display = ("%s:%d:%d:%s"):format(e.filename, e.lnum, e.col, e.text),
+            display = ("%s:%d:%d:%s"):format(display_path, e.lnum, e.col, e.text),
             qf = e,
         }
     end
