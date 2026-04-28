@@ -87,7 +87,7 @@ local function open(opts)
 
     local cmdh = vim.o.cmdheight
     local max_h = vim.o.lines - cmdh - 6
-    local height = math.max(3, math.min(opts.height or 15, max_h))
+    local max_height = math.max(3, math.min(opts.height or 15, max_h))
 
     local frame_buf = vim.api.nvim_create_buf(false, true)
     local input_buf = vim.api.nvim_create_buf(false, true)
@@ -97,8 +97,6 @@ local function open(opts)
     vim.bo[result_buf].bufhidden = "wipe"
 
     local width = math.min(80, math.floor(vim.o.columns * 0.6))
-    local frame_height = height + 2
-    local total_h = frame_height + 2
     local frame_row = 0
     local frame_col = math.max(0, math.floor((vim.o.columns - (width + 2)) / 2))
     local input_row = frame_row + 1
@@ -106,22 +104,38 @@ local function open(opts)
     local content_col = frame_col + 1
 
     local blank = (" "):rep(width)
-    local frame_lines = { blank, divider_line(width) }
-    for i = 1, height do
-        frame_lines[#frame_lines + 1] = blank
+    local divider = divider_line(width)
+
+    local function frame_lines_for(n)
+        local lines = { blank }
+        if n > 0 then
+            lines[#lines + 1] = divider
+            for _ = 1, n do lines[#lines + 1] = blank end
+        end
+        return lines
     end
-    vim.api.nvim_buf_set_lines(frame_buf, 0, -1, false, frame_lines)
-    vim.api.nvim_buf_set_extmark(frame_buf, ns, 1, 0, {
-        end_col = width, hl_group = HL.border, priority = 100,
-    })
-    vim.bo[frame_buf].modifiable = false
+
+    local function write_frame(n)
+        vim.bo[frame_buf].modifiable = true
+        vim.api.nvim_buf_set_lines(frame_buf, 0, -1, false, frame_lines_for(n))
+        vim.api.nvim_buf_clear_namespace(frame_buf, ns, 0, -1)
+        if n > 0 then
+            vim.api.nvim_buf_set_extmark(frame_buf, ns, 1, 0, {
+                end_col = width, hl_group = HL.border, priority = 100,
+            })
+        end
+        vim.bo[frame_buf].modifiable = false
+    end
+
+    local displayed = math.min(#items, max_height)
+    write_frame(displayed)
 
     local frame_win = vim.api.nvim_open_win(frame_buf, false, {
         relative = "editor",
         row = frame_row,
         col = frame_col,
         width = width,
-        height = frame_height,
+        height = (displayed == 0) and 1 or (displayed + 2),
         style = "minimal",
         border = "rounded",
         focusable = false,
@@ -135,11 +149,12 @@ local function open(opts)
         row = result_row,
         col = content_col,
         width = width,
-        height = height,
+        height = math.max(1, displayed),
         style = "minimal",
         border = "none",
         focusable = false,
         zindex = 50,
+        hide = displayed == 0,
     })
 
     local input_win = vim.api.nvim_open_win(input_buf, true, {
@@ -200,9 +215,32 @@ local function open(opts)
         return text and tostring(text) or ""
     end
 
+    local function resize(target)
+        target = math.min(math.max(0, target), max_height)
+        if target == displayed then return end
+        displayed = target
+        write_frame(target)
+        pcall(vim.api.nvim_win_set_config, frame_win, {
+            relative = "editor",
+            row = frame_row,
+            col = frame_col,
+            width = width,
+            height = (target == 0) and 1 or (target + 2),
+        })
+        pcall(vim.api.nvim_win_set_config, result_win, {
+            relative = "editor",
+            row = result_row,
+            col = content_col,
+            width = width,
+            height = math.max(1, target),
+            hide = target == 0,
+        })
+    end
+
     local function render()
+        resize(#current)
         local total = #current
-        local n = math.min(height, math.max(0, total - scroll))
+        local n = math.min(displayed, math.max(0, total - scroll))
         local lines = {}
         for i = 1, n do lines[i] = item_text(current[scroll + i]) end
         vim.api.nvim_buf_set_lines(result_buf, 0, -1, false, lines)
@@ -246,7 +284,7 @@ local function open(opts)
 
     -- Cap scored results to a small multiple of visible rows.
     -- match.filter still walks every item to score, but trims after sort.
-    local match_limit = math.max(height * 10, 200)
+    local match_limit = math.max(max_height * 10, 200)
 
     local function update_current(query, reset_cursor)
         if filter_items and query ~= "" then
@@ -263,7 +301,7 @@ local function open(opts)
             scroll = 0
         else
             cursor = math.max(1, math.min(cursor, math.max(1, #current)))
-            scroll = math.max(0, math.min(scroll, math.max(0, #current - height)))
+            scroll = math.max(0, math.min(scroll, math.max(0, #current - max_height)))
         end
     end
 
@@ -402,10 +440,11 @@ local function open(opts)
         local total = #current
         if total == 0 then return end
         cursor = math.max(1, math.min(total, cursor + delta))
+        local page = math.max(1, displayed)
         if cursor < scroll + 1 then
             scroll = cursor - 1
-        elseif cursor > scroll + height then
-            scroll = cursor - height
+        elseif cursor > scroll + page then
+            scroll = cursor - page
         end
         render()
     end
