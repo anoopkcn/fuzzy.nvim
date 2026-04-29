@@ -56,6 +56,7 @@ local PREFIX_LEN = #UNSEL_PREFIX
 ---@class FuzzyPickerOpts
 ---@field items any[]
 ---@field on_select? fun(item: any, visible_items: any[], all_items: any[])
+---@field on_marked? fun(marked_items: any[], picked_item: any, visible_items: any[], all_items: any[])
 ---@field on_submit? fun(query: string)
 ---@field on_change? fun(query: string, picker: FuzzyPickerController)
 ---@field on_close? fun()
@@ -83,6 +84,7 @@ local function open(opts)
     local items = opts.items or {}
     local prompt = opts.prompt or "Fuzzy"
     local on_select = opts.on_select or function() end
+    local on_marked = opts.on_marked
     local on_submit = opts.on_submit
     local on_change = opts.on_change
     local on_close = opts.on_close
@@ -423,7 +425,24 @@ local function open(opts)
         local picked = current[cursor]
         local visible_items = current
         local all_items = items
+        local marked_items = nil
+        if selected_count > 0 then
+            marked_items = {}
+            for _, item in ipairs(items) do
+                if selected[item] then
+                    marked_items[#marked_items + 1] = item
+                end
+            end
+        end
         close()
+        if marked_items then
+            if on_marked then
+                safe_call(on_marked, marked_items, picked, visible_items, all_items)
+            elseif picked then
+                safe_call(on_select, picked, visible_items, all_items)
+            end
+            return
+        end
         if picked then safe_call(on_select, picked, visible_items, all_items) end
     end
 
@@ -548,6 +567,21 @@ local LIVE_GREP_DEBOUNCE_MS = 150
 
 local function grep_display(item)
     return item.display
+end
+
+local function pick_marked_target(marked_items, picked_item, path_fn)
+    if picked_item then
+        local picked_path = path_fn(picked_item)
+        if picked_path then
+            for _, item in ipairs(marked_items) do
+                if item == picked_item or path_fn(item) == picked_path then
+                    return item
+                end
+            end
+        end
+    end
+
+    return marked_items[1]
 end
 
 -- Highlight the query as a literal substring within the text portion of a
@@ -791,6 +825,19 @@ local function open_live_grep(opts)
             snapshot_quickfix(all_items)
             jump_to_result(item)
         end,
+        on_marked = function(marked_items, picked_item)
+            local paths = vim.iter(marked_items)
+                :map(function(item) return item.qf and item.qf.filename or nil end)
+                :filter(function(path) return path ~= nil end)
+                :totable()
+            util.load_files(paths)
+            local target = pick_marked_target(marked_items, picked_item, function(item)
+                return item.qf and item.qf.filename or nil
+            end)
+            if target then
+                jump_to_result(target)
+            end
+        end,
         on_quickfix = function(visible_items)
             if #visible_items == 0 then
                 vim.notify("Fuzzy: no items to send to quickfix.", vim.log.levels.INFO)
@@ -822,6 +869,15 @@ local function open_for(kind, opts)
             prompt = "Files",
             initial_query = opts.initial_query,
             on_select = function(path) util.open_file(path) end,
+            on_marked = function(marked_items, picked_item)
+                util.load_files(marked_items)
+                local target = pick_marked_target(marked_items, picked_item, function(item)
+                    return item
+                end)
+                if target then
+                    util.open_file(target)
+                end
+            end,
             on_quickfix = function(visible_items)
                 if #visible_items == 0 then
                     vim.notify("Fuzzy: no items to send to quickfix.", vim.log.levels.INFO)
@@ -857,6 +913,7 @@ local function open_for(kind, opts)
                 local bufnr = by_path[rel]
                 if bufnr then util.switch_to_buffer(bufnr) end
             end,
+            on_marked = function() end,
             on_quickfix = function(visible_items)
                 if #visible_items == 0 then
                     vim.notify("Fuzzy: no items to send to quickfix.", vim.log.levels.INFO)

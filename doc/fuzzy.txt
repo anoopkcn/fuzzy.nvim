@@ -71,7 +71,8 @@ Note: |:FuzzyHelp| always opens the picker regardless of [!].
 
 Inside any picker, press <M-q> (Alt+q, configurable via |fuzzy-send_to_qf_key|)
 to send the currently visible (filtered) results to the quickfix list and
-close the picker. This works for all picker types:
+close the picker. If you marked entries with <Tab>, the marked entries are
+sent instead. This works for all picker types:
   • FuzzyGrep!    → populates the FuzzyGrep quickfix list
   • FuzzyFiles!   → populates the FuzzyFiles quickfix list
   • FuzzyBuffers! → populates the FuzzyBuffers quickfix list
@@ -246,16 +247,23 @@ Syntax: >
 
 All interactive pickers share the same insert-mode keymaps:
 
-    <CR>            Accept selection and open / jump to result
+    <CR>            Accept selection and open / jump to result. If entries
+                    are marked with <Tab>, file-backed pickers load the
+                    marked files as buffers and show one of them.
     <C-n> / <Down>  Move to next result
     <C-p> / <Up>    Move to previous result
+    <Tab>           Mark current result
+    <S-Tab>         Unmark current result
     <Esc> / <C-c>   Close picker without selecting
-    <M-q>           Send visible (filtered) results to quickfix and close
+    <M-q>           Send visible (filtered) results to quickfix and close,
+                    or send marked results if any are selected
                     (key is configurable, see |fuzzy-send_to_qf_key|)
 
 The <M-q> key respects the current filter query: only items visible in the
-picker at that moment are sent to quickfix. This lets you narrow results
-with a query and then export that subset to the quickfix list.
+picker at that moment are sent to quickfix when nothing is marked. This lets
+you narrow results with a query and then export that subset to the quickfix
+list. In |:FuzzyBuffers!|, pressing <CR> with marked entries performs no extra
+action because those buffers are already open.
 ------------------------------------------------------------------------------
 3.8 FuzzyHelp                                                    *:FuzzyHelp*
 

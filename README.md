@@ -61,13 +61,14 @@ Inside any interactive picker (`!` form):
 
 | Key | Action |
 |---|---|
-| `<CR>` | Accept selection / jump to result |
+| `<CR>` | Accept selection / jump to result; when items are marked with `<Tab>`, file-backed pickers load the marked files as buffers and show one of them |
 | `<C-n>` / `<Down>` | Next result |
 | `<C-p>` / `<Up>` | Previous result |
+| `<Tab>` / `<S-Tab>` | Mark / unmark result |
 | `<Esc>` / `<C-c>` | Close picker |
-| `<M-q>` | Send visible results to quickfix and close |
+| `<M-q>` | Send visible results, or marked results, to quickfix and close |
 
-`<M-q>` respects the current filter: only items visible in the picker are sent. The key is configurable via `send_to_qf_key` (see [Configuration](#configuration-optional)).
+In `:FuzzyBuffers!`, marked entries are already open buffers, so `<CR>` does not perform any extra load for them. `<M-q>` respects the current filter when nothing is marked. The key is configurable via `send_to_qf_key` (see [Configuration](#configuration-optional)).
 
 ## Configuration (optional)
 
