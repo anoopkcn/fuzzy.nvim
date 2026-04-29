@@ -173,7 +173,7 @@ Alias: `:Commands`
 - `:FuzzyCommands` — opens the command picker.
 - `:FuzzyCommands query` — opens the picker pre-filled with `query`.
 
-Readable command names are shown by default, so punctuation commands like `!`, `#`, `=`, and `~` are hidden. User and plugin commands show descriptions when Neovim exposes them. Option entries show their current value. Press `<CR>` to stage the selected command or option edit in the command line, for example `:FuzzyFiles ` or `:set relativenumber `.
+Readable command names are shown by default, so punctuation commands like `!`, `#`, `=`, and `~` are hidden. Entries render as aligned `CMD`/`OPT` rows, with option aliases in their own column and long descriptions or values trimmed to the picker width. User and plugin commands show descriptions when Neovim exposes them, and option entries stay searchable by both full name and shortname. Press `<CR>` to stage the selected command or option edit in the command line, for example `:FuzzyFiles ` or `:set relativenumber `.
 
 ### `:FuzzyHelp [query]`
 

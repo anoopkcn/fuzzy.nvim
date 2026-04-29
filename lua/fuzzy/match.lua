@@ -242,18 +242,24 @@ function M.positions(needle, haystack)
     return positions
 end
 
---- Sort a list of strings by fuzzy match score against a pattern
+--- Sort a list of items by fuzzy match score against a pattern
 ---@param pattern string the search pattern
----@param items table list of strings to sort
+---@param items table list of items to sort
 ---@param limit number|nil maximum number of results to return
+---@param text_fn? fun(item: any): string text extractor for non-string items
 ---@return table sorted list of {item, score} pairs
-function M.filter(pattern, items, limit)
+function M.filter(pattern, items, limit, text_fn)
+    text_fn = text_fn or function(item)
+        if type(item) == "string" then return item end
+        return tostring(item or "")
+    end
+
     if not pattern or pattern == "" then
         local results = {}
         local max = limit or #items
         local item_count = #items
         for i = 1, math_min(max, item_count) do
-            results[i] = { item = items[i], score = 0 }
+            results[i] = { item = items[i], score = 0, text = text_fn(items[i]) }
         end
         return results
     end
@@ -262,10 +268,12 @@ function M.filter(pattern, items, limit)
     local scored_count = 0
     for i = 1, #items do
         local item = items[i]
-        local score = M.score(pattern, item)
+        local text = text_fn(item)
+        if type(text) ~= "string" then text = tostring(text or "") end
+        local score = M.score(pattern, text)
         if score > SCORE_MIN then
             scored_count = scored_count + 1
-            scored[scored_count] = { item = item, score = score }
+            scored[scored_count] = { item = item, score = score, text = text }
         end
     end
 
@@ -274,11 +282,11 @@ function M.filter(pattern, items, limit)
         if a.score ~= b.score then
             return a.score > b.score
         end
-        local len_a, len_b = #a.item, #b.item
+        local len_a, len_b = #a.text, #b.text
         if len_a ~= len_b then
             return len_a < len_b
         end
-        return a.item < b.item
+        return a.text < b.text
     end)
 
     if limit and scored_count > limit then

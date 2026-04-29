@@ -10,14 +10,18 @@ local M = {}
 local ns = vim.api.nvim_create_namespace("fuzzy.picker")
 
 local HL = {
-    normal   = "FuzzyPickerNormal",
-    border   = "FuzzyPickerBorder",
-    title    = "FuzzyPickerTitle",
-    sel      = "FuzzyPickerSelection",
-    match    = "FuzzyPickerMatch",
-    dir      = "FuzzyPickerDir",
-    file     = "FuzzyPickerFile",
-    selected = "FuzzyPickerSelected",
+    normal       = "FuzzyPickerNormal",
+    border       = "FuzzyPickerBorder",
+    title        = "FuzzyPickerTitle",
+    sel          = "FuzzyPickerSelection",
+    match        = "FuzzyPickerMatch",
+    dir          = "FuzzyPickerDir",
+    file         = "FuzzyPickerFile",
+    selected     = "FuzzyPickerSelected",
+    paletteLabel = "FuzzyPickerPaletteLabel",
+    paletteName  = "FuzzyPickerPaletteName",
+    paletteAlias = "FuzzyPickerPaletteAlias",
+    paletteDetail = "FuzzyPickerPaletteDetail",
 }
 
 local WINHL = ("Normal:%s,FloatBorder:%s,FloatTitle:%s"):format(HL.normal, HL.border, HL.title)
@@ -48,6 +52,10 @@ set_default_hl(HL.match,  "Special")
 set_default_hl(HL.dir,    "Comment")
 set_default_hl(HL.file,   "Normal")
 set_default_hl(HL.selected, "Statement")
+set_default_hl(HL.paletteLabel, "Type")
+set_default_hl(HL.paletteName, "Function")
+set_default_hl(HL.paletteAlias, "Identifier")
+set_default_hl(HL.paletteDetail, "Comment")
 
 local SEL_PREFIX = "+ "
 local UNSEL_PREFIX = "  "
@@ -61,10 +69,14 @@ local PREFIX_LEN = #UNSEL_PREFIX
 ---@field on_change? fun(query: string, picker: FuzzyPickerController)
 ---@field on_close? fun()
 ---@field on_quickfix? fun(visible_items: any[], all_items: any[])
----@field format_item? fun(item: any): string
+---@field format_item? fun(item: any, ctx?: table, width?: integer): string
+---@field filter_text? fun(item: any): string
+---@field make_render_context? fun(items: any[], width: integer): table|nil
+---@field row_highlight? fun(buf: integer, ns: integer, row: integer, item: any, text: string, ctx: table|nil)
 ---@field filter_items? boolean
 ---@field highlight_matches? boolean
 ---@field highlight_fn? fun(query: string, line: string): integer[]|nil
+---@field highlight_paths? boolean
 ---@field prompt? string
 ---@field height? integer
 ---@field initial_query? string
@@ -90,9 +102,18 @@ local function open(opts)
     local on_close = opts.on_close
     local on_quickfix = opts.on_quickfix
     local format_item = opts.format_item or function(item) return item end
+    local filter_text = opts.filter_text or function(item)
+        if type(item) == "string" then return item end
+        local ok, text = pcall(format_item, item, nil, nil)
+        if not ok then return "" end
+        return text and tostring(text) or ""
+    end
+    local make_render_context = opts.make_render_context
+    local row_highlight = opts.row_highlight
     local filter_items = opts.filter_items ~= false
     local highlight_matches = opts.highlight_matches ~= false
     local highlight_fn = opts.highlight_fn or match.positions
+    local highlight_paths = opts.highlight_paths ~= false
 
     local win_cfg = config.get().window
     local cmdh = vim.o.cmdheight
@@ -219,8 +240,8 @@ local function open(opts)
         return ok, err
     end
 
-    local function item_text(item)
-        local ok, text = pcall(format_item, item)
+    local function item_text(item, ctx)
+        local ok, text = pcall(format_item, item, ctx, width)
         if not ok then
             vim.schedule(function()
                 vim.notify("Fuzzy: format_item error: " .. tostring(text),
@@ -260,9 +281,10 @@ local function open(opts)
         local lines = {}
         local texts = {}
         local row_selected = {}
+        local render_ctx = make_render_context and make_render_context(current, width) or nil
         for i = 1, n do
             local item = current[scroll + i]
-            local text = item_text(item)
+            local text = item_text(item, render_ctx)
             texts[i] = text
             local is_sel = selected[item] == true
             row_selected[i] = is_sel
@@ -285,14 +307,20 @@ local function open(opts)
                 })
             end
 
-            if slash then
-                vim.api.nvim_buf_set_extmark(result_buf, ns, row, PREFIX_LEN, {
-                    end_col = PREFIX_LEN + slash, hl_group = HL.dir, priority = 100,
+            if highlight_paths then
+                if slash then
+                    vim.api.nvim_buf_set_extmark(result_buf, ns, row, PREFIX_LEN, {
+                        end_col = PREFIX_LEN + slash, hl_group = HL.dir, priority = 100,
+                    })
+                end
+                vim.api.nvim_buf_set_extmark(result_buf, ns, row, PREFIX_LEN + (slash or 0), {
+                    end_col = line_len, hl_group = HL.file, priority = 100,
                 })
             end
-            vim.api.nvim_buf_set_extmark(result_buf, ns, row, PREFIX_LEN + (slash or 0), {
-                end_col = line_len, hl_group = HL.file, priority = 100,
-            })
+
+            if row_highlight then
+                row_highlight(result_buf, ns, row, current[scroll + i], text, render_ctx)
+            end
 
             if highlight_matches and query ~= "" then
                 local ok, pos = pcall(highlight_fn, query, text)
@@ -320,7 +348,7 @@ local function open(opts)
 
     local function update_current(query, reset_cursor)
         if filter_items and query ~= "" then
-            local scored = match.filter(query, items, match_limit)
+            local scored = match.filter(query, items, match_limit, filter_text)
             local out = {}
             for i = 1, #scored do out[i] = scored[i].item end
             current = out
@@ -939,23 +967,17 @@ local function open_for(kind, opts)
             return
         end
 
-        -- Items are "tagname  filename.txt" strings — unique because tags are deduped.
-        -- Filtering operates on the full string so users can match by tag or by file.
-        local display_items = {}
-        local display_to_entry = {}
-        for _, entry in ipairs(tag_entries) do
-            local display = entry.tag .. "  " .. entry.filename_short
-            display_items[#display_items + 1] = display
-            display_to_entry[display] = entry
-        end
-
         return open({
-            items = display_items,
+            items = tag_entries,
             prompt = "Help",
             initial_query = opts.initial_query,
-            on_select = function(display)
-                local entry = display_to_entry[display]
-                if not entry then return end
+            format_item = function(entry)
+                return entry.tag .. "  " .. entry.filename_short
+            end,
+            filter_text = function(entry)
+                return entry.tag .. "  " .. entry.filename_short
+            end,
+            on_select = function(entry)
                 local ok, err = pcall(vim.cmd, { cmd = "help", args = { entry.tag } })
                 if not ok then
                     vim.notify("FuzzyHelp: " .. tostring(err), vim.log.levels.ERROR)
@@ -966,11 +988,7 @@ local function open_for(kind, opts)
                     vim.notify("Fuzzy: no items to send to quickfix.", vim.log.levels.INFO)
                     return
                 end
-                local entries = vim.iter(visible_items)
-                    :map(function(display) return display_to_entry[display] end)
-                    :filter(function(e) return e ~= nil end)
-                    :totable()
-                local qf_items = helptags.to_qf_items(entries)
+                local qf_items = helptags.to_qf_items(visible_items)
                 quickfix.update(qf_items, { title = "FuzzyHelp", command = "FuzzyHelp" })
                 quickfix.open_if_results(#qf_items)
             end,
@@ -983,14 +1001,28 @@ local function open_for(kind, opts)
             return
         end
 
-        local display_items, display_to_cmdline = commands.to_display_items(entries)
-
         return open({
-            items = display_items,
+            items = entries,
             prompt = "Commands",
             initial_query = opts.initial_query,
-            on_select = function(display)
-                commands.prefill_cmdline(display_to_cmdline[display])
+            format_item = commands.format_entry,
+            filter_text = commands.filter_text,
+            make_render_context = commands.make_render_context,
+            row_highlight = function(buf, row_ns, row, entry, text, ctx)
+                if not ctx then return end
+                for _, range in ipairs(commands.highlight_ranges(entry, ctx, text)) do
+                    if range.end_col >= range.start_col then
+                        vim.api.nvim_buf_set_extmark(buf, row_ns, row, PREFIX_LEN + range.start_col - 1, {
+                            end_col = PREFIX_LEN + range.end_col,
+                            hl_group = range.group,
+                            priority = 120,
+                        })
+                    end
+                end
+            end,
+            highlight_paths = false,
+            on_select = function(entry)
+                commands.prefill_cmdline(entry and entry.cmdline or nil)
             end,
         })
     end

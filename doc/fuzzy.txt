@@ -243,6 +243,10 @@ discovery uses |nvim_get_all_options_info()| and current option values.
 Readable alphabetic command names are shown by default; punctuation commands
 such as !, #, =, and ~ are hidden.
 
+Entries are rendered as aligned CMD/OPT rows. Option aliases use their own
+column, and long descriptions or option values are trimmed to the picker width
+without changing the staged command.
+
 Press <CR> to stage the selected command or option edit in the command line.
 Examples include :FuzzyFiles<Space> and :set relativenumber<Space>.
 
