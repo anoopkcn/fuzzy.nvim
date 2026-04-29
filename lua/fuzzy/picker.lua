@@ -1,3 +1,4 @@
+local config = require("fuzzy.config")
 local match = require("fuzzy.match")
 local parse = require("fuzzy.parse")
 local quickfix = require("fuzzy.quickfix")
@@ -91,9 +92,12 @@ local function open(opts)
     local highlight_matches = opts.highlight_matches ~= false
     local highlight_fn = opts.highlight_fn or match.positions
 
+    local win_cfg = config.get().window
     local cmdh = vim.o.cmdheight
-    local max_h = vim.o.lines - cmdh - 6
-    local max_height = math.max(3, math.min(opts.height or 15, max_h))
+    local total_lines = vim.o.lines - cmdh
+    local total_cols = vim.o.columns
+    local max_h_lines = math.floor(total_lines * win_cfg.height)
+    local max_height = math.max(3, math.min(max_h_lines - 2, total_lines - 6))
 
     local frame_buf = vim.api.nvim_create_buf(false, true)
     local input_buf = vim.api.nvim_create_buf(false, true)
@@ -102,9 +106,11 @@ local function open(opts)
     vim.bo[input_buf].bufhidden = "wipe"
     vim.bo[result_buf].bufhidden = "wipe"
 
-    local width = math.min(80, math.floor(vim.o.columns * 0.6))
-    local frame_row = 0
-    local frame_col = math.max(0, math.floor((vim.o.columns - (width + 2)) / 2))
+    local width = math.max(10, math.floor(total_cols * win_cfg.width))
+    -- Anchor against max frame height so the picker doesn't jitter as results filter.
+    local frame_h_max = max_height + 2
+    local frame_row = math.max(0, math.floor((total_lines - frame_h_max) * win_cfg.row))
+    local frame_col = math.max(0, math.floor((total_cols - (width + 2)) * win_cfg.col))
     local input_row = frame_row + 1
     local result_row = frame_row + 3
     local content_col = frame_col + 1
@@ -143,11 +149,11 @@ local function open(opts)
         width = width,
         height = (displayed == 0) and 1 or (displayed + 2),
         style = "minimal",
-        border = "rounded",
+        border = win_cfg.border,
         focusable = false,
         zindex = 40,
         title = " " .. prompt .. " ",
-        title_pos = "center",
+        title_pos = win_cfg.title_pos,
     })
 
     local result_win = vim.api.nvim_open_win(result_buf, false, {

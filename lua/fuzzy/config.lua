@@ -1,15 +1,32 @@
 local M = {}
 
+---@class FuzzyWindowConfig
+---@field height number Max fraction of vim.o.lines used for the picker (0..1)
+---@field width number Fraction of vim.o.columns used for the picker (0..1)
+---@field row number Vertical position, 0=top, 1=bottom of free space
+---@field col number Horizontal position, 0=left, 1=right of free space
+---@field border string|table Border passed to nvim_open_win
+---@field title_pos "left"|"center"|"right" Title alignment passed to nvim_open_win
+
 ---@class FuzzyConfig
 ---@field open_single_result boolean Auto-open when only one result matches
 ---@field file_match_limit integer Maximum number of files to return from fd
 ---@field grep_dedupe boolean Deduplicate grep results by file:line (default: true)
 ---@field send_to_qf_key string|false Key to send picker results to quickfix (false to disable)
+---@field window FuzzyWindowConfig Picker window geometry and border
 local defaults = {
     open_single_result = false,
     file_match_limit = 10000,
     grep_dedupe = true,
     send_to_qf_key = "<M-q>",
+    window = {
+        height = 0.4,
+        width  = 0.6,
+        row    = 0.0,
+        col    = 0.5,
+        border = "rounded",
+        title_pos = "center",
+    },
 }
 
 ---@type FuzzyConfig
@@ -35,6 +52,34 @@ function M.setup(opts)
                 opts.send_to_qf_key == false or type(opts.send_to_qf_key) == "string",
                 "send_to_qf_key must be a string or false"
             )
+        end
+        if opts.window ~= nil then
+            vim.validate("window", opts.window, "table")
+            local w = opts.window
+            local function unit(name, v, must_be_positive)
+                if v == nil then return end
+                assert(type(v) == "number", name .. " must be a number")
+                assert(v >= 0 and v <= 1, name .. " must be between 0 and 1")
+                if must_be_positive then
+                    assert(v > 0, name .. " must be greater than 0")
+                end
+            end
+            unit("window.height", w.height, true)
+            unit("window.width", w.width, true)
+            unit("window.row", w.row, false)
+            unit("window.col", w.col, false)
+            if w.border ~= nil then
+                assert(
+                    type(w.border) == "string" or type(w.border) == "table",
+                    "window.border must be a string or table"
+                )
+            end
+            if w.title_pos ~= nil then
+                assert(
+                    w.title_pos == "left" or w.title_pos == "center" or w.title_pos == "right",
+                    'window.title_pos must be "left", "center" or "right"'
+                )
+            end
         end
     end
     config = vim.tbl_deep_extend("force", defaults, opts or {})

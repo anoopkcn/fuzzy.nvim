@@ -295,6 +295,14 @@ Setup the plugin in your init.lua: >
         file_match_limit = 10000,
         grep_dedupe = true,
         send_to_qf_key = "<M-q>",
+        window = {
+            height = 0.4,
+            width  = 0.6,
+            row    = 0.0,
+            col    = 0.5,
+            border = "rounded",
+            title_pos = "center",
+        },
     })
 <
 ------------------------------------------------------------------------------
@@ -340,6 +348,33 @@ Set to false to disable the mapping entirely. >
 <
 To use a different key: >
     require('fuzzy').setup({ send_to_qf_key = "<C-q>" })
+<
+------------------------------------------------------------------------------
+                                                          *fuzzy-window*
+window~
+    Type: table
+    Default: { height=0.4, width=0.6, row=0.0, col=0.5, border="rounded",
+               title_pos="center" }
+
+Picker window geometry. height/width are fractions of the editor; row/col
+are positions within the free space (0=top/left, 1=bottom/right, 0.5 =
+centered). border accepts any value nvim_open_win() does (e.g. "single",
+"double", "rounded", "none", or a per-corner table). title_pos is one of
+"left", "center", or "right".
+
+The picker still shrinks to fit fewer results — height is a cap, not a
+fixed size.
+
+Example: large, vertically centered picker with a single-line border. >
+    require('fuzzy').setup({
+        window = {
+            height = 0.85,
+            width  = 0.8,
+            row    = 0.35,
+            col    = 0.5,
+            border = "single",
+        },
+    })
 <
 ==============================================================================
 5. FUNCTIONS                                                *fuzzy-functions*

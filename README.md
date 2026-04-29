@@ -76,6 +76,14 @@ require('fuzzy').setup({
   file_match_limit = 10000,    -- Max files in FuzzyFiles picker/QF (default: 10000)
   grep_dedupe = true,          -- Deduplicate grep results by file:line (default: true)
   send_to_qf_key = "<M-q>",   -- Key to send picker results to QF (false to disable)
+  window = {                   -- Picker window geometry (height/width/row/col are 0..1)
+    height = 0.4,              -- max fraction of vim.o.lines used by the picker
+    width  = 0.6,              -- fraction of vim.o.columns
+    row    = 0.0,              -- 0=top, 1=bottom of free space
+    col    = 0.5,              -- 0=left, 1=right of free space (0.5 = centered)
+    border = "rounded",        -- passthrough to nvim_open_win()
+    title_pos = "center",      -- "left" | "center" | "right"
+  },
 })
 ```
 
@@ -90,6 +98,9 @@ require('fuzzy').setup({
 
 - **`send_to_qf_key`** (string|false, default: `"<M-q>"`)
   Insert-mode key used inside any picker to send the currently visible (filtered) results to the quickfix list and close the picker. Set to `false` to disable.
+
+- **`window`** (table)
+  Picker window geometry. `height`/`width` are fractions of the editor; `row`/`col` are positions within the free space (0=top/left, 1=bottom/right, 0.5=centered). `border` accepts any value `nvim_open_win()` does. `title_pos` is `"left"`, `"center"`, or `"right"`. The picker still shrinks to fit fewer results — `height` is a cap.
 
 ## Commands
 
