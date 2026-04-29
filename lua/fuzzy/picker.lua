@@ -48,10 +48,9 @@ set_default_hl(HL.dir,    "Comment")
 set_default_hl(HL.file,   "Normal")
 set_default_hl(HL.selected, "Statement")
 
-local SEL_PREFIX = "▌ "
+local SEL_PREFIX = "+ "
 local UNSEL_PREFIX = "  "
-local SEL_PREFIX_LEN = #SEL_PREFIX
-local UNSEL_PREFIX_LEN = #UNSEL_PREFIX
+local PREFIX_LEN = #UNSEL_PREFIX
 
 ---@class FuzzyPickerOpts
 ---@field items any[]
@@ -252,13 +251,13 @@ local function open(opts)
         local n = math.min(displayed, math.max(0, total - scroll))
         local lines = {}
         local texts = {}
-        local row_plen = {}
+        local row_selected = {}
         for i = 1, n do
             local item = current[scroll + i]
             local text = item_text(item)
             texts[i] = text
             local is_sel = selected[item] == true
-            row_plen[i] = is_sel and SEL_PREFIX_LEN or UNSEL_PREFIX_LEN
+            row_selected[i] = is_sel
             lines[i] = (is_sel and SEL_PREFIX or UNSEL_PREFIX) .. text
         end
         vim.api.nvim_buf_set_lines(result_buf, 0, -1, false, lines)
@@ -269,22 +268,21 @@ local function open(opts)
         for i = 1, n do
             local row = i - 1
             local text = texts[i]
-            local plen = row_plen[i]
             local line_len = #lines[i]
             local slash = text:find("/[^/]*$")
 
-            if plen == SEL_PREFIX_LEN then
+            if row_selected[i] then
                 vim.api.nvim_buf_set_extmark(result_buf, ns, row, 0, {
-                    end_col = plen, hl_group = HL.selected, priority = 150,
+                    end_col = PREFIX_LEN, hl_group = HL.selected, priority = 150,
                 })
             end
 
             if slash then
-                vim.api.nvim_buf_set_extmark(result_buf, ns, row, plen, {
-                    end_col = plen + slash, hl_group = HL.dir, priority = 100,
+                vim.api.nvim_buf_set_extmark(result_buf, ns, row, PREFIX_LEN, {
+                    end_col = PREFIX_LEN + slash, hl_group = HL.dir, priority = 100,
                 })
             end
-            vim.api.nvim_buf_set_extmark(result_buf, ns, row, plen + (slash or 0), {
+            vim.api.nvim_buf_set_extmark(result_buf, ns, row, PREFIX_LEN + (slash or 0), {
                 end_col = line_len, hl_group = HL.file, priority = 100,
             })
 
@@ -292,8 +290,8 @@ local function open(opts)
                 local ok, pos = pcall(highlight_fn, query, text)
                 if ok and pos then
                     for _, p in ipairs(pos) do
-                        vim.api.nvim_buf_set_extmark(result_buf, ns, row, plen + p - 1, {
-                            end_col = plen + p, hl_group = HL.match, priority = 200,
+                        vim.api.nvim_buf_set_extmark(result_buf, ns, row, PREFIX_LEN + p - 1, {
+                            end_col = PREFIX_LEN + p, hl_group = HL.match, priority = 200,
                         })
                     end
                 end
