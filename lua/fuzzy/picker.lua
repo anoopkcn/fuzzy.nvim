@@ -9,13 +9,14 @@ local M = {}
 local ns = vim.api.nvim_create_namespace("fuzzy.picker")
 
 local HL = {
-    normal = "FuzzyPickerNormal",
-    border = "FuzzyPickerBorder",
-    title  = "FuzzyPickerTitle",
-    sel    = "FuzzyPickerSelection",
-    match  = "FuzzyPickerMatch",
-    dir    = "FuzzyPickerDir",
-    file   = "FuzzyPickerFile",
+    normal   = "FuzzyPickerNormal",
+    border   = "FuzzyPickerBorder",
+    title    = "FuzzyPickerTitle",
+    sel      = "FuzzyPickerSelection",
+    match    = "FuzzyPickerMatch",
+    dir      = "FuzzyPickerDir",
+    file     = "FuzzyPickerFile",
+    selected = "FuzzyPickerSelected",
 }
 
 local WINHL = ("Normal:%s,FloatBorder:%s,FloatTitle:%s"):format(HL.normal, HL.border, HL.title)
@@ -45,6 +46,12 @@ set_default_hl(HL.sel,    "PmenuSel")
 set_default_hl(HL.match,  "Special")
 set_default_hl(HL.dir,    "Comment")
 set_default_hl(HL.file,   "Normal")
+set_default_hl(HL.selected, "Statement")
+
+local SEL_PREFIX = "▌ "
+local UNSEL_PREFIX = "  "
+local SEL_PREFIX_LEN = #SEL_PREFIX
+local UNSEL_PREFIX_LEN = #UNSEL_PREFIX
 
 ---@class FuzzyPickerOpts
 ---@field items any[]
@@ -178,6 +185,8 @@ local function open(opts)
     local scroll = 0
     local closed = false
     local controller = {}
+    local selected = {}
+    local selected_count = 0
 
     local filter_timer = vim.uv.new_timer()
     local render_timer = vim.uv.new_timer()
@@ -242,7 +251,16 @@ local function open(opts)
         local total = #current
         local n = math.min(displayed, math.max(0, total - scroll))
         local lines = {}
-        for i = 1, n do lines[i] = item_text(current[scroll + i]) end
+        local texts = {}
+        local row_plen = {}
+        for i = 1, n do
+            local item = current[scroll + i]
+            local text = item_text(item)
+            texts[i] = text
+            local is_sel = selected[item] == true
+            row_plen[i] = is_sel and SEL_PREFIX_LEN or UNSEL_PREFIX_LEN
+            lines[i] = (is_sel and SEL_PREFIX or UNSEL_PREFIX) .. text
+        end
         vim.api.nvim_buf_set_lines(result_buf, 0, -1, false, lines)
         vim.api.nvim_buf_clear_namespace(result_buf, ns, 0, -1)
 
@@ -250,24 +268,32 @@ local function open(opts)
 
         for i = 1, n do
             local row = i - 1
-            local line = lines[i]
-            local slash = line:find("/[^/]*$")
+            local text = texts[i]
+            local plen = row_plen[i]
+            local line_len = #lines[i]
+            local slash = text:find("/[^/]*$")
 
-            if slash then
+            if plen == SEL_PREFIX_LEN then
                 vim.api.nvim_buf_set_extmark(result_buf, ns, row, 0, {
-                    end_col = slash, hl_group = HL.dir, priority = 100,
+                    end_col = plen, hl_group = HL.selected, priority = 150,
                 })
             end
-            vim.api.nvim_buf_set_extmark(result_buf, ns, row, slash or 0, {
-                end_col = #line, hl_group = HL.file, priority = 100,
+
+            if slash then
+                vim.api.nvim_buf_set_extmark(result_buf, ns, row, plen, {
+                    end_col = plen + slash, hl_group = HL.dir, priority = 100,
+                })
+            end
+            vim.api.nvim_buf_set_extmark(result_buf, ns, row, plen + (slash or 0), {
+                end_col = line_len, hl_group = HL.file, priority = 100,
             })
 
             if highlight_matches and query ~= "" then
-                local ok, pos = pcall(highlight_fn, query, line)
+                local ok, pos = pcall(highlight_fn, query, text)
                 if ok and pos then
                     for _, p in ipairs(pos) do
-                        vim.api.nvim_buf_set_extmark(result_buf, ns, row, p - 1, {
-                            end_col = p, hl_group = HL.match, priority = 200,
+                        vim.api.nvim_buf_set_extmark(result_buf, ns, row, plen + p - 1, {
+                            end_col = plen + p, hl_group = HL.match, priority = 200,
                         })
                     end
                 end
@@ -321,6 +347,8 @@ local function open(opts)
 
     function controller.set_items(new_items)
         items = new_items or {}
+        selected = {}
+        selected_count = 0
         update_current(vim.api.nvim_buf_get_lines(input_buf, 0, 1, false)[1] or "", true)
         render()
     end
@@ -449,11 +477,33 @@ local function open(opts)
         render()
     end
 
+    local function select_current()
+        local item = current[cursor]
+        if item == nil then return end
+        if not selected[item] then
+            selected[item] = true
+            selected_count = selected_count + 1
+        end
+        move(1)
+    end
+
+    local function deselect_current()
+        local item = current[cursor]
+        if item == nil then return end
+        if selected[item] then
+            selected[item] = nil
+            selected_count = selected_count - 1
+        end
+        move(-1)
+    end
+
     imap("<CR>", accept)
     imap("<C-n>", function() move(1) end)
     imap("<Down>", function() move(1) end)
     imap("<C-p>", function() move(-1) end)
     imap("<Up>", function() move(-1) end)
+    imap("<Tab>", select_current)
+    imap("<S-Tab>", deselect_current)
     imap("<Esc>", close)
     imap("<C-c>", close)
 
@@ -461,10 +511,18 @@ local function open(opts)
         local qf_key = require("fuzzy.config").get().send_to_qf_key
         if qf_key and qf_key ~= "" then
             imap(qf_key, function()
-                local vis = current
+                local to_send = current
+                if selected_count > 0 then
+                    to_send = {}
+                    for _, item in ipairs(items) do
+                        if selected[item] then
+                            to_send[#to_send + 1] = item
+                        end
+                    end
+                end
                 local all = items
                 close()
-                safe_call(on_quickfix, vis, all)
+                safe_call(on_quickfix, to_send, all)
             end)
         end
     end
