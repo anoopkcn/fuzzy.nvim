@@ -78,8 +78,10 @@ local PREFIX_LEN = #UNSEL_PREFIX
 ---@field highlight_fn? fun(query: string, line: string): integer[]|nil
 ---@field highlight_paths? boolean
 ---@field prompt? string
+---@field title? string
 ---@field height? integer
 ---@field initial_query? string
+---@field on_setup? fun(picker: FuzzyPickerController, imap: fun(lhs: string, rhs: function), input_buf: integer)
 
 ---@class FuzzyPickerController
 ---@field set_items fun(items: any[])
@@ -87,6 +89,7 @@ local PREFIX_LEN = #UNSEL_PREFIX
 ---@field get_items fun(): any[]
 ---@field get_query fun(): string
 ---@field is_closed fun(): boolean
+---@field set_title fun(title: string)
 ---@field accept fun()
 ---@field close fun()
 
@@ -95,12 +98,14 @@ local PREFIX_LEN = #UNSEL_PREFIX
 local function open(opts)
     local items = opts.items or {}
     local prompt = opts.prompt or "Fuzzy"
+    local title = opts.title or prompt
     local on_select = opts.on_select or function() end
     local on_marked = opts.on_marked
     local on_submit = opts.on_submit
     local on_change = opts.on_change
     local on_close = opts.on_close
     local on_quickfix = opts.on_quickfix
+    local on_setup = opts.on_setup
     local format_item = opts.format_item or function(item) return item end
     local filter_text = opts.filter_text or function(item)
         if type(item) == "string" then return item end
@@ -175,7 +180,7 @@ local function open(opts)
         border = win_cfg.border,
         focusable = false,
         zindex = 40,
-        title = " " .. prompt .. " ",
+        title = " " .. title .. " ",
         title_pos = win_cfg.title_pos,
     })
 
@@ -406,6 +411,16 @@ local function open(opts)
         return closed
     end
 
+    function controller.set_title(new_title)
+        if type(new_title) ~= "string" or new_title == "" then
+            new_title = prompt
+        end
+        title = new_title
+        if vim.api.nvim_win_is_valid(frame_win) then
+            pcall(vim.api.nvim_win_set_config, frame_win, { title = " " .. title .. " " })
+        end
+    end
+
     local function update_filter()
         local query = vim.api.nvim_buf_get_lines(input_buf, 0, 1, false)[1] or ""
         if on_change then
@@ -578,6 +593,10 @@ local function open(opts)
         end
     end
 
+    if on_setup then
+        safe_call(on_setup, controller, imap, input_buf)
+    end
+
     render()
     if opts.initial_query and opts.initial_query ~= "" then
         vim.api.nvim_buf_set_lines(input_buf, 0, 1, false, { opts.initial_query })
@@ -640,13 +659,30 @@ local function open_live_grep(opts)
 
     local dedupe_lines = require("fuzzy.config").get().grep_dedupe
     local netrw_dir = opts.dir or util.get_netrw_dir()
+    local grep_flags = parse.normalize(opts.initial_flags or {})
     local label
     if opts.dir then
         label = dedupe_lines and "FuzzyGrepIn" or "FuzzyGrepIn!"
     else
         label = dedupe_lines and "FuzzyGrep" or "FuzzyGrep!"
     end
-    local title = netrw_dir and (label .. " [" .. vim.fn.fnamemodify(netrw_dir, ":~") .. "]") or label
+
+    local function format_flags()
+        return parse.join(grep_flags)
+    end
+
+    local function picker_title()
+        local flags = format_flags()
+        if flags == "" then return "Grep" end
+        return ("Grep [%s]"):format(flags)
+    end
+
+    local function quickfix_title()
+        local base = netrw_dir and (label .. " [" .. vim.fn.fnamemodify(netrw_dir, ":~") .. "]") or label
+        local flags = format_flags()
+        if flags == "" then return base end
+        return ("%s (%s)"):format(base, flags)
+    end
 
     local timer = vim.uv.new_timer()
     local timer_closed = false
@@ -668,14 +704,23 @@ local function open_live_grep(opts)
         cache[key] = entry
     end
 
-    local function find_best_prefix(query)
+    local function flags_cache_key(flags)
+        return table.concat(flags or {}, "\31")
+    end
+
+    local function cache_key(query, flags)
+        return flags_cache_key(flags) .. "\30" .. query
+    end
+
+    local function find_best_prefix(query, flags)
+        local flag_key = flags_cache_key(flags)
         local best_key = nil
         local best_len = 0
         for key, entry in pairs(cache) do
-            if entry.complete and #key < #query and query:sub(1, #key) == key then
-                if #key > best_len then
+            if entry.complete and entry.flags_key == flag_key and #entry.query < #query and query:sub(1, #entry.query) == entry.query then
+                if #entry.query > best_len then
                     best_key = key
-                    best_len = #key
+                    best_len = #entry.query
                 end
             end
         end
@@ -756,7 +801,7 @@ local function open_live_grep(opts)
             items[#items + 1] = result.qf
         end
         if #items > 0 then
-            quickfix.update(items, { title = title, command = label })
+            quickfix.update(items, { title = quickfix_title(), command = label })
         end
     end
 
@@ -767,7 +812,7 @@ local function open_live_grep(opts)
         pcall(vim.cmd, "normal! zv")
     end
 
-    local function start_stream(query, picker, gen)
+    local function start_stream(query, flags, picker, gen)
         local seen = {}
         for _, item in ipairs(picker.get_items()) do
             local key = result_key(item)
@@ -776,7 +821,13 @@ local function open_live_grep(opts)
         local line_batch = {}
         local batch_scheduled = false
 
-        handle = runner.rg_stream(query, {
+        local active_cache_key = cache_key(query, flags)
+        local active_flags_key = flags_cache_key(flags)
+
+        local args = vim.deepcopy(flags)
+        args[#args + 1] = query
+
+        handle = runner.rg_stream(args, {
             cwd = netrw_dir,
             on_line = function(line)
                 if gen ~= generation then return end
@@ -802,7 +853,12 @@ local function open_live_grep(opts)
             on_exit = function()
                 if gen == generation then
                     handle = nil
-                    cache_put(query, { items = picker.get_items(), complete = true })
+                    cache_put(active_cache_key, {
+                        items = picker.get_items(),
+                        complete = true,
+                        query = query,
+                        flags_key = active_flags_key,
+                    })
                 end
             end,
         })
@@ -811,6 +867,8 @@ local function open_live_grep(opts)
     local function schedule_search(query, picker)
         generation = generation + 1
         local gen = generation
+        local flags_snapshot = vim.deepcopy(grep_flags)
+        local active_cache_key = cache_key(query, flags_snapshot)
 
         stop_timer(false)
         cancel_stream()
@@ -821,13 +879,13 @@ local function open_live_grep(opts)
         end
 
         -- Exact cache hit: serve instantly, skip grep
-        if cache[query] and cache[query].complete then
-            picker.set_items(cache[query].items)
+        if cache[active_cache_key] and cache[active_cache_key].complete then
+            picker.set_items(cache[active_cache_key].items)
             return
         end
 
         -- Prefix cache hit: show filtered subset instantly, still run grep for completeness
-        local prefix_key = find_best_prefix(query)
+        local prefix_key = find_best_prefix(query, flags_snapshot)
         if prefix_key then
             picker.set_items(filter_cached(cache[prefix_key].items, query))
         end
@@ -835,13 +893,14 @@ local function open_live_grep(opts)
         timer:start(LIVE_GREP_DEBOUNCE_MS, 0, vim.schedule_wrap(function()
             if gen ~= generation or picker.is_closed() then return end
             if not prefix_key then picker.set_items({}) end
-            start_stream(query, picker, gen)
+            start_stream(query, flags_snapshot, picker, gen)
         end))
     end
 
     return open({
         items = {},
         prompt = "Grep",
+        title = picker_title(),
         initial_query = opts.initial_query,
         filter_items = false,
         highlight_matches = true,
@@ -875,14 +934,34 @@ local function open_live_grep(opts)
                 :map(function(item) return item.qf end)
                 :filter(function(qf) return qf ~= nil end)
                 :totable()
-            quickfix.update(qf_items, { title = title, command = label })
+            quickfix.update(qf_items, { title = quickfix_title(), command = label })
             quickfix.open_if_results(#qf_items)
+        end,
+        on_setup = function(picker, imap)
+            local edit_key = config.get().edit_grep_flags_key
+            if not edit_key or edit_key == "" then return end
+            imap(edit_key, function()
+                vim.ui.input({
+                    prompt = "rg flags: ",
+                    default = format_flags(),
+                }, function(input)
+                    vim.schedule(function()
+                        if picker.is_closed() then return end
+                        if input ~= nil then
+                            grep_flags = parse.normalize(input)
+                            picker.set_title(picker_title())
+                            schedule_search(picker.get_query(), picker)
+                        end
+                        vim.cmd("startinsert!")
+                    end)
+                end)
+            end)
         end,
     })
 end
 
 ---@param kind "files"|"buffers"|"grep"|"grep_in"|"helptags"|"commands"
----@param opts? { bang?: boolean, initial_query?: string }
+---@param opts? { bang?: boolean, initial_query?: string, initial_flags?: string[] }
 local function open_for(kind, opts)
     opts = opts or {}
     if kind == "files" then
@@ -958,7 +1037,11 @@ local function open_for(kind, opts)
     elseif kind == "grep" then
         return open_live_grep(opts)
     elseif kind == "grep_in" then
-        return open_live_grep({ dir = opts.dir, initial_query = opts.initial_query })
+        return open_live_grep({
+            dir = opts.dir,
+            initial_query = opts.initial_query,
+            initial_flags = opts.initial_flags,
+        })
     elseif kind == "helptags" then
         local helptags = require("fuzzy.commands.helptags")
         local tag_entries = helptags.collect()

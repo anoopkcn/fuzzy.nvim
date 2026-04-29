@@ -13,12 +13,14 @@ local M = {}
 ---@field file_match_limit integer Maximum number of files to return from fd
 ---@field grep_dedupe boolean Deduplicate grep results by file:line (default: true)
 ---@field send_to_qf_key string|false Key to send picker results to quickfix (false to disable)
+---@field edit_grep_flags_key string|false Key to edit ripgrep flags in live grep pickers (false to disable)
 ---@field window FuzzyWindowConfig Picker window geometry and border
 local defaults = {
     open_single_result = false,
     file_match_limit = 10000,
     grep_dedupe = true,
     send_to_qf_key = "<M-q>",
+    edit_grep_flags_key = "<M-r>",
     window = {
         height = 0.4,
         width  = 0.6,
@@ -52,6 +54,12 @@ function M.setup(opts)
             assert(
                 opts.send_to_qf_key == false or type(opts.send_to_qf_key) == "string",
                 "send_to_qf_key must be a string or false"
+            )
+        end
+        if opts.edit_grep_flags_key ~= nil then
+            assert(
+                opts.edit_grep_flags_key == false or type(opts.edit_grep_flags_key) == "string",
+                "edit_grep_flags_key must be a string or false"
             )
         end
         if opts.window ~= nil then

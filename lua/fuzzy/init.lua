@@ -25,9 +25,11 @@ function M.setup(opts)
             return
         end
         if o.bang then
+            local initial_query, initial_flags = parse.split_grep_picker_args(rest_raw)
             require("fuzzy.picker").open_for("grep_in", {
                 dir = dir,
-                initial_query = rest_raw ~= "" and rest_raw or nil,
+                initial_query = initial_query,
+                initial_flags = initial_flags,
             })
         elseif rest_raw ~= "" then
             require("fuzzy.commands.grep_in").run(dir, rest_raw)
@@ -38,8 +40,11 @@ function M.setup(opts)
 
     cmd("FuzzyGrep", function(o)
         if o.bang then
+            local parse = require("fuzzy.parse")
+            local initial_query, initial_flags = parse.split_grep_picker_args(o.args)
             require("fuzzy.picker").open_for("grep", {
-                initial_query = o.args ~= "" and o.args or nil,
+                initial_query = initial_query,
+                initial_flags = initial_flags,
             })
         elseif o.args ~= "" then
             require("fuzzy.commands.grep").run(o.args)

@@ -1,5 +1,52 @@
 local M = {}
 
+local RG_SHORT_FLAGS_WITH_VALUE = {
+    ["-A"] = true,
+    ["-B"] = true,
+    ["-C"] = true,
+    ["-E"] = true,
+    ["-e"] = true,
+    ["-f"] = true,
+    ["-g"] = true,
+    ["-j"] = true,
+    ["-M"] = true,
+    ["-m"] = true,
+    ["-r"] = true,
+    ["-t"] = true,
+    ["-T"] = true,
+}
+
+local RG_LONG_FLAGS_WITH_VALUE = {
+    ["--after-context"] = true,
+    ["--before-context"] = true,
+    ["--color"] = true,
+    ["--colors"] = true,
+    ["--context"] = true,
+    ["--context-separator"] = true,
+    ["--engine"] = true,
+    ["--encoding"] = true,
+    ["--field-context-separator"] = true,
+    ["--field-match-separator"] = true,
+    ["--glob"] = true,
+    ["--iglob"] = true,
+    ["--ignore-file"] = true,
+    ["--max-columns"] = true,
+    ["--max-count"] = true,
+    ["--max-depth"] = true,
+    ["--path-separator"] = true,
+    ["--pre"] = true,
+    ["--pre-glob"] = true,
+    ["--regex-size-limit"] = true,
+    ["--replace"] = true,
+    ["--sort"] = true,
+    ["--sortr"] = true,
+    ["--threads"] = true,
+    ["--type"] = true,
+    ["--type-add"] = true,
+    ["--type-clear"] = true,
+    ["--type-not"] = true,
+}
+
 --- Parse shell-like command arguments with quote handling
 ---@param raw string
 ---@return table
@@ -96,6 +143,55 @@ function M.normalize(input)
     return vim.iter(args):map(function(arg)
         return arg:match("^~") and vim.fn.expand(arg) or arg
     end):filter(function(v) return v ~= "" end):totable()
+end
+
+local function shell_quote(arg)
+    if arg == "" then return "''" end
+    if not arg:find("[%s'\"]") then return arg end
+    return "'" .. arg:gsub("'", [["'"']]) .. "'"
+end
+
+local function rg_flag_takes_value(token)
+    if not token or token == "" or token == "--" then return false end
+    if token:match("^%-%-[^=]+=") then return false end
+    return RG_SHORT_FLAGS_WITH_VALUE[token] or RG_LONG_FLAGS_WITH_VALUE[token] or false
+end
+
+--- Join normalized arguments into a shell-like string for display or editing.
+---@param args string[]|string
+---@return string
+function M.join(args)
+    local parts = type(args) == "string" and M.normalize(args) or M.normalize(args or {})
+    return table.concat(vim.tbl_map(shell_quote, parts), " ")
+end
+
+--- Split a grep picker invocation into the editable query and backend flags.
+--- The picker keeps a single live query string, so only the first positional
+--- argument is treated as the query; supported rg flags stay in the backend
+--- flag list, preserving their original order.
+---@param raw string
+---@return string|nil query, string[] flags
+function M.split_grep_picker_args(raw)
+    local tokens = M.args(raw or "")
+    local flags = {}
+    local query = nil
+    local expect_value = false
+
+    for _, token in ipairs(tokens) do
+        if expect_value then
+            flags[#flags + 1] = token
+            expect_value = false
+        elseif token ~= "-" and token:sub(1, 1) == "-" then
+            flags[#flags + 1] = token
+            expect_value = rg_flag_takes_value(token)
+        elseif not query then
+            query = token
+        else
+            flags[#flags + 1] = token
+        end
+    end
+
+    return query, M.normalize(flags)
 end
 
 --- Parse vimgrep format line (file:line:col:text)

@@ -67,7 +67,9 @@ All commands follow a consistent convention:
     No [!]  Populate the quickfix list.
     [!]     Open the interactive picker.
 
-Passing arguments to the [!] form pre-fills the picker's search query.
+Passing arguments to the [!] form pre-fills the picker's search query. In the
+live grep pickers, ripgrep options are also preserved and can be edited inside
+the picker.
 
 Note: |:FuzzyHelp| and |:FuzzyCommands| always open the picker and do not
 have a quickfix-only mode.
@@ -82,6 +84,10 @@ entries with <Tab>, the marked entries are sent instead:
   • FuzzyHelp     → populates the FuzzyHelp quickfix list (entries jump to tag location)
 FuzzyCommands stages commands in the command line instead of exporting to
 quickfix.
+
+In :FuzzyGrep! and :FuzzyGrepIn!, press <M-r> (Alt+r, configurable via
+|fuzzy-edit_grep_flags_key|) to edit ripgrep backend flags without leaving the
+picker.
 
 Use standard quickfix navigation: >
     :cnext      " Next item
@@ -106,7 +112,8 @@ The command uses ripgrep with these default flags:
 Without [!]: Streams ripgrep results directly to the quickfix list.
              Requires a pattern; shows a notification if none is given.
 With [!]:    Opens a live grep picker that streams matches as you type.
-             Optionally pre-fills the picker with [pattern].
+             Optionally pre-fills the picker with [pattern] and initial
+             ripgrep options.
 
 The live grep picker includes a per-session result cache:
   • Prefix narrowing: typing a longer query (e.g. "foobar" after "foo")
@@ -123,6 +130,7 @@ Examples: >
     :FuzzyGrep -t lua require
     :FuzzyGrep -i error -g '*.yml'
     :FuzzyGrep! TODO                   " open picker pre-filled with 'TODO'
+    :FuzzyGrep! TODO -t lua            " open picker with initial rg flags
     :FuzzyGrep!                        " open live grep picker (empty)
 <
 Common ripgrep options:
@@ -135,6 +143,10 @@ Common ripgrep options:
     --no-ignore Don't respect .gitignore
 
 See `rg --help` for full options.
+
+Inside the picker, press <M-r> (|fuzzy-edit_grep_flags_key|) to edit ripgrep
+backend flags without closing the picker. Result caching is scoped by both the
+query and the active backend flags.
 
 ------------------------------------------------------------------------------
 3.2 FuzzyGrepIn                                                *:FuzzyGrepIn*
@@ -152,13 +164,14 @@ directory. A clear error is shown if it does not exist.
 Without [!]: Streams ripgrep results for [pattern] inside <dir> to the
              quickfix list. Requires both a directory and a pattern.
 With [!]:    Opens a live grep picker scoped to <dir>. Optionally pre-fills
-             the picker with [pattern].
+             the picker with [pattern] and initial ripgrep options.
 
 Deduplication is controlled by |fuzzy-grep_dedupe|.
 
 Examples: >
     :FuzzyGrepIn! $VIMRUNTIME/doc          " live grep vim help docs
     :FuzzyGrepIn! $VIMRUNTIME/doc autocmd  " picker pre-filled
+    :FuzzyGrepIn! $VIMRUNTIME/doc TODO -t lua
     :FuzzyGrepIn ~/.config/nvim TODO       " stream to quickfix
     :FuzzyGrepIn ~/projects/foo -t lua require
 <
@@ -174,7 +187,7 @@ Syntax: >
 <
 Without [!]: Runs fd and streams results to the quickfix list.
 With [!]:    Opens the file picker (from cache). Optionally pre-fills
-             the picker with [fd arguments] as a query.
+             the picker with a query.
 
 Default fd behavior:
   • Searches from current working directory
@@ -199,6 +212,9 @@ Common fd options:
     --max-depth N   Limit search depth
 
 See `fd --help` for full options.
+
+Unlike the live grep pickers, :FuzzyFiles! does not edit backend fd flags from
+inside the picker; it filters the warmed file cache by query only.
 
 ------------------------------------------------------------------------------
 3.4 FuzzyBuffers                                              *:FuzzyBuffers*
@@ -297,6 +313,10 @@ Interactive pickers share these insert-mode keymaps:
                     or send marked results if any are selected
                     where supported
                     (key is configurable, see |fuzzy-send_to_qf_key|)
+    <M-r>           Edit ripgrep backend flags in :FuzzyGrep! and
+                    :FuzzyGrepIn!
+                    (key is configurable, see
+                    |fuzzy-edit_grep_flags_key|)
 
 The <M-q> key respects the current filter query: only items visible in the
 picker at that moment are sent to quickfix when nothing is marked. This lets
@@ -343,6 +363,7 @@ Setup the plugin in your init.lua: >
         file_match_limit = 10000,
         grep_dedupe = true,
         send_to_qf_key = "<M-q>",
+        edit_grep_flags_key = "<M-r>",
         window = {
             height = 0.4,
             width  = 0.6,
@@ -397,6 +418,22 @@ Set to false to disable the mapping entirely. >
 <
 To use a different key: >
     require('fuzzy').setup({ send_to_qf_key = "<C-q>" })
+<
+------------------------------------------------------------------------------
+                                              *fuzzy-edit_grep_flags_key*
+edit_grep_flags_key~
+    Type: string|false
+    Default: "<M-r>"
+
+Key (in insert mode) that opens an editable prompt for ripgrep backend flags in
+the live grep pickers (:FuzzyGrep! and :FuzzyGrepIn!). The current query stays
+in the picker input while the flags are updated separately.
+
+Set to false to disable the mapping entirely. >
+    require('fuzzy').setup({ edit_grep_flags_key = false })
+<
+To use a different key: >
+    require('fuzzy').setup({ edit_grep_flags_key = "<C-r>" })
 <
 ------------------------------------------------------------------------------
                                                           *fuzzy-window*

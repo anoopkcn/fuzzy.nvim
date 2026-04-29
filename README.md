@@ -18,6 +18,7 @@ For workflows using neovim's **quickfix lists**. `fuzzy.nvim` populates the quic
 - **Explorer-friendly** execute commands with respect to current Explorer directory
 - **!** Add `!` to quickfix-backed commands to open an interactive picker instead of populating the quickfix list
 - **`<M-q>` in supported pickers** sends the currently visible or marked (using `<Tab>`) results to the quickfix list
+- **`<M-r>` in live grep pickers** edits ripgrep backend flags without leaving the picker
 
 ## Requirements
 
@@ -54,7 +55,7 @@ All commands follow the same rule:
 | `:Command [args]` | Populate the **quickfix list** |
 | `:Command! [args]` | Open the interactive **picker** |
 
-Passing arguments to the `!` form pre-fills the picker's search query.
+Passing arguments to the `!` form pre-fills the picker's search query. For live grep pickers, ripgrep options are also preserved and can be edited in-picker.
 
 `:FuzzyHelp` and `:FuzzyCommands` always open an interactive picker; they do not have a quickfix-only mode.
 
@@ -70,8 +71,11 @@ Inside any interactive picker:
 | `<Tab>` / `<S-Tab>` | Mark / unmark result |
 | `<Esc>` / `<C-c>` | Close picker |
 | `<M-q>` | Send visible results, or marked results, to quickfix and close where supported |
+| `<M-r>` | Edit ripgrep backend flags in `:FuzzyGrep!` / `:FuzzyGrepIn!` |
 
 In `:FuzzyBuffers!`, marked entries are already open buffers, so `<CR>` does not perform any extra load for them. `<M-q>` respects the current filter when nothing is marked. The key is configurable via `send_to_qf_key` (see [Configuration](#configuration-optional)). `:FuzzyCommands` does not expose `<M-q>` because command entries are actions, not file locations.
+
+In `:FuzzyGrep!` and `:FuzzyGrepIn!`, press `<M-r>` to edit the active ripgrep flags (for example `-t lua -g '*.md'`) while keeping the current query in place. The key is configurable via `edit_grep_flags_key`.
 
 ## Configuration (optional)
 
@@ -81,6 +85,7 @@ require('fuzzy').setup({
   file_match_limit = 10000,    -- Max files in FuzzyFiles picker/QF (default: 10000)
   grep_dedupe = true,          -- Deduplicate grep results by file:line (default: true)
   send_to_qf_key = "<M-q>",   -- Key to send picker results to QF (false to disable)
+  edit_grep_flags_key = "<M-r>", -- Key to edit rg flags in live grep pickers
   window = {                   -- Picker window geometry (height/width/row/col are 0..1)
     height = 0.4,              -- max fraction of vim.o.lines used by the picker
     width  = 0.6,              -- fraction of vim.o.columns
@@ -104,6 +109,9 @@ require('fuzzy').setup({
 - **`send_to_qf_key`** (string|false, default: `"<M-q>"`)
   Insert-mode key used inside picker types that support quickfix export to send the currently visible (filtered) results to the quickfix list and close the picker. Set to `false` to disable.
 
+- **`edit_grep_flags_key`** (string|false, default: `"<M-r>"`)
+  Insert-mode key used inside `:FuzzyGrep!` and `:FuzzyGrepIn!` to edit ripgrep backend flags without closing the picker. Set to `false` to disable.
+
 - **`window`** (table)
   Picker window geometry. `height`/`width` are fractions of the editor; `row`/`col` are positions within the free space (0=top/left, 1=bottom/right, 0.5=centered). `border` accepts any value `nvim_open_win()` does. `title_pos` is `"left"`, `"center"`, or `"right"`. The picker still shrinks to fit fewer results — `height` is a cap.
 
@@ -118,12 +126,15 @@ Alias: `:Grep`
 - `:Grep pattern` — streams results directly to the quickfix list.
 - `:Grep!` — opens a live grep picker that streams matches as you type.
 - `:Grep! pattern` — opens the picker pre-filled with the pattern.
+- `:Grep! pattern [rg options]` — opens the picker with the pattern and initial ripgrep flags.
 - `:Grep` (no args, no `!`) — shows a notification asking for a pattern.
 
 The live grep picker caches results per session:
 - Refining a query (e.g. `foo` → `foobar`) instantly filters cached results while grep runs in the background for completeness.
 - Typing the exact same query again serves results from cache, skipping grep entirely.
 - Matched text is highlighted within each result line.
+
+Inside the picker, press `<M-r>` to edit ripgrep backend flags without losing the current query. Cache entries are scoped by both the query and the active flags.
 
 ### `:FuzzyGrepIn[!] <dir> [pattern] [rg options]`
 
@@ -134,6 +145,7 @@ Alias: `:GrepIn`
 - `:GrepIn dir pattern` — streams results for `pattern` inside `dir` to the quickfix list.
 - `:GrepIn! dir` — opens a live grep picker scoped to `dir`.
 - `:GrepIn! dir pattern` — opens the picker pre-filled with `pattern`, scoped to `dir`.
+- `:GrepIn! dir pattern [rg options]` — opens the picker with the pattern and initial ripgrep flags, scoped to `dir`.
 
 `dir` is expanded (supports `~` and `$ENV` variables) and must be a valid directory.
 
@@ -152,6 +164,8 @@ Alias: `:Files`
 - `:Files path` — streams fd results filtered by path/pattern to quickfix.
 - `:Files!` — opens the file picker (from cache).
 - `:Files! query` — opens the picker pre-filled with the query.
+
+Unlike the live grep pickers, `:FuzzyFiles!` does not edit backend `fd` flags from inside the picker; it still filters the warmed file cache by query only.
 
 ### `:FuzzyBuffers[!] [pattern]`
 
