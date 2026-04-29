@@ -15,7 +15,7 @@ For workflows using neovim's **quickfix lists**. `fuzzy.nvim` populates the quic
 - **Full control** over search arguments via `ripgrep`/`fd` arguments
 - **Explorer-friendly** execute commands with respect to current Explorer directory
 - **!** Add `!` to any command to open an interactive picker instead of populating the quickfix list
-- **`<M-q>` in any picker** sends the currently visible (filtered) results to the quickfix list and closes the picker
+- **`<M-q>` in any picker** sends the currently visible or marked(using `<Tab>`) results to the quickfix list 
 
 ## Requirements
 
