@@ -12,6 +12,7 @@ For workflows using neovim's **quickfix lists**. `fuzzy.nvim` populates the quic
 - **`:FuzzyGrepIn` - Grep inside a specific directory** (e.g. vim help docs, a subdirectory, `$VIMRUNTIME/doc`)
 - **`:FuzzyFiles` - File finding** using `fd` (fallback to `vim.fs.find`)
 - **`:FuzzyBuffers` - Buffer switching** with fuzzy filtering
+- **`:FuzzyHelp` - Help tag browser** with `'helplang'`-aware tag discovery across the full `runtimepath`
 - **Full control** over search arguments via `ripgrep`/`fd` arguments
 - **Explorer-friendly** execute commands with respect to current Explorer directory
 - **!** Add `!` to any command to open an interactive picker instead of populating the quickfix list
@@ -159,6 +160,17 @@ Alias: `:Buffers`
 - `:Buffers!` — opens the interactive buffer picker.
 - `:Buffers! query` — opens the picker pre-filled with the query.
 
+### `:FuzzyHelp [query]`
+
+Browse and open Neovim/Vim help tags.
+
+- `:FuzzyHelp` — opens the help tag picker.
+- `:FuzzyHelp query` — opens the picker pre-filled with `query`.
+
+Always opens the interactive picker; there is no quickfix-only mode. Tag discovery reads `doc/tags` and `doc/tags-{lang}` files across the full `runtimepath`. Language priority follows `'helplang'`, with `en` appended as a fallback.
+
+Each entry shows `tagname  filename.txt`; filtering matches against both, so you can narrow by topic (`autocmd`) or by file (`lsp.txt`). Press `<CR>` to jump via `:help`, or `<M-q>` to export visible tags to the quickfix list (entries resolve to the exact tag location).
+
 ### `:FuzzyList[!]`
 
 Browse and select from quickfix list history.
@@ -183,6 +195,12 @@ fuzzy.setup({
 vim.keymap.set('n', '<leader>/', '<CMD>Grep!<CR>', { desc = 'Live grep picker' })
 vim.keymap.set('n', '<leader>ff', '<CMD>Files!<CR>', { desc = 'File picker' })
 vim.keymap.set('n', '<leader>fb', '<CMD>Buffers!<CR>', { desc = 'Buffer picker' })
+vim.keymap.set('n', '<leader>fh', '<CMD>FuzzyHelp<CR>', { desc = 'Help tag picker' })
+
+-- Help tag for word under cursor
+vim.keymap.set('n', 'K', function()
+    vim.cmd('FuzzyHelp ' .. vim.fn.expand('<cword>'))
+end, { desc = 'Help for word' })
 
 -- Quickfix workflow (type a pattern, results stream to QF)
 vim.keymap.set('n', '<leader>fg', ':Grep ', { desc = 'Grep → QF' })
@@ -203,7 +221,7 @@ vim.keymap.set('n', '<leader>fW', function()
 end, { desc = 'Grep WORD (literal)' })
 
 -- Live grep inside vim help docs
-vim.keymap.set('n', '<leader>fh', '<CMD>GrepIn! $VIMRUNTIME/doc<CR>', { desc = 'Search help docs' })
+vim.keymap.set('n', '<leader>fH', '<CMD>GrepIn! $VIMRUNTIME/doc<CR>', { desc = 'Search help docs' })
 ```
 
 ## API
