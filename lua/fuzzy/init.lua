@@ -68,6 +68,12 @@ function M.setup(opts)
         end
     end, { nargs = "*", bang = true, complete = complete.make_buffer_completer(), desc = "Find open buffers" })
 
+    cmd("FuzzyCommands", function(o)
+        require("fuzzy.picker").open_for("commands", {
+            initial_query = o.args ~= "" and o.args or nil,
+        })
+    end, { nargs = "*", complete = "command", desc = "Browse and stage commands" })
+
     cmd("FuzzyList", function(o)
         quickfix.select_from_history(o.bang)
     end, { bang = true, desc = "Pick quickfix from history" })

@@ -13,10 +13,11 @@ For workflows using neovim's **quickfix lists**. `fuzzy.nvim` populates the quic
 - **`:FuzzyFiles` - File finding** using `fd` (fallback to `vim.fs.find`)
 - **`:FuzzyBuffers` - Buffer switching** with fuzzy filtering
 - **`:FuzzyHelp` - Help tag browser** with `'helplang'`-aware tag discovery across the full `runtimepath`
+- **`:FuzzyCommands` - Command palette** for built-in, user, plugin commands, and Neovim options
 - **Full control** over search arguments via `ripgrep`/`fd` arguments
 - **Explorer-friendly** execute commands with respect to current Explorer directory
-- **!** Add `!` to any command to open an interactive picker instead of populating the quickfix list
-- **`<M-q>` in any picker** sends the currently visible or marked(using `<Tab>`) results to the quickfix list 
+- **!** Add `!` to quickfix-backed commands to open an interactive picker instead of populating the quickfix list
+- **`<M-q>` in supported pickers** sends the currently visible or marked (using `<Tab>`) results to the quickfix list
 
 ## Requirements
 
@@ -55,9 +56,11 @@ All commands follow the same rule:
 
 Passing arguments to the `!` form pre-fills the picker's search query.
 
+`:FuzzyHelp` and `:FuzzyCommands` always open an interactive picker; they do not have a quickfix-only mode.
+
 ## Picker Keymaps
 
-Inside any interactive picker (`!` form):
+Inside any interactive picker:
 
 | Key | Action |
 |---|---|
@@ -66,9 +69,9 @@ Inside any interactive picker (`!` form):
 | `<C-p>` / `<Up>` | Previous result |
 | `<Tab>` / `<S-Tab>` | Mark / unmark result |
 | `<Esc>` / `<C-c>` | Close picker |
-| `<M-q>` | Send visible results, or marked results, to quickfix and close |
+| `<M-q>` | Send visible results, or marked results, to quickfix and close where supported |
 
-In `:FuzzyBuffers!`, marked entries are already open buffers, so `<CR>` does not perform any extra load for them. `<M-q>` respects the current filter when nothing is marked. The key is configurable via `send_to_qf_key` (see [Configuration](#configuration-optional)).
+In `:FuzzyBuffers!`, marked entries are already open buffers, so `<CR>` does not perform any extra load for them. `<M-q>` respects the current filter when nothing is marked. The key is configurable via `send_to_qf_key` (see [Configuration](#configuration-optional)). `:FuzzyCommands` does not expose `<M-q>` because command entries are actions, not file locations.
 
 ## Configuration (optional)
 
@@ -99,7 +102,7 @@ require('fuzzy').setup({
   Collapse multiple matches on the same file:line into a single entry. Applies to both the quickfix and live-grep picker paths. Set to `false` to show every match.
 
 - **`send_to_qf_key`** (string|false, default: `"<M-q>"`)
-  Insert-mode key used inside any picker to send the currently visible (filtered) results to the quickfix list and close the picker. Set to `false` to disable.
+  Insert-mode key used inside picker types that support quickfix export to send the currently visible (filtered) results to the quickfix list and close the picker. Set to `false` to disable.
 
 - **`window`** (table)
   Picker window geometry. `height`/`width` are fractions of the editor; `row`/`col` are positions within the free space (0=top/left, 1=bottom/right, 0.5=centered). `border` accepts any value `nvim_open_win()` does. `title_pos` is `"left"`, `"center"`, or `"right"`. The picker still shrinks to fit fewer results — `height` is a cap.
@@ -161,6 +164,17 @@ Alias: `:Buffers`
 - `:Buffers!` — opens the interactive buffer picker.
 - `:Buffers! query` — opens the picker pre-filled with the query.
 
+### `:FuzzyCommands [query]`
+
+Browse built-in, user, and plugin commands available in the current Neovim session, plus Neovim options such as `relativenumber`.
+
+Alias: `:Commands`
+
+- `:FuzzyCommands` — opens the command picker.
+- `:FuzzyCommands query` — opens the picker pre-filled with `query`.
+
+Readable command names are shown by default, so punctuation commands like `!`, `#`, `=`, and `~` are hidden. User and plugin commands show descriptions when Neovim exposes them. Option entries show their current value. Press `<CR>` to stage the selected command or option edit in the command line, for example `:FuzzyFiles ` or `:set relativenumber `.
+
 ### `:FuzzyHelp [query]`
 
 Browse and open Neovim/Vim help tags.
@@ -197,6 +211,7 @@ vim.keymap.set('n', '<leader>/', '<CMD>Grep!<CR>', { desc = 'Live grep picker' }
 vim.keymap.set('n', '<leader>ff', '<CMD>Files!<CR>', { desc = 'File picker' })
 vim.keymap.set('n', '<leader>fb', '<CMD>Buffers!<CR>', { desc = 'Buffer picker' })
 vim.keymap.set('n', '<leader>fh', '<CMD>FuzzyHelp<CR>', { desc = 'Help tag picker' })
+vim.keymap.set('n', '<leader>fc', '<CMD>FuzzyCommands<CR>', { desc = 'Command picker' })
 
 -- Help tag for word under cursor
 vim.keymap.set('n', 'K', function()

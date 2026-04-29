@@ -13,10 +13,11 @@ CONTENTS                                                      *fuzzy-contents*
     3.2 FuzzyGrepIn ........................ |:FuzzyGrepIn|
     3.3 FuzzyFiles ......................... |:FuzzyFiles|
     3.4 FuzzyBuffers ....................... |:FuzzyBuffers|
-    3.5 FuzzyList .......................... |:FuzzyList|
-    3.6 FuzzyNext / FuzzyPrev .............. |:FuzzyNext|
-    3.7 Picker keymaps ..................... |fuzzy-picker-keys|
-    3.8 FuzzyHelp .......................... |:FuzzyHelp|
+    3.5 FuzzyCommands ...................... |:FuzzyCommands|
+    3.6 FuzzyList .......................... |:FuzzyList|
+    3.7 FuzzyNext / FuzzyPrev .............. |:FuzzyNext|
+    3.8 Picker keymaps ..................... |fuzzy-picker-keys|
+    3.9 FuzzyHelp .......................... |:FuzzyHelp|
 4. Configuration ........................... |fuzzy-configuration|
 5. Functions ............................... |fuzzy-functions|
     5.1 fuzzy.setup() ...................... |fuzzy.setup()|
@@ -38,6 +39,7 @@ Features:
   • Live grep picker with per-session result cache and match highlighting
   • File finding using fd with gitignore support
   • Buffer switching with fuzzy filtering
+  • Command palette for built-in, user, plugin commands, and Neovim options
   • Quickfix history navigation
   • Send picker results to quickfix with a single key (<M-q> by default)
   • Single-file direct opening
@@ -67,16 +69,19 @@ All commands follow a consistent convention:
 
 Passing arguments to the [!] form pre-fills the picker's search query.
 
-Note: |:FuzzyHelp| always opens the picker regardless of [!].
+Note: |:FuzzyHelp| and |:FuzzyCommands| always open the picker and do not
+have a quickfix-only mode.
 
-Inside any picker, press <M-q> (Alt+q, configurable via |fuzzy-send_to_qf_key|)
-to send the currently visible (filtered) results to the quickfix list and
-close the picker. If you marked entries with <Tab>, the marked entries are
-sent instead. This works for all picker types:
+Inside picker types that support quickfix export, press <M-q> (Alt+q,
+configurable via |fuzzy-send_to_qf_key|) to send the currently visible
+(filtered) results to the quickfix list and close the picker. If you marked
+entries with <Tab>, the marked entries are sent instead:
   • FuzzyGrep!    → populates the FuzzyGrep quickfix list
   • FuzzyFiles!   → populates the FuzzyFiles quickfix list
   • FuzzyBuffers! → populates the FuzzyBuffers quickfix list
   • FuzzyHelp     → populates the FuzzyHelp quickfix list (entries jump to tag location)
+FuzzyCommands stages commands in the command line instead of exporting to
+quickfix.
 
 Use standard quickfix navigation: >
     :cnext      " Next item
@@ -219,7 +224,36 @@ Examples: >
     :FuzzyBuffers! init         " open picker pre-filled with 'init'
 <
 ------------------------------------------------------------------------------
-3.5 FuzzyList                                                    *:FuzzyList*
+3.5 FuzzyCommands                                          *:FuzzyCommands*
+
+Browse built-in, user, and plugin commands available in the current Neovim
+session, plus Neovim options such as 'relativenumber'.
+
+Alias: :Commands
+
+Syntax: >
+    :FuzzyCommands [query]
+<
+Always opens the interactive picker. There is no quickfix-only mode and no
+[!].
+
+Command discovery combines |getcompletion()| for available command names with
+|nvim_get_commands()| metadata for user/plugin command descriptions. Option
+discovery uses |nvim_get_all_options_info()| and current option values.
+Readable alphabetic command names are shown by default; punctuation commands
+such as !, #, =, and ~ are hidden.
+
+Press <CR> to stage the selected command or option edit in the command line.
+Examples include :FuzzyFiles<Space> and :set relativenumber<Space>.
+
+Examples: >
+    :FuzzyCommands              " open command picker
+    :FuzzyCommands edit         " picker pre-filled with 'edit'
+    :FuzzyCommands relativenumber " picker pre-filled with 'relativenumber'
+    :Commands Fuzzy             " alias, pre-filled with 'Fuzzy'
+<
+------------------------------------------------------------------------------
+3.6 FuzzyList                                                    *:FuzzyList*
 
 Browse and select from quickfix list history.
 
@@ -234,7 +268,7 @@ With [!]:    Shows only lists created by fuzzy commands.
 Uses |vim.ui.select()| when available (e.g., with dressing.nvim).
 
 ------------------------------------------------------------------------------
-3.6 FuzzyNext / FuzzyPrev                            *:FuzzyNext* *:FuzzyPrev*
+3.7 FuzzyNext / FuzzyPrev                            *:FuzzyNext* *:FuzzyPrev*
 
 Navigate quickfix entries with cycling.
 
@@ -243,9 +277,9 @@ Syntax: >
     :FuzzyPrev      " Previous entry (cycles to last at beginning)
 <
 ------------------------------------------------------------------------------
-3.7 Picker keymaps                                      *fuzzy-picker-keys*
+3.8 Picker keymaps                                      *fuzzy-picker-keys*
 
-All interactive pickers share the same insert-mode keymaps:
+Interactive pickers share these insert-mode keymaps:
 
     <CR>            Accept selection and open / jump to result. If entries
                     are marked with <Tab>, file-backed pickers load the
@@ -257,15 +291,17 @@ All interactive pickers share the same insert-mode keymaps:
     <Esc> / <C-c>   Close picker without selecting
     <M-q>           Send visible (filtered) results to quickfix and close,
                     or send marked results if any are selected
+                    where supported
                     (key is configurable, see |fuzzy-send_to_qf_key|)
 
 The <M-q> key respects the current filter query: only items visible in the
 picker at that moment are sent to quickfix when nothing is marked. This lets
 you narrow results with a query and then export that subset to the quickfix
 list. In |:FuzzyBuffers!|, pressing <CR> with marked entries performs no extra
-action because those buffers are already open.
+action because those buffers are already open. |:FuzzyCommands| does not expose
+<M-q> because command entries are actions, not file locations.
 ------------------------------------------------------------------------------
-3.8 FuzzyHelp                                                    *:FuzzyHelp*
+3.9 FuzzyHelp                                                    *:FuzzyHelp*
 
 Browse and open Neovim/Vim help tags.
 
@@ -348,8 +384,9 @@ send_to_qf_key~
     Default: "<M-q>"
 
 Key (in insert mode) that sends the currently visible picker results to the
-quickfix list and closes the picker. Works in all interactive pickers
-(:FuzzyGrep!, :FuzzyFiles!, :FuzzyBuffers!, :FuzzyGrepIn!).
+quickfix list and closes the picker. Works in picker types that support
+quickfix export (:FuzzyGrep!, :FuzzyFiles!, :FuzzyBuffers!, :FuzzyGrepIn!,
+:FuzzyHelp).
 
 Set to false to disable the mapping entirely. >
     require('fuzzy').setup({ send_to_qf_key = false })
@@ -444,6 +481,7 @@ Keybinding setup~
     vim.keymap.set('n', '<leader>ff', '<CMD>Files!<CR>', { desc = 'File picker' })
     vim.keymap.set('n', '<leader>fb', '<CMD>Buffers!<CR>', { desc = 'Buffer picker' })
     vim.keymap.set('n', '<leader>fh', '<CMD>FuzzyHelp<CR>', { desc = 'Help tag picker' })
+    vim.keymap.set('n', '<leader>fc', '<CMD>FuzzyCommands<CR>', { desc = 'Command picker' })
 
     -- Quickfix workflow (type a pattern, results stream to QF)
     vim.keymap.set('n', '<leader>fg', ':Grep ', { desc = 'Grep → QF' })

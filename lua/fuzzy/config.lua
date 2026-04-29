@@ -38,6 +38,7 @@ M.commands = {
     GREP_IN = "FuzzyGrepIn",
     FILES = "FuzzyFiles",
     BUFFERS = "FuzzyBuffers",
+    COMMANDS = "FuzzyCommands",
     LIST = "FuzzyList",
 }
 

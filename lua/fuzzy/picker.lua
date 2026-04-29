@@ -853,7 +853,7 @@ local function open_live_grep(opts)
     })
 end
 
----@param kind "files"|"buffers"|"grep"|"grep_in"|"helptags"
+---@param kind "files"|"buffers"|"grep"|"grep_in"|"helptags"|"commands"
 ---@param opts? { bang?: boolean, initial_query?: string }
 local function open_for(kind, opts)
     opts = opts or {}
@@ -973,6 +973,24 @@ local function open_for(kind, opts)
                 local qf_items = helptags.to_qf_items(entries)
                 quickfix.update(qf_items, { title = "FuzzyHelp", command = "FuzzyHelp" })
                 quickfix.open_if_results(#qf_items)
+            end,
+        })
+    elseif kind == "commands" then
+        local commands = require("fuzzy.commands.commands")
+        local entries = commands.collect()
+        if #entries == 0 then
+            vim.notify("FuzzyCommands: no commands found.", vim.log.levels.INFO)
+            return
+        end
+
+        local display_items, display_to_cmdline = commands.to_display_items(entries)
+
+        return open({
+            items = display_items,
+            prompt = "Commands",
+            initial_query = opts.initial_query,
+            on_select = function(display)
+                commands.prefill_cmdline(display_to_cmdline[display])
             end,
         })
     end
