@@ -960,8 +960,8 @@ local function open_live_grep(opts)
     })
 end
 
----@param kind "files"|"buffers"|"grep"|"grep_in"|"helptags"|"commands"
----@param opts? { bang?: boolean, initial_query?: string, initial_flags?: string[] }
+---@param kind "files"|"buffers"|"grep"|"grep_in"|"helptags"|"commands"|"qflist"
+---@param opts? { bang?: boolean, initial_query?: string, initial_flags?: string[], fuzzy_only?: boolean }
 local function open_for(kind, opts)
     opts = opts or {}
     if kind == "files" then
@@ -1106,6 +1106,29 @@ local function open_for(kind, opts)
             highlight_paths = false,
             on_select = function(entry)
                 commands.prefill_cmdline(entry and entry.cmdline or nil)
+            end,
+        })
+    elseif kind == "qflist" then
+        local lists = quickfix.collect_history(opts.fuzzy_only)
+        if #lists == 0 then
+            vim.notify("No quickfix history.", vim.log.levels.INFO)
+            return
+        end
+
+        return open({
+            items = lists,
+            prompt = "Quickfix",
+            initial_query = opts.initial_query,
+            highlight_paths = false,
+            format_item = function(item)
+                return ("%s (%d items)"):format(item.title, item.size)
+            end,
+            filter_text = function(item)
+                return item.title
+            end,
+            on_select = function(item)
+                quickfix.activate(item.nr)
+                vim.cmd.copen()
             end,
         })
     end

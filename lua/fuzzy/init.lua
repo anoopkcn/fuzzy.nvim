@@ -80,7 +80,7 @@ function M.setup(opts)
     end, { nargs = "*", complete = "command", desc = "Browse and stage commands" })
 
     cmd("FuzzyList", function(o)
-        quickfix.select_from_history(o.bang)
+        require("fuzzy.picker").open_for("qflist", { fuzzy_only = o.bang })
     end, { bang = true, desc = "Pick quickfix from history" })
 
     vim.api.nvim_create_user_command("FuzzyNext", quickfix.cnext_cycle, { desc = "Next quickfix entry (cycles)" })

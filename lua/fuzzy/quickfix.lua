@@ -44,6 +44,8 @@ local function activate(nr)
     elseif delta < 0 then pcall(vim.cmd, "silent! colder " .. -delta) end
 end
 
+M.activate = activate
+
 ---@param items table[] Quickfix items
 ---@param opts? { title?: string, command?: string }
 ---@return integer count Number of items
@@ -69,9 +71,10 @@ function M.open_if_results(count, empty_msg)
     end
 end
 
---- Show quickfix history selector
----@param fuzzy_only? boolean Only show fuzzy-created lists
-function M.select_from_history(fuzzy_only)
+--- Collect quickfix history entries
+---@param fuzzy_only? boolean Only include fuzzy-created lists
+---@return table[] lists List of { nr, title, size }
+function M.collect_history(fuzzy_only)
     local max = (get_info({ nr = "$" }) or {}).nr or 0
     local lists = {}
     for nr = max, 1, -1 do
@@ -82,18 +85,7 @@ function M.select_from_history(fuzzy_only)
             end
         end
     end
-
-    if #lists == 0 then
-        vim.notify("No quickfix history.", vim.log.levels.INFO)
-        return
-    end
-
-    vim.ui.select(lists, {
-        prompt = "Select Quickfix",
-        format_item = function(item) return ("%s (%d items)"):format(item.title, item.size) end,
-    }, function(choice)
-        if choice then activate(choice.nr); vim.cmd.copen() end
-    end)
+    return lists
 end
 
 --- Create a streaming updater that batches items and flushes to quickfix on a timer
