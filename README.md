@@ -14,6 +14,7 @@ For workflows using neovim's **quickfix lists**. `fuzzy.nvim` populates the quic
 - **`:FuzzyBuffers` - Buffer switching** with fuzzy filtering
 - **`:FuzzyHelp` - Help tag browser** with `'helplang'`-aware tag discovery across the full `runtimepath`
 - **`:FuzzyCommands` - Command palette** for built-in, user, plugin commands, and Neovim options
+- **`:FuzzyGitBranches` - Git branch browser/switcher**
 - **Full control** over search arguments via `ripgrep`/`fd` arguments
 - **Explorer-friendly** execute commands with respect to current Explorer directory
 - **!** Add `!` to quickfix-backed commands to open an interactive picker instead of populating the quickfix list
@@ -57,7 +58,7 @@ All commands follow the same rule:
 
 Passing arguments to the `!` form pre-fills the picker's search query. For live grep pickers, ripgrep options are also preserved and can be edited in-picker.
 
-`:FuzzyHelp` and `:FuzzyCommands` always open an interactive picker; they do not have a quickfix-only mode.
+`:FuzzyHelp`, `:FuzzyCommands`, and `:FuzzyGitBranches` always open an interactive picker; they do not have a quickfix-only mode.
 
 ## Picker Keymaps
 
@@ -189,6 +190,17 @@ Alias: `:Commands`
 
 Readable command names are shown by default, so punctuation commands like `!`, `#`, `=`, and `~` are hidden. Entries render as aligned `CMD`/`OPT` rows, with option aliases in their own column and long descriptions or values trimmed to the picker width. User and plugin commands show descriptions when Neovim exposes them, and option entries stay searchable by both full name and shortname. Press `<CR>` to stage the selected command or option edit in the command line, for example `:FuzzyFiles ` or `:set relativenumber `.
 
+### `:FuzzyGitBranches [query]`
+
+Browse and switch Git branches.
+
+- `:FuzzyGitBranches` — open the branch picker.
+- `:FuzzyGitBranches feat` — open the branch picker pre-filtered with `feat`.
+
+The picker lists local and remote branches, marks the current branch with `*`, and switches on `<CR>` (`git switch <branch>` for local branches, `git switch --track <remote>` for remote branches). No `:GitBranches` alias is provided.
+
+More Git pickers may be added later using the same source architecture.
+
 ### `:FuzzyHelp [query]`
 
 Browse and open Neovim/Vim help tags.
@@ -226,6 +238,7 @@ vim.keymap.set('n', '<leader>ff', '<CMD>Files!<CR>', { desc = 'File picker' })
 vim.keymap.set('n', '<leader>fb', '<CMD>Buffers!<CR>', { desc = 'Buffer picker' })
 vim.keymap.set('n', '<leader>fh', '<CMD>FuzzyHelp<CR>', { desc = 'Help tag picker' })
 vim.keymap.set('n', '<leader>fc', '<CMD>FuzzyCommands<CR>', { desc = 'Command picker' })
+vim.keymap.set('n', '<leader>gb', '<CMD>FuzzyGitBranches<CR>', { desc = 'Git branches' })
 
 -- Help tag for word under cursor
 vim.keymap.set('n', 'K', function()

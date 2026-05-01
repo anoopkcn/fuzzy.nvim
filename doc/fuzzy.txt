@@ -18,6 +18,7 @@ CONTENTS                                                      *fuzzy-contents*
     3.7 FuzzyNext / FuzzyPrev .............. |:FuzzyNext|
     3.8 Picker keymaps ..................... |fuzzy-picker-keys|
     3.9 FuzzyHelp .......................... |:FuzzyHelp|
+    3.10 FuzzyGitBranches .................. |:FuzzyGitBranches|
 4. Configuration ........................... |fuzzy-configuration|
 5. Functions ............................... |fuzzy-functions|
     5.1 fuzzy.setup() ...................... |fuzzy.setup()|
@@ -40,6 +41,7 @@ Features:
   • File finding using fd with gitignore support
   • Buffer switching with fuzzy filtering
   • Command palette for built-in, user, plugin commands, and Neovim options
+  • Git branch browser/switcher
   • Quickfix history navigation
   • Send picker results to quickfix with a single key (<M-q> by default)
   • Single-file direct opening
@@ -53,6 +55,7 @@ Features:
 Optional external programs:
   • ripgrep (rg) - for :FuzzyGrep (fallback: grep -R)
   • fd - for :FuzzyFiles (fallback: vim.fs.find)
+  • git - for :FuzzyGitBranches
 
 Install via your package manager:
     macOS:    brew install ripgrep fd
@@ -71,8 +74,8 @@ Passing arguments to the [!] form pre-fills the picker's search query. In the
 live grep pickers, ripgrep options are also preserved and can be edited inside
 the picker.
 
-Note: |:FuzzyHelp| and |:FuzzyCommands| always open the picker and do not
-have a quickfix-only mode.
+Note: |:FuzzyHelp|, |:FuzzyCommands|, and |:FuzzyGitBranches| always open the
+picker and do not have a quickfix-only mode.
 
 Inside picker types that support quickfix export, press <M-q> (Alt+q,
 configurable via |fuzzy-send_to_qf_key|) to send the currently visible
@@ -83,7 +86,8 @@ entries with <Tab>, the marked entries are sent instead:
   • FuzzyBuffers! → populates the FuzzyBuffers quickfix list
   • FuzzyHelp     → populates the FuzzyHelp quickfix list (entries jump to tag location)
 FuzzyCommands stages commands in the command line instead of exporting to
-quickfix.
+quickfix. FuzzyGitBranches performs Git branch switch actions and does not
+export to quickfix.
 
 In :FuzzyGrep! and :FuzzyGrepIn!, press <M-r> (Alt+r, configurable via
 |fuzzy-edit_grep_flags_key|) to edit ripgrep backend flags without leaving the
@@ -353,6 +357,32 @@ Examples: >
     :FuzzyHelp                   " open help tag picker
     :FuzzyHelp autocmd           " open picker pre-filled with 'autocmd'
     :FuzzyHelp lsp.txt           " filter to tags from lsp.txt
+<
+------------------------------------------------------------------------------
+3.10 FuzzyGitBranches                                      *:FuzzyGitBranches*
+
+Browse and switch Git branches.
+
+Syntax: >
+    :FuzzyGitBranches [query]
+<
+Always opens the interactive picker. There is no quickfix-only mode because
+branch entries are actions, not file locations.
+
+The picker lists local and remote branches, marks the current branch with *,
+and shows upstream information for local branches when available. Filtering
+matches branch names, kind, upstream, and SHA.
+
+Press <CR> to switch to the selected branch:
+  • current branch: no-op notification
+  • local branch:   git switch <branch>
+  • remote branch:  git switch --track <remote>
+
+No :GitBranches alias is provided.
+
+Examples: >
+    :FuzzyGitBranches              " open branch picker
+    :FuzzyGitBranches feat         " picker pre-filled with 'feat'
 <
 ==============================================================================
 4. CONFIGURATION                                        *fuzzy-configuration*

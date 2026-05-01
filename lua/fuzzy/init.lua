@@ -11,6 +11,18 @@ function M.setup(opts)
         vim.api.nvim_create_user_command(name:gsub("^Fuzzy", ""), fn, vim.tbl_extend("force", copts, { desc = copts.desc .. " (alias)" }))
     end
 
+    local function git_cmd(name, kind, desc)
+        vim.api.nvim_create_user_command("FuzzyGit" .. name, function(o)
+            require("fuzzy.picker").open_for(kind, {
+                initial_query = o.args ~= "" and o.args or nil,
+            })
+        end, {
+            nargs = "*",
+            complete = nil,
+            desc = desc,
+        })
+    end
+
     cmd("FuzzyGrepIn", function(o)
         local parse = require("fuzzy.parse")
         local dir_raw, rest_raw = parse.split_first(o.args)
@@ -82,6 +94,8 @@ function M.setup(opts)
     cmd("FuzzyList", function(o)
         require("fuzzy.picker").open_for("qflist", { fuzzy_only = o.bang })
     end, { bang = true, desc = "Pick quickfix from history" })
+
+    git_cmd("Branches", "git_branches", "Browse and switch Git branches")
 
     vim.api.nvim_create_user_command("FuzzyNext", quickfix.cnext_cycle, { desc = "Next quickfix entry (cycles)" })
     vim.api.nvim_create_user_command("FuzzyPrev", quickfix.cprev_cycle, { desc = "Previous quickfix entry (cycles)" })

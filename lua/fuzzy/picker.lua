@@ -7,6 +7,15 @@ local util = require("fuzzy.util")
 
 local M = {}
 
+local picker_sources = {
+    git_branches = "fuzzy.commands.git_branches",
+    -- Future:
+    -- git_worktrees = "fuzzy.commands.git_worktrees",
+    -- git_commits = "fuzzy.commands.git_commits",
+    -- git_status = "fuzzy.commands.git_status",
+    -- git_stashes = "fuzzy.commands.git_stashes",
+}
+
 local ns = vim.api.nvim_create_namespace("fuzzy.picker")
 
 local HL = {
@@ -960,10 +969,34 @@ local function open_live_grep(opts)
     })
 end
 
----@param kind "files"|"buffers"|"grep"|"grep_in"|"helptags"|"commands"|"qflist"
+---@param kind "files"|"buffers"|"grep"|"grep_in"|"helptags"|"commands"|"qflist"|"git_branches"|"git_worktrees"|"git_commits"|"git_status"|"git_stashes"
 ---@param opts? { bang?: boolean, initial_query?: string, initial_flags?: string[], fuzzy_only?: boolean }
 local function open_for(kind, opts)
     opts = opts or {}
+    local source_name = picker_sources[kind]
+    if source_name then
+        local source = require(source_name)
+        source.collect(function(items)
+            if not items or #items == 0 then
+                vim.notify((source.empty_message or ((source.prompt or kind) .. ": no items found.")), vim.log.levels.INFO)
+                return
+            end
+
+            open({
+                items = items,
+                prompt = source.prompt or kind,
+                initial_query = opts.initial_query,
+                format_item = source.format_entry,
+                filter_text = source.filter_text,
+                highlight_paths = source.highlight_paths == true,
+                on_select = function(entry)
+                    source.select(entry)
+                end,
+            })
+        end)
+        return
+    end
+
     if kind == "files" then
         local complete = require("fuzzy.complete")
         local items = complete.get_files() or {}
