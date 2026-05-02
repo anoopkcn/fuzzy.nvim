@@ -106,8 +106,6 @@ Use standard quickfix navigation: >
 
 Search for patterns in files using ripgrep.
 
-Alias: :Grep
-
 Syntax: >
     :FuzzyGrep[!] [pattern] [rg options]
 <
@@ -159,8 +157,6 @@ query and the active backend flags.
 
 Grep inside a specific directory instead of the current working directory.
 
-Alias: :GrepIn
-
 Syntax: >
     :FuzzyGrepIn[!] <dir> [pattern] [rg options]
 <
@@ -185,8 +181,6 @@ Examples: >
 3.3 FuzzyFiles                                                  *:FuzzyFiles*
 
 Find files using fd.
-
-Alias: :Files
 
 Syntax: >
     :FuzzyFiles[!] [fd arguments]
@@ -227,8 +221,6 @@ inside the picker; it filters the warmed file cache by query only.
 
 List and filter open buffers.
 
-Alias: :Buffers
-
 Syntax: >
     :FuzzyBuffers[!] [pattern]
 <
@@ -250,8 +242,6 @@ Examples: >
 
 Browse built-in, user, and plugin commands available in the current Neovim
 session, plus Neovim options such as 'relativenumber'.
-
-Alias: :Commands
 
 Syntax: >
     :FuzzyCommands [query]
@@ -276,14 +266,12 @@ Examples: >
     :FuzzyCommands              " open command picker
     :FuzzyCommands edit         " picker pre-filled with 'edit'
     :FuzzyCommands relativenumber " picker pre-filled with 'relativenumber'
-    :Commands Fuzzy             " alias, pre-filled with 'Fuzzy'
+    :FuzzyCommands Fuzzy             " pre-filled with 'Fuzzy'
 <
 ------------------------------------------------------------------------------
 3.6 FuzzyList                                                    *:FuzzyList*
 
 Browse and select from quickfix list history.
-
-Alias: :List
 
 Syntax: >
     :FuzzyList[!]
@@ -380,8 +368,6 @@ Press <CR> to switch to the selected branch:
   • local branch:   git switch <branch>
   • remote branch:  git switch --track <remote>
 
-No :GitBranches alias is provided.
-
 Examples: >
     :FuzzyGitBranches              " open branch picker
     :FuzzyGitBranches feat         " picker pre-filled with 'feat'
@@ -403,8 +389,6 @@ paths, branch names, HEAD SHAs, and state labels.
 
 Press <CR> to switch to the selected worktree by changing Neovim's current
 directory to that worktree path.
-
-No :GitWorktrees alias is provided.
 
 Examples: >
     :FuzzyGitWorktrees              " open worktree picker
@@ -574,14 +558,14 @@ Keybinding setup~
     fuzzy.setup()
 
     -- Picker workflow (interactive)
-    vim.keymap.set('n', '<leader>/', '<CMD>Grep!<CR>', { desc = 'Live grep picker' })
-    vim.keymap.set('n', '<leader>ff', '<CMD>Files!<CR>', { desc = 'File picker' })
-    vim.keymap.set('n', '<leader>fb', '<CMD>Buffers!<CR>', { desc = 'Buffer picker' })
+    vim.keymap.set('n', '<leader>/', '<CMD>FuzzyGrep!<CR>', { desc = 'Live grep picker' })
+    vim.keymap.set('n', '<leader>ff', '<CMD>FuzzyFiles!<CR>', { desc = 'File picker' })
+    vim.keymap.set('n', '<leader>fb', '<CMD>FuzzyBuffers!<CR>', { desc = 'Buffer picker' })
     vim.keymap.set('n', '<leader>fh', '<CMD>FuzzyHelp<CR>', { desc = 'Help tag picker' })
     vim.keymap.set('n', '<leader>fc', '<CMD>FuzzyCommands<CR>', { desc = 'Command picker' })
 
     -- Quickfix workflow (type a pattern, results stream to QF)
-    vim.keymap.set('n', '<leader>fg', ':Grep ', { desc = 'Grep → QF' })
+    vim.keymap.set('n', '<leader>fg', ':FuzzyGrep ', { desc = 'Grep → QF' })
 
     -- Quickfix history
     vim.keymap.set('n', '<leader>fl', '<CMD>FuzzyList<CR>', { desc = 'History' })
@@ -615,7 +599,7 @@ Search help documentation~
     end, { desc = 'Help for word' })
 
     -- Live grep picker scoped to vim runtime help docs
-    vim.keymap.set('n', '<leader>fH', '<CMD>GrepIn! $VIMRUNTIME/doc<CR>', { desc = 'Grep help docs' })
+    vim.keymap.set('n', '<leader>fH', '<CMD>FuzzyGrepIn! $VIMRUNTIME/doc<CR>', { desc = 'Grep help docs' })
 <
 ==============================================================================
 vim:tw=78:ts=8:ft=help:norl:

@@ -8,7 +8,6 @@ function M.setup(opts)
 
     local function cmd(name, fn, copts)
         vim.api.nvim_create_user_command(name, fn, copts)
-        vim.api.nvim_create_user_command(name:gsub("^Fuzzy", ""), fn, vim.tbl_extend("force", copts, { desc = copts.desc .. " (alias)" }))
     end
 
     local function git_cmd(name, kind, desc)

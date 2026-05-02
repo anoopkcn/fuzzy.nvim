@@ -123,13 +123,11 @@ require('fuzzy').setup({
 
 Search for patterns in files using ripgrep.
 
-Alias: `:Grep`
-
-- `:Grep pattern` — streams results directly to the quickfix list.
-- `:Grep!` — opens a live grep picker that streams matches as you type.
-- `:Grep! pattern` — opens the picker pre-filled with the pattern.
-- `:Grep! pattern [rg options]` — opens the picker with the pattern and initial ripgrep flags.
-- `:Grep` (no args, no `!`) — shows a notification asking for a pattern.
+- `:FuzzyGrep pattern` — streams results directly to the quickfix list.
+- `:FuzzyGrep!` — opens a live grep picker that streams matches as you type.
+- `:FuzzyGrep! pattern` — opens the picker pre-filled with the pattern.
+- `:FuzzyGrep! pattern [rg options]` — opens the picker with the pattern and initial ripgrep flags.
+- `:FuzzyGrep` (no args, no `!`) — shows a notification asking for a pattern.
 
 The live grep picker caches results per session:
 - Refining a query (e.g. `foo` → `foobar`) instantly filters cached results while grep runs in the background for completeness.
@@ -142,30 +140,26 @@ Inside the picker, press `<M-r>` to edit ripgrep backend flags without losing th
 
 Grep inside a specific directory instead of the current working directory.
 
-Alias: `:GrepIn`
-
-- `:GrepIn dir pattern` — streams results for `pattern` inside `dir` to the quickfix list.
-- `:GrepIn! dir` — opens a live grep picker scoped to `dir`.
-- `:GrepIn! dir pattern` — opens the picker pre-filled with `pattern`, scoped to `dir`.
-- `:GrepIn! dir pattern [rg options]` — opens the picker with the pattern and initial ripgrep flags, scoped to `dir`.
+- `:FuzzyGrepIn dir pattern` — streams results for `pattern` inside `dir` to the quickfix list.
+- `:FuzzyGrepIn! dir` — opens a live grep picker scoped to `dir`.
+- `:FuzzyGrepIn! dir pattern` — opens the picker pre-filled with `pattern`, scoped to `dir`.
+- `:FuzzyGrepIn! dir pattern [rg options]` — opens the picker with the pattern and initial ripgrep flags, scoped to `dir`.
 
 `dir` is expanded (supports `~` and `$ENV` variables) and must be a valid directory.
 
 Examples:
 ```
-:GrepIn! $VIMRUNTIME/doc          " live grep vim help docs
-:GrepIn! ~/.config/nvim TODO      " search for TODO in nvim config
-:GrepIn /path/to/project error    " stream results to quickfix
+:FuzzyGrepIn! $VIMRUNTIME/doc          " live grep vim help docs
+:FuzzyGrepIn! ~/.config/nvim TODO      " search for TODO in nvim config
+:FuzzyGrepIn /path/to/project error    " stream results to quickfix
 ```
 
 ### `:FuzzyFiles[!] [fd arguments]`
 
-Alias: `:Files`
-
-- `:Files` — runs fd and streams all results to the quickfix list.
-- `:Files path` — streams fd results filtered by path/pattern to quickfix.
-- `:Files!` — opens the file picker (from cache).
-- `:Files! query` — opens the picker pre-filled with the query.
+- `:FuzzyFiles` — runs fd and streams all results to the quickfix list.
+- `:FuzzyFiles path` — streams fd results filtered by path/pattern to quickfix.
+- `:FuzzyFiles!` — opens the file picker (from cache).
+- `:FuzzyFiles! query` — opens the picker pre-filled with the query.
 
 Unlike the live grep pickers, `:FuzzyFiles!` does not edit backend `fd` flags from inside the picker; it still filters the warmed file cache by query only.
 
@@ -173,18 +167,14 @@ Unlike the live grep pickers, `:FuzzyFiles!` does not edit backend `fd` flags fr
 
 List and filter open buffers.
 
-Alias: `:Buffers`
-
-- `:Buffers` — all open buffers in the quickfix list.
-- `:Buffers pattern` — quickfix list filtered by pattern.
-- `:Buffers!` — opens the interactive buffer picker.
-- `:Buffers! query` — opens the picker pre-filled with the query.
+- `:FuzzyBuffers` — all open buffers in the quickfix list.
+- `:FuzzyBuffers pattern` — quickfix list filtered by pattern.
+- `:FuzzyBuffers!` — opens the interactive buffer picker.
+- `:FuzzyBuffers! query` — opens the picker pre-filled with the query.
 
 ### `:FuzzyCommands [query]`
 
 Browse built-in, user, and plugin commands available in the current Neovim session, plus Neovim options such as `relativenumber`.
-
-Alias: `:Commands`
 
 - `:FuzzyCommands` — opens the command picker.
 - `:FuzzyCommands query` — opens the picker pre-filled with `query`.
@@ -198,7 +188,7 @@ Browse and switch Git branches.
 - `:FuzzyGitBranches` — open the branch picker.
 - `:FuzzyGitBranches feat` — open the branch picker pre-filtered with `feat`.
 
-The picker lists local and remote branches, marks the current branch with `*`, and switches on `<CR>` (`git switch <branch>` for local branches, `git switch --track <remote>` for remote branches). No `:GitBranches` alias is provided.
+The picker lists local and remote branches, marks the current branch with `*`, and switches on `<CR>` (`git switch <branch>` for local branches, `git switch --track <remote>` for remote branches).
 
 ### `:FuzzyGitWorktrees [query]`
 
@@ -207,7 +197,7 @@ Browse and switch Git worktrees.
 - `:FuzzyGitWorktrees` — open the worktree picker.
 - `:FuzzyGitWorktrees feature` — open the worktree picker pre-filtered with `feature`.
 
-The picker lists `git worktree list --porcelain`, marks the current worktree with `*`, and switches on `<CR>` by changing Neovim's current directory to the selected worktree path. No `:GitWorktrees` alias is provided.
+The picker lists `git worktree list --porcelain`, marks the current worktree with `*`, and switches on `<CR>` by changing Neovim's current directory to the selected worktree path.
 
 More Git pickers may be added later using the same source architecture.
 
@@ -226,8 +216,6 @@ Each entry shows `tagname  filename.txt`; filtering matches against both, so you
 
 Browse and select from quickfix list history.
 
-Alias: `:List`
-
 Default behavior shows all quickfix lists. Add `!` to show only lists created by fuzzy commands.
 
 ### `:FuzzyNext` / `:FuzzyPrev`
@@ -243,9 +231,9 @@ fuzzy.setup({
 })
 
 -- Picker workflow (interactive)
-vim.keymap.set('n', '<leader>/', '<CMD>Grep!<CR>', { desc = 'Live grep picker' })
-vim.keymap.set('n', '<leader>ff', '<CMD>Files!<CR>', { desc = 'File picker' })
-vim.keymap.set('n', '<leader>fb', '<CMD>Buffers!<CR>', { desc = 'Buffer picker' })
+vim.keymap.set('n', '<leader>/', '<CMD>FuzzyGrep!<CR>', { desc = 'Live grep picker' })
+vim.keymap.set('n', '<leader>ff', '<CMD>FuzzyFiles!<CR>', { desc = 'File picker' })
+vim.keymap.set('n', '<leader>fb', '<CMD>FuzzyBuffers!<CR>', { desc = 'Buffer picker' })
 vim.keymap.set('n', '<leader>fh', '<CMD>FuzzyHelp<CR>', { desc = 'Help tag picker' })
 vim.keymap.set('n', '<leader>fc', '<CMD>FuzzyCommands<CR>', { desc = 'Command picker' })
 vim.keymap.set('n', '<leader>gb', '<CMD>FuzzyGitBranches<CR>', { desc = 'Git branches' })
@@ -257,7 +245,7 @@ vim.keymap.set('n', 'K', function()
 end, { desc = 'Help for word' })
 
 -- Quickfix workflow (type a pattern, results stream to QF)
-vim.keymap.set('n', '<leader>fg', ':Grep ', { desc = 'Grep → QF' })
+vim.keymap.set('n', '<leader>fg', ':FuzzyGrep ', { desc = 'Grep → QF' })
 
 -- Quickfix history
 vim.keymap.set('n', '<leader>fl', '<CMD>FuzzyList<CR>', { desc = 'Quickfix history' })
@@ -275,7 +263,7 @@ vim.keymap.set('n', '<leader>fW', function()
 end, { desc = 'Grep WORD (literal)' })
 
 -- Live grep inside vim help docs
-vim.keymap.set('n', '<leader>fH', '<CMD>GrepIn! $VIMRUNTIME/doc<CR>', { desc = 'Search help docs' })
+vim.keymap.set('n', '<leader>fH', '<CMD>FuzzyGrepIn! $VIMRUNTIME/doc<CR>', { desc = 'Search help docs' })
 ```
 
 ## API
