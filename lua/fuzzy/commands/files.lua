@@ -33,6 +33,21 @@ local function run(raw_args, bang)
     local batch_scheduled = false
     local first_file = nil
 
+    local function flush_line_batch()
+        local batch = line_batch
+        line_batch = {}
+        batch_scheduled = false
+        if #batch == 0 then return end
+
+        local items = {}
+        for i = 1, #batch do
+            local filepath = util.with_root(batch[i], netrw_dir)
+            if not first_file then first_file = filepath end
+            items[i] = { filename = filepath, lnum = 1, col = 1, text = batch[i] }
+        end
+        updater.push(items)
+    end
+
     runner.fd_stream(raw_args, {
         cwd = netrw_dir,
         on_line = function(line)
@@ -41,21 +56,14 @@ local function run(raw_args, bang)
             end
             if not batch_scheduled and #line_batch > 0 then
                 batch_scheduled = true
-                vim.schedule(function()
-                    local batch = line_batch
-                    line_batch = {}
-                    batch_scheduled = false
-                    local items = {}
-                    for i = 1, #batch do
-                        local filepath = util.with_root(batch[i], netrw_dir)
-                        if not first_file then first_file = filepath end
-                        items[i] = { filename = filepath, lnum = 1, col = 1, text = batch[i] }
-                    end
-                    updater.push(items)
-                end)
+                vim.schedule(flush_line_batch)
             end
         end,
         on_exit = function(code, err_lines)
+            -- The final stdout chunk is delivered immediately before on_exit, but
+            -- its scheduled batch push may not have run yet. Drain it here so the
+            -- first picker run includes files that appear in the last fd chunk.
+            flush_line_batch()
             if code ~= 0 then
                 updater.stop()
                 local msg = (err_lines and #err_lines > 0) and table.concat(err_lines, "\n") or "FuzzyFiles: failed."
