@@ -15,6 +15,7 @@ For workflows using neovim's **quickfix lists**. `fuzzy.nvim` populates the quic
 - **`:FuzzyHelp` - Help tag browser** with `'helplang'`-aware tag discovery across the full `runtimepath`
 - **`:FuzzyCommands` - Command palette** for built-in, user, plugin commands, and Neovim options
 - **`:FuzzyGitBranches` - Git branch browser/switcher**
+- **`:FuzzyGitWorktrees` - Git worktree browser/switcher**
 - **Full control** over search arguments via `ripgrep`/`fd` arguments
 - **Explorer-friendly** execute commands with respect to current Explorer directory
 - **!** Add `!` to quickfix-backed commands to open an interactive picker instead of populating the quickfix list
@@ -58,7 +59,7 @@ All commands follow the same rule:
 
 Passing arguments to the `!` form pre-fills the picker's search query. For live grep pickers, ripgrep options are also preserved and can be edited in-picker.
 
-`:FuzzyHelp`, `:FuzzyCommands`, and `:FuzzyGitBranches` always open an interactive picker; they do not have a quickfix-only mode.
+`:FuzzyHelp`, `:FuzzyCommands`, `:FuzzyGitBranches`, and `:FuzzyGitWorktrees` always open an interactive picker; they do not have a quickfix-only mode.
 
 ## Picker Keymaps
 
@@ -199,6 +200,15 @@ Browse and switch Git branches.
 
 The picker lists local and remote branches, marks the current branch with `*`, and switches on `<CR>` (`git switch <branch>` for local branches, `git switch --track <remote>` for remote branches). No `:GitBranches` alias is provided.
 
+### `:FuzzyGitWorktrees [query]`
+
+Browse and switch Git worktrees.
+
+- `:FuzzyGitWorktrees` — open the worktree picker.
+- `:FuzzyGitWorktrees feature` — open the worktree picker pre-filtered with `feature`.
+
+The picker lists `git worktree list --porcelain`, marks the current worktree with `*`, and switches on `<CR>` by changing Neovim's current directory to the selected worktree path. No `:GitWorktrees` alias is provided.
+
 More Git pickers may be added later using the same source architecture.
 
 ### `:FuzzyHelp [query]`
@@ -239,6 +249,7 @@ vim.keymap.set('n', '<leader>fb', '<CMD>Buffers!<CR>', { desc = 'Buffer picker' 
 vim.keymap.set('n', '<leader>fh', '<CMD>FuzzyHelp<CR>', { desc = 'Help tag picker' })
 vim.keymap.set('n', '<leader>fc', '<CMD>FuzzyCommands<CR>', { desc = 'Command picker' })
 vim.keymap.set('n', '<leader>gb', '<CMD>FuzzyGitBranches<CR>', { desc = 'Git branches' })
+vim.keymap.set('n', '<leader>gw', '<CMD>FuzzyGitWorktrees<CR>', { desc = 'Git worktrees' })
 
 -- Help tag for word under cursor
 vim.keymap.set('n', 'K', function()

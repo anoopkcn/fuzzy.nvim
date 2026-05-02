@@ -9,8 +9,8 @@ local M = {}
 
 local picker_sources = {
     git_branches = "fuzzy.commands.git_branches",
+    git_worktrees = "fuzzy.commands.git_worktrees",
     -- Future:
-    -- git_worktrees = "fuzzy.commands.git_worktrees",
     -- git_commits = "fuzzy.commands.git_commits",
     -- git_status = "fuzzy.commands.git_status",
     -- git_stashes = "fuzzy.commands.git_stashes",

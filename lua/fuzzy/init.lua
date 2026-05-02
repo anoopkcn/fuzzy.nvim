@@ -96,6 +96,7 @@ function M.setup(opts)
     end, { bang = true, desc = "Pick quickfix from history" })
 
     git_cmd("Branches", "git_branches", "Browse and switch Git branches")
+    git_cmd("Worktrees", "git_worktrees", "Browse and switch Git worktrees")
 
     vim.api.nvim_create_user_command("FuzzyNext", quickfix.cnext_cycle, { desc = "Next quickfix entry (cycles)" })
     vim.api.nvim_create_user_command("FuzzyPrev", quickfix.cprev_cycle, { desc = "Previous quickfix entry (cycles)" })
