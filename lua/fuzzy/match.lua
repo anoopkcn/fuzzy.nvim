@@ -58,6 +58,37 @@ local function fill_bytes(scratch, s, len)
     return len
 end
 
+--- Quick "is needle a subsequence of haystack" check operating directly on
+--- strings, no array fills required. Used as a cheap reject test before
+--- committing to the DP scoring work.
+local function has_match_str(needle_lower, haystack_lower)
+    local nlen = #needle_lower
+    local hlen = #haystack_lower
+    if nlen == 0 then return false end
+    if nlen > hlen then return false end
+    local j = 1
+    local nc = string_byte(needle_lower, 1)
+    for i = 1, hlen do
+        if string_byte(haystack_lower, i) == nc then
+            j = j + 1
+            if j > nlen then return true end
+            nc = string_byte(needle_lower, j)
+        end
+    end
+    return false
+end
+
+--- True when the string contains no ASCII uppercase letter, so string.lower()
+--- would be a no-op. Lets us skip the lowercase allocation for the common
+--- case (most file paths and lowercase identifiers).
+local function is_already_lower(s)
+    for i = 1, #s do
+        local b = string_byte(s, i)
+        if b >= BYTE_A and b <= BYTE_Z then return false end
+    end
+    return true
+end
+
 local function is_lower(byte)
     return byte >= BYTE_a and byte <= BYTE_z
 end
@@ -91,72 +122,9 @@ local function compute_bonus(haystack_bytes, i)
     return 0
 end
 
---- Check if needle matches haystack (case-insensitive)
----@param needle_lower_bytes table pre-lowercased needle bytes
----@param needle_len number
----@param haystack_lower_bytes table pre-lowercased haystack bytes
----@param haystack_len number
----@return boolean matches
-local function has_match(needle_lower_bytes, needle_len, haystack_lower_bytes, haystack_len)
-    local j = 1
-    for i = 1, haystack_len do
-        if haystack_lower_bytes[i] == needle_lower_bytes[j] then
-            j = j + 1
-            if j > needle_len then
-                return true
-            end
-        end
-    end
-
-    return false
-end
-
---- Compute fuzzy match score
---- Returns SCORE_MIN if no match, otherwise a score (higher is better)
----@param needle string the search pattern
----@param haystack string the string to search in
----@return number score
----@return table|nil positions matched positions (1-indexed)
-function M.score(needle, haystack)
-    local n = #needle
-    local m = #haystack
-
-    if n == 0 then
-        return SCORE_MIN, nil
-    end
-
-    if n == m then
-        -- Exact match
-        if string_lower(needle) == string_lower(haystack) then
-            return SCORE_MAX, nil
-        end
-    end
-
-    if n > m then
-        return SCORE_MIN, nil
-    end
-
-    local needle_lower = string_lower(needle)
-    local haystack_lower = string_lower(haystack)
-
-    -- Fill module-level scratch byte arrays in place (no per-call allocation).
-    fill_bytes(_NB, needle_lower, n)
-    fill_bytes(_HBL, haystack_lower, m)
-    fill_bytes(_HB, haystack, m)
-
-    -- Quick check: does needle match at all?
-    if not has_match(_NB, n, _HBL, m) then
-        return SCORE_MIN, nil
-    end
-
-    -- Dynamic programming with reusable flat arrays.
-    -- Index as [i * stride + j + 1] (1-indexed Lua).
-    --
-    -- Why no per-call clear: the body writes _D[idx]/_Match[idx] for every
-    -- (i in 1..n, j in i..m), and only reads cells that were either initialized
-    -- in row 0 below (`_D[1..m+1] = 0`) or written earlier in the same call.
-    -- Cells (i,j) with j < i are never touched, so stale values from prior
-    -- calls are harmless. We only need a one-time grow when sizing up.
+--- DP scorer. Caller must have already filled _NB[1..n], _HBL[1..m], _HB[1..m]
+--- and confirmed has_match. Returns the numeric score only.
+local function score_dp(n, m)
     local stride = m + 1
     local needed = (n + 1) * stride
 
@@ -168,9 +136,8 @@ function M.score(needle, haystack)
         _D_size = needed
     end
 
-    -- D[0][0] = 0
+    -- D[0][0] = 0; D[0][j] = 0 for j = 1..m
     _D[1] = 0
-    -- D[0][j] = 0 for j = 1..m
     for j = 1, m do
         _D[j + 1] = 0
     end
@@ -188,17 +155,13 @@ function M.score(needle, haystack)
             if nc == hc then
                 local bonus = compute_bonus(_HB, j)
 
-                -- Score for starting a new match sequence
                 local prev_row_prev_col = (i - 1) * stride + j
                 local score1 = _D[prev_row_prev_col] + bonus
-
-                -- Score for continuing a match sequence
                 local score2 = _Match[prev_row_prev_col] + SCORE_MATCH_CONSECUTIVE
 
                 local match_score = math_max(score1, score2)
                 _Match[idx] = match_score
 
-                -- Best score so far
                 _D[idx] = math_max(prev_score + gap_score, match_score)
             else
                 _Match[idx] = SCORE_MIN
@@ -209,7 +172,45 @@ function M.score(needle, haystack)
         end
     end
 
-    return _D[n * stride + m + 1], nil
+    return _D[n * stride + m + 1]
+end
+
+--- Compute fuzzy match score
+--- Returns SCORE_MIN if no match, otherwise a score (higher is better)
+---@param needle string the search pattern
+---@param haystack string the string to search in
+---@return number score
+---@return table|nil positions matched positions (1-indexed)
+function M.score(needle, haystack)
+    local n = #needle
+    local m = #haystack
+
+    if n == 0 then
+        return SCORE_MIN, nil
+    end
+
+    if n == m then
+        if string_lower(needle) == string_lower(haystack) then
+            return SCORE_MAX, nil
+        end
+    end
+
+    if n > m then
+        return SCORE_MIN, nil
+    end
+
+    local needle_lower = is_already_lower(needle) and needle or string_lower(needle)
+    local haystack_lower = is_already_lower(haystack) and haystack or string_lower(haystack)
+
+    if not has_match_str(needle_lower, haystack_lower) then
+        return SCORE_MIN, nil
+    end
+
+    fill_bytes(_NB, needle_lower, n)
+    fill_bytes(_HBL, haystack_lower, m)
+    fill_bytes(_HB, haystack, m)
+
+    return score_dp(n, m), nil
 end
 
 --- Greedy left-to-right byte positions where needle matched haystack
@@ -221,11 +222,12 @@ end
 function M.positions(needle, haystack)
     if needle == nil or needle == "" then return nil end
     if #needle > #haystack then return nil end
-    local nlow = string_lower(needle)
-    local hlow = string_lower(haystack)
+    local nlow = is_already_lower(needle) and needle or string_lower(needle)
+    local hlow = is_already_lower(haystack) and haystack or string_lower(haystack)
     local positions = {}
     local hi = 1
-    for ni = 1, #nlow do
+    local nlen = #nlow
+    for ni = 1, nlen do
         local nc = string_byte(nlow, ni)
         local found = false
         while hi <= #hlow do
@@ -264,13 +266,43 @@ function M.filter(pattern, items, limit, text_fn)
         return results
     end
 
+    -- Hoist needle preparation out of the per-item loop. Filter is called on
+    -- every keystroke; doing this work N times per call adds up at 10k items.
+    local n = #pattern
+    local needle_lower = is_already_lower(pattern) and pattern or string_lower(pattern)
+    local needle_lower_eq = needle_lower  -- for == m exact-match fast path
+
+    -- Fill the shared needle byte buffer once per filter call.
+    fill_bytes(_NB, needle_lower, n)
+
     local scored = {}
     local scored_count = 0
+
     for i = 1, #items do
         local item = items[i]
         local text = text_fn(item)
         if type(text) ~= "string" then text = tostring(text or "") end
-        local score = M.score(pattern, text)
+
+        local m = #text
+        local score
+        if n == 0 then
+            score = SCORE_MIN
+        elseif n > m then
+            score = SCORE_MIN
+        else
+            local haystack_lower = is_already_lower(text) and text or string_lower(text)
+            -- Cheap reject: subsequence test on strings, no array fills.
+            if not has_match_str(needle_lower, haystack_lower) then
+                score = SCORE_MIN
+            elseif n == m and needle_lower_eq == haystack_lower then
+                score = SCORE_MAX
+            else
+                fill_bytes(_HBL, haystack_lower, m)
+                fill_bytes(_HB, text, m)
+                score = score_dp(n, m)
+            end
+        end
+
         if score > SCORE_MIN then
             scored_count = scored_count + 1
             scored[scored_count] = { item = item, score = score, text = text }
