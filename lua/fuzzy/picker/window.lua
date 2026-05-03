@@ -70,7 +70,7 @@ function M.create(opts)
         vim.api.nvim_buf_clear_namespace(frame_buf, ns, 0, -1)
         if n > 0 then
             vim.api.nvim_buf_set_extmark(frame_buf, ns, 1, 0, {
-                end_col = width, hl_group = HL.border, priority = 100,
+                end_col = #divider, hl_group = HL.border, priority = 100,
             })
         end
         vim.bo[frame_buf].modifiable = false
