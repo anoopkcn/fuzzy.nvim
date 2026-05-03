@@ -1,6 +1,6 @@
 local M = {}
 
-local GAP = "  "
+local GAP = " │ "
 local LABEL_WIDTH = 3
 local NAME_WIDTH_FRACTION = 0.35
 local SHORTNAME_WIDTH_FRACTION = 0.1
@@ -10,6 +10,7 @@ local HL = {
     name   = "FuzzyPickerPaletteName",
     alias  = "FuzzyPickerPaletteAlias",
     detail = "FuzzyPickerPaletteDetail",
+    sep    = "FuzzyPickerPaletteSep",
 }
 
 local KIND_LABEL = {
@@ -243,7 +244,16 @@ function M.highlight_ranges(entry, ctx, text)
     local label = KIND_LABEL[entry.kind] or "CMD"
     local col = 1
 
+    local function add_sep(after_col)
+        local sep_start = after_col + 1
+        local sep_end = math.min(#text, after_col + #GAP)
+        if sep_end >= sep_start then
+            ranges[#ranges + 1] = { start_col = sep_start, end_col = sep_end, group = HL.sep }
+        end
+    end
+
     ranges[#ranges + 1] = { start_col = col, end_col = #label, group = HL.label }
+    add_sep(LABEL_WIDTH)
     col = LABEL_WIDTH + #GAP + 1
 
     local name_width = math.max(1, ctx.name_width)
@@ -256,6 +266,7 @@ function M.highlight_ranges(entry, ctx, text)
     col = col + name_width
 
     if entry.detail and ctx.has_shortname then
+        add_sep(col - 1)
         col = col + #GAP
         local short_text = truncate(entry.shortname or "", math.max(1, ctx.shortname_width))
         if short_text ~= "" then
@@ -267,6 +278,7 @@ function M.highlight_ranges(entry, ctx, text)
         end
         col = col + ctx.shortname_width
     elseif entry.shortname and ctx.has_shortname then
+        add_sep(col - 1)
         col = col + #GAP
         local short_text = truncate(entry.shortname, math.max(1, ctx.shortname_width))
         ranges[#ranges + 1] = {
@@ -278,6 +290,7 @@ function M.highlight_ranges(entry, ctx, text)
     end
 
     if entry.detail then
+        add_sep(col - 1)
         local detail_start = col + #GAP
         if detail_start <= #text then
             ranges[#ranges + 1] = {

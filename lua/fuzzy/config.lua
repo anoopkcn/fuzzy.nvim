@@ -7,6 +7,11 @@ local M = {}
 ---@field col number Horizontal position, 0=left, 1=right of free space
 ---@field border string|table Border passed to nvim_open_win
 ---@field title_pos "left"|"center"|"right" Title alignment passed to nvim_open_win
+---@field prompt string Sigil rendered before the input query (e.g. "> ", "❯ ")
+---@field nerd_font boolean Use Unicode glyphs for selection/cursor markers
+---@field cursor_indicator boolean Show a left-edge bar on the cursor row
+---@field keys_hint boolean|string Footer cheatsheet (true = default text, string = custom)
+---@field show_count boolean Show "visible/total" counter in title
 
 ---@class FuzzyConfig
 ---@field open_single_result boolean Auto-open when only one result matches
@@ -28,6 +33,11 @@ local defaults = {
         col    = 0.5,
         border = "rounded",
         title_pos = "center",
+        prompt = "> ",
+        nerd_font = false,
+        cursor_indicator = true,
+        keys_hint = false,
+        show_count = true,
     },
 }
 

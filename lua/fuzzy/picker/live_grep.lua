@@ -70,9 +70,13 @@ function M.open(opts, picker_open)
     local function format_flags() return parse.join(grep_flags) end
 
     local function picker_title()
+        local base = "Grep"
+        if opts.dir then
+            base = ("Grep in %s"):format(vim.fn.fnamemodify(opts.dir, ":~"))
+        end
         local flags = format_flags()
-        if flags == "" then return "Grep" end
-        return ("Grep [%s]"):format(flags)
+        if flags == "" then return base end
+        return ("%s [%s]"):format(base, flags)
     end
 
     local function quickfix_title()
@@ -221,6 +225,8 @@ function M.open(opts, picker_open)
         for i = 1, #flags do args[i] = flags[i] end
         args[#args + 1] = query
 
+        if picker.set_loading then picker.set_loading(true) end
+
         handle = runner.rg_stream(args, {
             cwd = netrw_dir,
             on_line = function(line)
@@ -254,6 +260,9 @@ function M.open(opts, picker_open)
                         flags_key = active_flags_key,
                     })
                 end
+                if picker.set_loading and not picker.is_closed() then
+                    vim.schedule(function() picker.set_loading(false) end)
+                end
             end,
         })
     end
@@ -270,11 +279,13 @@ function M.open(opts, picker_open)
         cancel_stream()
 
         if not query:match("%S") then
+            if picker.set_loading then picker.set_loading(false) end
             picker.set_items({})
             return
         end
 
         if cache[active_cache_key] and cache[active_cache_key].complete then
+            if picker.set_loading then picker.set_loading(false) end
             picker.set_items(cache[active_cache_key].items)
             return
         end

@@ -32,9 +32,19 @@ local FILTER_DEBOUNCE_MS = 30
 -- (typing, moving cursor, selecting) still render immediately.
 local RENDER_THROTTLE_MS = 33
 
-local SEL_PREFIX = "+ "
-local UNSEL_PREFIX = "  "
-local PREFIX_LEN = #UNSEL_PREFIX
+-- Buffer prefix is always two spaces. The visual selection/cursor markers
+-- are rendered as overlay virt_text extmarks at col 0 / col 1 so byte
+-- offsets in the result buffer stay constant regardless of state or font.
+local PREFIX_PAD = "  "
+local PREFIX_LEN = #PREFIX_PAD
+
+local function picker_glyphs()
+    local win_cfg = config.get().window
+    if win_cfg.nerd_font then
+        return { sel = "●", cursor = "▌" }
+    end
+    return { sel = "+", cursor = "│" }
+end
 
 ---@class FuzzyPickerOpts
 ---@field items any[]
@@ -104,6 +114,10 @@ local function open(opts)
     local input_buf  = view.input_buf
     local frame_win  = view.frame_win
 
+    local glyphs = picker_glyphs()
+    local cursor_indicator = config.get().window.cursor_indicator ~= false
+    local show_count = config.get().window.show_count ~= false
+
     -- Local controller state.
     local current = items
     local cursor = 1
@@ -169,6 +183,13 @@ local function open(opts)
             vim.api.nvim_buf_set_extmark(result_buf, ns_cursor, row, 0, {
                 end_row = row + 1, hl_group = HL.sel, hl_eol = true, priority = 50,
             })
+            if cursor_indicator then
+                vim.api.nvim_buf_set_extmark(result_buf, ns_cursor, row, 0, {
+                    virt_text = {{ glyphs.cursor, HL.cursor }},
+                    virt_text_pos = "overlay",
+                    priority = 220,
+                })
+            end
         end
     end
 
@@ -176,6 +197,7 @@ local function open(opts)
         view.resize(#current)
         local total = #current
         local n = math.min(view.displayed, math.max(0, total - scroll))
+        if show_count then view.set_count(total, #items) end
         local query = read_query()
         local render_ctx = make_render_context and make_render_context(current, view.width) or nil
 
@@ -186,7 +208,7 @@ local function open(opts)
             local item = current[scroll + i]
             local text = item_text(item, render_ctx)
             texts[i] = text
-            lines[i] = (selected[item] and SEL_PREFIX or UNSEL_PREFIX) .. text
+            lines[i] = PREFIX_PAD .. text
         end
         vim.api.nvim_buf_set_lines(result_buf, 0, -1, false, lines)
         vim.api.nvim_buf_clear_namespace(result_buf, ns_content, 0, -1)
@@ -198,8 +220,12 @@ local function open(opts)
             local item = current[scroll + i]
 
             if selected[item] then
-                vim.api.nvim_buf_set_extmark(result_buf, ns_content, row, 0, {
-                    end_col = PREFIX_LEN, hl_group = HL.selected, priority = 150,
+                -- Overlay virt_text at col 1: stays out of the way of the
+                -- cursor bar (col 0) so both can coexist on the same row.
+                vim.api.nvim_buf_set_extmark(result_buf, ns_content, row, 1, {
+                    virt_text = {{ glyphs.sel, HL.selected }},
+                    virt_text_pos = "overlay",
+                    priority = 150,
                 })
             end
 
@@ -307,6 +333,10 @@ local function open(opts)
         end
         title = new_title
         view.set_title(title)
+    end
+
+    function controller.set_loading(on)
+        view.set_loading(on)
     end
 
     local function update_filter()
@@ -501,6 +531,7 @@ local function open(opts)
     render()
     if opts.initial_query and opts.initial_query ~= "" then
         vim.api.nvim_buf_set_lines(input_buf, 0, 1, false, { opts.initial_query })
+        view.refresh_prompt()
         update_current(opts.initial_query, true)
         if on_change then safe_call(on_change, opts.initial_query, controller) end
         render()

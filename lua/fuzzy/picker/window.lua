@@ -13,14 +13,17 @@ local CONTENT_WINHL = highlight.CONTENT_WINHL
 
 local M = {}
 
+local SPINNER_FRAMES = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
+local SPINNER_TICK_MS = 80
+
 local function divider_line(width)
     local fillchars = vim.opt.fillchars:get()
     local horiz = type(fillchars) == "table" and fillchars.horiz or nil
-    if type(horiz) ~= "string" or horiz == "" then horiz = "-" end
+    if type(horiz) ~= "string" or horiz == "" then horiz = "─" end
     return horiz:rep(width)
 end
 
----@param opts { title: string, ns: integer, item_count: integer }
+---@param opts { title: string, ns: integer, item_count: integer, prompt_sigil?: string }
 ---@return table view
 function M.create(opts)
     local win_cfg = config.get().window
@@ -50,6 +53,7 @@ function M.create(opts)
     local divider = divider_line(width)
 
     local ns = opts.ns
+    local prompt_sigil = opts.prompt_sigil or win_cfg.prompt or "> "
 
     local function frame_lines_for(n)
         local lines = { blank }
@@ -75,7 +79,23 @@ function M.create(opts)
     local displayed = math.min(opts.item_count, max_height)
     write_frame(displayed)
 
-    local frame_win = vim.api.nvim_open_win(frame_buf, false, {
+    -- Title is always rebuilt by build_title_chunks() so the initial frame uses
+    -- a placeholder. Real title goes in after open_win.
+    local title_chunks = {{ " " .. opts.title .. " ", HL.title }}
+
+    -- Hint footer is opt-in. Built once; doesn't change.
+    local footer_chunks
+    if win_cfg.keys_hint then
+        local hint
+        if type(win_cfg.keys_hint) == "string" then
+            hint = win_cfg.keys_hint
+        else
+            hint = " <CR> open  <Tab> mark  <M-q> qf  <Esc> close "
+        end
+        footer_chunks = {{ hint, HL.hint }}
+    end
+
+    local frame_open_opts = {
         relative = "editor",
         row = frame_row,
         col = frame_col,
@@ -85,9 +105,14 @@ function M.create(opts)
         border = win_cfg.border,
         focusable = false,
         zindex = 40,
-        title = " " .. opts.title .. " ",
+        title = title_chunks,
         title_pos = win_cfg.title_pos,
-    })
+    }
+    if footer_chunks then
+        frame_open_opts.footer = footer_chunks
+        frame_open_opts.footer_pos = "right"
+    end
+    local frame_win = vim.api.nvim_open_win(frame_buf, false, frame_open_opts)
 
     local result_win = vim.api.nvim_open_win(result_buf, false, {
         relative = "editor",
@@ -118,6 +143,72 @@ function M.create(opts)
     vim.wo[result_win].winhighlight = CONTENT_WINHL
     vim.wo[input_win].winhighlight  = CONTENT_WINHL
 
+    -- Prompt sigil: inline virt_text anchored at col 0 of the input buffer.
+    -- right_gravity=false keeps it pinned to start when the user types.
+    local prompt_extmark
+    local function refresh_prompt()
+        if not vim.api.nvim_buf_is_valid(input_buf) then return end
+        prompt_extmark = vim.api.nvim_buf_set_extmark(input_buf, ns, 0, 0, {
+            id = prompt_extmark,
+            virt_text = {{ prompt_sigil, HL.prompt }},
+            virt_text_pos = "inline",
+            right_gravity = false,
+            priority = 100,
+        })
+    end
+    refresh_prompt()
+
+    -- Title state: title text, optional {visible,total} count, optional spinner.
+    local title_text = opts.title
+    local count_state = nil  -- { visible, total } or nil
+    local loading = false
+    local spinner_idx = 1
+    local spinner_timer
+    local last_title_chunks
+
+    local function build_title_chunks()
+        local chunks = { { " ", HL.title }, { title_text, HL.title } }
+        if count_state then
+            local v, t = count_state[1], count_state[2]
+            local s
+            if t and t ~= v then
+                s = ("  %d/%d"):format(v, t)
+            else
+                s = ("  %d"):format(v)
+            end
+            chunks[#chunks + 1] = { s, HL.count }
+        end
+        if loading then
+            chunks[#chunks + 1] = { "  " .. SPINNER_FRAMES[spinner_idx], HL.hint }
+        end
+        chunks[#chunks + 1] = { " ", HL.title }
+        return chunks
+    end
+
+    local function apply_title()
+        if not vim.api.nvim_win_is_valid(frame_win) then return end
+        local chunks = build_title_chunks()
+        last_title_chunks = chunks
+        pcall(vim.api.nvim_win_set_config, frame_win, { title = chunks })
+    end
+
+    local function start_spinner()
+        if spinner_timer then return end
+        spinner_timer = vim.uv.new_timer()
+        spinner_timer:start(SPINNER_TICK_MS, SPINNER_TICK_MS, vim.schedule_wrap(function()
+            if not loading or not vim.api.nvim_win_is_valid(frame_win) then return end
+            spinner_idx = (spinner_idx % #SPINNER_FRAMES) + 1
+            apply_title()
+        end))
+    end
+
+    local function stop_spinner()
+        if not spinner_timer then return end
+        spinner_timer:stop()
+        spinner_timer:close()
+        spinner_timer = nil
+    end
+
     local view = {
         ns          = ns,
         width       = width,
@@ -134,6 +225,7 @@ function M.create(opts)
         input_win   = input_win,
         result_win  = result_win,
         write_frame = write_frame,
+        refresh_prompt = refresh_prompt,
     }
 
     --- Resize the result/frame windows when the visible item count changes.
@@ -142,6 +234,8 @@ function M.create(opts)
         if target == view.displayed then return end
         view.displayed = target
         write_frame(target)
+        -- Coalesce into one redraw flush so frame and result resize together.
+        pcall(vim.api.nvim__redraw, { flush = false })
         pcall(vim.api.nvim_win_set_config, view.frame_win, {
             relative = "editor",
             row = view.frame_row,
@@ -157,15 +251,41 @@ function M.create(opts)
             height = math.max(1, target),
             hide = target == 0,
         })
+        pcall(vim.api.nvim__redraw, { win = view.frame_win, flush = true })
     end
 
     function view.set_title(new_title)
-        if vim.api.nvim_win_is_valid(view.frame_win) then
-            pcall(vim.api.nvim_win_set_config, view.frame_win, { title = " " .. new_title .. " " })
-        end
+        if type(new_title) ~= "string" or new_title == "" then return end
+        title_text = new_title
+        apply_title()
     end
 
+    function view.set_count(visible, total)
+        if visible == nil then
+            count_state = nil
+        else
+            count_state = { visible, total }
+        end
+        apply_title()
+    end
+
+    function view.set_loading(on)
+        on = not not on
+        if on == loading then return end
+        loading = on
+        if loading then
+            spinner_idx = 1
+            start_spinner()
+        else
+            stop_spinner()
+        end
+        apply_title()
+    end
+
+    apply_title()
+
     function view.close()
+        stop_spinner()
         if vim.api.nvim_win_is_valid(view.input_win)  then pcall(vim.api.nvim_win_close, view.input_win,  true) end
         if vim.api.nvim_win_is_valid(view.result_win) then pcall(vim.api.nvim_win_close, view.result_win, true) end
         if vim.api.nvim_win_is_valid(view.frame_win)  then pcall(vim.api.nvim_win_close, view.frame_win,  true) end
