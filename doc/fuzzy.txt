@@ -402,6 +402,7 @@ Setup the plugin in your init.lua: >
         open_single_result = false,
         file_match_limit = 10000,
         grep_dedupe = true,
+        grep_path_truncate = true,
         send_to_qf_key = "<M-q>",
         edit_grep_flags_key = "<M-r>",
         window = {
@@ -441,6 +442,23 @@ grep_dedupe~
 Collapse multiple matches on the same file:line into a single entry.
 Applies to both the quickfix path (:FuzzyGrep pattern) and the live-grep
 picker (:FuzzyGrep!). Set to false to show every individual match.
+
+------------------------------------------------------------------------------
+                                                *g:fuzzy_grep_path_truncate*
+grep_path_truncate~
+    Type: boolean
+    Default: true
+
+In the live-grep picker (:FuzzyGrep! / :FuzzyGrepIn!), when a result line
+"path:lnum:col:text" overflows the picker width, shorten each directory
+component to its first character so the matched text stays visible.
+
+Example: >
+    afolder/bfolder/cfolder/file.txt   →   a/b/c/file.txt
+<
+Hidden directories keep their leading dot (".config/nvim" → ".c/n").
+The filename is never truncated. Set to false to keep the full path and
+let long lines clip at the right edge.
 
 ------------------------------------------------------------------------------
                                                    *fuzzy-send_to_qf_key*

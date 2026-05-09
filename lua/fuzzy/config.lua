@@ -17,6 +17,7 @@ local M = {}
 ---@field open_single_result boolean Auto-open when only one result matches
 ---@field file_match_limit integer Maximum number of files to return from fd
 ---@field grep_dedupe boolean Deduplicate grep results by file:line (default: true)
+---@field grep_path_truncate boolean Shorten directory components in the live-grep picker when a result line overflows the picker width (default: true)
 ---@field send_to_qf_key string|false Key to send picker results to quickfix (false to disable)
 ---@field edit_grep_flags_key string|false Key to edit ripgrep flags in live grep pickers (false to disable)
 ---@field window FuzzyWindowConfig Picker window geometry and border
@@ -24,6 +25,7 @@ local defaults = {
     open_single_result = false,
     file_match_limit = 10000,
     grep_dedupe = true,
+    grep_path_truncate = true,
     send_to_qf_key = "<M-q>",
     edit_grep_flags_key = "<M-r>",
     window = {
@@ -60,6 +62,7 @@ function M.setup(opts)
         vim.validate("open_single_result", opts.open_single_result, "boolean", true)
         vim.validate("file_match_limit", opts.file_match_limit, "number", true)
         vim.validate("grep_dedupe", opts.grep_dedupe, "boolean", true)
+        vim.validate("grep_path_truncate", opts.grep_path_truncate, "boolean", true)
         if opts.send_to_qf_key ~= nil then
             assert(
                 opts.send_to_qf_key == false or type(opts.send_to_qf_key) == "string",

@@ -14,7 +14,47 @@ local M = {}
 local LIVE_GREP_DEBOUNCE_MS = 150
 local MAX_CACHE_SIZE = 30
 
-local function grep_display(item) return item.display end
+-- Shorten a single directory component to its first character. Hidden
+-- directories (".config") keep the leading dot plus the first real char
+-- (".c"), so the indicator that this is a hidden dir survives.
+local function shorten_component(component)
+    if component == "" then return "" end
+    if component:sub(1, 1) == "." and vim.fn.strchars(component) > 1 then
+        return vim.fn.strcharpart(component, 0, 2)
+    end
+    return vim.fn.strcharpart(component, 0, 1)
+end
+
+-- Collapse "afolder/bfolder/cfolder/file.txt" → "a/b/c/file.txt": every
+-- directory component is shortened to its first character; the filename is
+-- left untouched. Absolute paths keep their leading "/".
+local function shorten_path(path)
+    local parts = vim.split(path, "/", { plain = true })
+    if #parts <= 1 then return path end
+    local out = {}
+    for i = 1, #parts - 1 do
+        out[i] = shorten_component(parts[i])
+    end
+    out[#parts] = parts[#parts]
+    return table.concat(out, "/")
+end
+
+-- Width-aware display formatter. When the full "path:lnum:col:text" line
+-- overflows the picker column budget and `grep_path_truncate` is enabled,
+-- shorten directory components so the lnum:col coords and the matched text
+-- stay visible. Filename is preserved verbatim.
+local function grep_display(item, _ctx, width)
+    local d = item.display
+    if not config.get().grep_path_truncate then return d end
+    if not width or width <= 0 then return d end
+    local max_cols = width - 2  -- PREFIX_PAD ("  ") in the result buffer
+    if vim.fn.strdisplaywidth(d) <= max_cols then return d end
+    local _, path_end = d:find("^[^:]+")
+    if not path_end then return d end
+    local path = d:sub(1, path_end)
+    local rest = d:sub(path_end + 1)  -- ":lnum:col:text"
+    return shorten_path(path) .. rest
+end
 
 -- Highlight the query as a literal substring within the text portion of a
 -- grep display line ("filename:lnum:col:text"). Falls back to match.positions

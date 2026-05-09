@@ -86,6 +86,7 @@ require('fuzzy').setup({
   open_single_result = false,  -- Auto-open when only one result matches (default: false)
   file_match_limit = 10000,    -- Max files in FuzzyFiles picker/QF (default: 10000)
   grep_dedupe = true,          -- Deduplicate grep results by file:line (default: true)
+  grep_path_truncate = true,   -- Shorten long paths in the live-grep picker (default: true)
   send_to_qf_key = "<M-q>",   -- Key to send picker results to QF (false to disable)
   edit_grep_flags_key = "<M-r>", -- Key to edit rg flags in live grep pickers
   window = {                   -- Picker window geometry (height/width/row/col are 0..1)
@@ -107,6 +108,9 @@ require('fuzzy').setup({
 
 - **`grep_dedupe`** (boolean, default: `true`)
   Collapse multiple matches on the same file:line into a single entry. Applies to both the quickfix and live-grep picker paths. Set to `false` to show every match.
+
+- **`grep_path_truncate`** (boolean, default: `true`)
+  In the live-grep picker, when a result line `path:lnum:col:text` overflows the picker width, shorten each directory component to its first character so the matched text stays visible (e.g. `afolder/bfolder/cfolder/file.txt` → `a/b/c/file.txt`). Hidden directories keep their leading dot (`.config/nvim` → `.c/n`); the filename is never truncated. Set to `false` to keep the full path and let long lines clip at the right edge.
 
 - **`send_to_qf_key`** (string|false, default: `"<M-q>"`)
   Insert-mode key used inside picker types that support quickfix export to send the currently visible (filtered) results to the quickfix list and close the picker. Set to `false` to disable.
