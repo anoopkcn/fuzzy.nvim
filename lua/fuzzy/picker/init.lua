@@ -617,6 +617,7 @@ local function open_for(kind, opts)
             items = items,
             prompt = "Buffers",
             initial_query = opts.initial_query,
+            highlight_paths = false,
             on_select = function(rel)
                 local bufnr = by_path[rel]
                 if bufnr then util.switch_to_buffer(bufnr) end
@@ -656,6 +657,7 @@ local function open_for(kind, opts)
             items = tag_entries,
             prompt = "Help",
             initial_query = opts.initial_query,
+            highlight_paths = false,
             format_item = function(entry) return entry.tag .. "  " .. entry.filename_short end,
             filter_text = function(entry) return entry.tag .. "  " .. entry.filename_short end,
             on_select = function(entry)
@@ -685,6 +687,7 @@ local function open_for(kind, opts)
             items = entries,
             prompt = "Commands",
             initial_query = opts.initial_query,
+            highlight_paths = false,
             format_item = commands.format_entry,
             filter_text = commands.filter_text,
             make_render_context = commands.make_render_context,
@@ -700,7 +703,6 @@ local function open_for(kind, opts)
                     end
                 end
             end,
-            highlight_paths = false,
             on_select = function(entry)
                 commands.prefill_cmdline(entry and entry.cmdline or nil)
             end,

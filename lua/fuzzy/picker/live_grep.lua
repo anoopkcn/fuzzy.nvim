@@ -348,6 +348,7 @@ function M.open(opts, picker_open)
         title = picker_title(),
         initial_query = opts.initial_query,
         filter_items = false,
+        highlight_paths = false,
         highlight_matches = true,
         highlight_fn = grep_highlight,
         format_item = grep_display,
