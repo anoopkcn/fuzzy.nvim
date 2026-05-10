@@ -579,6 +579,7 @@ local function open_for(kind, opts)
             items = files,
             prompt = "Files",
             initial_query = opts.initial_query,
+            highlight_paths = false,
             on_select = function(path) util.open_file(path) end,
             on_marked = function(marked_items, picked_item)
                 util.load_files(marked_items)
