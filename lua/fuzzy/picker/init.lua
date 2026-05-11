@@ -663,6 +663,45 @@ local function open_for(kind, opts)
                     end
                     if #targets == 0 then return end
 
+                    local target_set = {}
+                    for _, rel in ipairs(targets) do
+                        local b = by_path[rel]
+                        if b then target_set[b] = true end
+                    end
+
+                    -- Pick a survivor buffer (a named listed buffer not being
+                    -- deleted) so windows showing a target can be vacated
+                    -- cleanly. Empty-name buffers (e.g. the startup [No Name])
+                    -- are skipped — falling back to :enew below is equivalent
+                    -- and avoids surfacing them via the close action.
+                    local survivor = nil
+                    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+                        if not target_set[b]
+                            and vim.api.nvim_buf_is_loaded(b)
+                            and vim.bo[b].buflisted
+                            and vim.api.nvim_buf_get_name(b) ~= ""
+                        then
+                            survivor = b
+                            break
+                        end
+                    end
+
+                    -- Swap any non-floating window showing a target onto the
+                    -- survivor (or a fresh [No Name] if no survivor exists).
+                    for _, win in ipairs(vim.api.nvim_list_wins()) do
+                        local wbuf = vim.api.nvim_win_get_buf(win)
+                        if target_set[wbuf]
+                            and vim.api.nvim_win_get_config(win).relative == ""
+                        then
+                            if survivor then
+                                vim.api.nvim_win_set_buf(win, survivor)
+                            else
+                                vim.api.nvim_win_call(win, function() vim.cmd("enew") end)
+                                survivor = vim.api.nvim_win_get_buf(win)
+                            end
+                        end
+                    end
+
                     local modified_failed, other_failed = {}, {}
                     for _, rel in ipairs(targets) do
                         local bufnr = by_path[rel]
