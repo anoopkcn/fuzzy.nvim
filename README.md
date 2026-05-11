@@ -76,7 +76,7 @@ Inside any interactive picker:
 | `<M-r>` | Edit ripgrep backend flags in `:FuzzyGrep!` / `:FuzzyGrepIn!` |
 | `<C-d>` | Close buffer under cursor in `:FuzzyBuffers!`; closes all marked buffers when entries are marked with `<Tab>` |
 
-In `:FuzzyBuffers!`, marked entries are already open buffers, so `<CR>` does not perform any extra load for them. When two or more entries are marked, `<CR>` opens the first in the current window and the rest in vertical splits (horizontal if `buffer_split_direction = "horizontal"`). `<M-q>` respects the current filter when nothing is marked. The key is configurable via `send_to_qf_key` (see [Configuration](#configuration-optional)). `:FuzzyCommands` does not expose `<M-q>` because command entries are actions, not file locations.
+In `:FuzzyBuffers!`, marked entries are already loaded, so `<CR>` does not re-read them from disk; with two or more marked, it opens the first in the current window and the rest in vertical splits (horizontal if `buffer_split_direction = "horizontal"`). `<M-q>` respects the current filter when nothing is marked. The key is configurable via `send_to_qf_key` (see [Configuration](#configuration-optional)). `:FuzzyCommands` does not expose `<M-q>` because command entries are actions, not file locations.
 
 `<C-d>` in `:FuzzyBuffers!` closes the buffer under the cursor, or every `<Tab>`-marked buffer at once. Modified buffers are skipped and reported in a single notification — the picker refreshes in place and closes when the last buffer is gone. The key is configurable via `close_buffer_key`.
 

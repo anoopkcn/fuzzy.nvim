@@ -237,6 +237,18 @@ Examples: >
     :FuzzyBuffers!              " open buffer picker
     :FuzzyBuffers! init         " open picker pre-filled with 'init'
 <
+Inside :FuzzyBuffers!, <C-d> closes the buffer under the cursor, or every
+<Tab>-marked buffer at once. Buffers with unsaved changes are skipped and
+reported in a notification; underlying windows showing a closed buffer are
+swapped onto another listed buffer first to avoid surfacing [No Name]. The
+picker refreshes in place and closes when the last listed buffer is gone.
+The key is configurable (see |fuzzy-close_buffer_key|).
+
+Pressing <CR> with two or more <Tab>-marked entries opens the first marked
+buffer in the current window and the remaining ones as splits. The split
+direction is controlled by |fuzzy-buffer_split_direction| ("vertical" or
+"horizontal", default "vertical"); splits respect 'splitright' / 'splitbelow'.
+
 ------------------------------------------------------------------------------
 3.5 FuzzyCommands                                          *:FuzzyCommands*
 
@@ -311,13 +323,18 @@ Interactive pickers share these insert-mode keymaps:
                     :FuzzyGrepIn!
                     (key is configurable, see
                     |fuzzy-edit_grep_flags_key|)
+    <C-d>           In :FuzzyBuffers! close the buffer under the cursor,
+                    or every <Tab>-marked buffer when entries are marked
+                    (key is configurable, see |fuzzy-close_buffer_key|)
 
 The <M-q> key respects the current filter query: only items visible in the
 picker at that moment are sent to quickfix when nothing is marked. This lets
 you narrow results with a query and then export that subset to the quickfix
-list. In |:FuzzyBuffers!|, pressing <CR> with marked entries performs no extra
-action because those buffers are already open. |:FuzzyCommands| does not expose
-<M-q> because command entries are actions, not file locations.
+list. In |:FuzzyBuffers!|, marked entries are already loaded, so <CR> does
+not re-read them from disk; with two or more marked, <CR> opens the first
+marked buffer in the current window and the rest as splits (direction set
+by |fuzzy-buffer_split_direction|). |:FuzzyCommands| does not expose <M-q>
+because command entries are actions, not file locations.
 ------------------------------------------------------------------------------
 3.9 FuzzyHelp                                                    *:FuzzyHelp*
 
@@ -405,6 +422,8 @@ Setup the plugin in your init.lua: >
         grep_path_truncate = true,
         send_to_qf_key = "<M-q>",
         edit_grep_flags_key = "<M-r>",
+        close_buffer_key = "<C-d>",
+        buffer_split_direction = "vertical",
         window = {
             height = 0.4,
             width  = 0.6,
@@ -492,6 +511,41 @@ Set to false to disable the mapping entirely. >
 <
 To use a different key: >
     require('fuzzy').setup({ edit_grep_flags_key = "<C-r>" })
+<
+------------------------------------------------------------------------------
+                                                 *fuzzy-close_buffer_key*
+close_buffer_key~
+    Type: string|false
+    Default: "<C-d>"
+
+Key (in insert mode) used inside :FuzzyBuffers! to close the buffer under
+the cursor, or every <Tab>-marked buffer at once when entries are marked.
+Buffers with unsaved changes are skipped and reported in a notification.
+Before deletion, any non-floating window currently displaying a target
+buffer is swapped onto another named listed buffer so the close action
+does not surface [No Name]; if no such buffer exists, a fresh empty buffer
+is created via :enew. After the close the picker refreshes in place, or
+closes entirely when the last listed buffer is gone.
+
+Set to false to disable the mapping entirely. >
+    require('fuzzy').setup({ close_buffer_key = false })
+<
+To use a different key: >
+    require('fuzzy').setup({ close_buffer_key = "<C-x>" })
+<
+------------------------------------------------------------------------------
+                                            *fuzzy-buffer_split_direction*
+buffer_split_direction~
+    Type: "vertical"|"horizontal"
+    Default: "vertical"
+
+Direction used when <CR> opens two or more <Tab>-marked buffers from
+:FuzzyBuffers!. The first marked buffer opens in the current window; the
+remaining marked buffers each open as a split in this direction. Splits
+respect 'splitright' and 'splitbelow' for placement.
+
+To open marked buffers in horizontal splits instead: >
+    require('fuzzy').setup({ buffer_split_direction = "horizontal" })
 <
 ------------------------------------------------------------------------------
                                                           *fuzzy-window*
