@@ -21,6 +21,7 @@ local M = {}
 ---@field send_to_qf_key string|false Key to send picker results to quickfix (false to disable)
 ---@field edit_grep_flags_key string|false Key to edit ripgrep flags in live grep pickers (false to disable)
 ---@field close_buffer_key string|false Key to close buffer(s) in :FuzzyBuffers (false to disable)
+---@field buffer_split_direction "vertical"|"horizontal" Split direction when opening 2+ marked buffers from :FuzzyBuffers
 ---@field window FuzzyWindowConfig Picker window geometry and border
 local defaults = {
     open_single_result = false,
@@ -30,6 +31,7 @@ local defaults = {
     send_to_qf_key = "<M-q>",
     edit_grep_flags_key = "<M-r>",
     close_buffer_key = "<C-d>",
+    buffer_split_direction = "vertical",
     window = {
         height = 0.4,
         width  = 0.6,
@@ -81,6 +83,12 @@ function M.setup(opts)
             assert(
                 opts.close_buffer_key == false or type(opts.close_buffer_key) == "string",
                 "close_buffer_key must be a string or false"
+            )
+        end
+        if opts.buffer_split_direction ~= nil then
+            assert(
+                opts.buffer_split_direction == "vertical" or opts.buffer_split_direction == "horizontal",
+                "buffer_split_direction must be 'vertical' or 'horizontal'"
             )
         end
         if opts.window ~= nil then

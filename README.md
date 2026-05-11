@@ -67,7 +67,7 @@ Inside any interactive picker:
 
 | Key | Action |
 |---|---|
-| `<CR>` | Accept selection / jump to result; when items are marked with `<Tab>`, file-backed pickers load the marked files as buffers and show one of them |
+| `<CR>` | Accept selection / jump to result; when items are marked with `<Tab>`, file-backed pickers load the marked files as buffers and show one of them; in `:FuzzyBuffers!`, 2+ marked buffers open in splits |
 | `<C-n>` / `<Down>` | Next result |
 | `<C-p>` / `<Up>` | Previous result |
 | `<Tab>` / `<S-Tab>` | Mark / unmark result |
@@ -76,7 +76,7 @@ Inside any interactive picker:
 | `<M-r>` | Edit ripgrep backend flags in `:FuzzyGrep!` / `:FuzzyGrepIn!` |
 | `<C-d>` | Close buffer under cursor in `:FuzzyBuffers!`; closes all marked buffers when entries are marked with `<Tab>` |
 
-In `:FuzzyBuffers!`, marked entries are already open buffers, so `<CR>` does not perform any extra load for them. `<M-q>` respects the current filter when nothing is marked. The key is configurable via `send_to_qf_key` (see [Configuration](#configuration-optional)). `:FuzzyCommands` does not expose `<M-q>` because command entries are actions, not file locations.
+In `:FuzzyBuffers!`, marked entries are already open buffers, so `<CR>` does not perform any extra load for them. When two or more entries are marked, `<CR>` opens the first in the current window and the rest in vertical splits (horizontal if `buffer_split_direction = "horizontal"`). `<M-q>` respects the current filter when nothing is marked. The key is configurable via `send_to_qf_key` (see [Configuration](#configuration-optional)). `:FuzzyCommands` does not expose `<M-q>` because command entries are actions, not file locations.
 
 `<C-d>` in `:FuzzyBuffers!` closes the buffer under the cursor, or every `<Tab>`-marked buffer at once. Modified buffers are skipped and reported in a single notification — the picker refreshes in place and closes when the last buffer is gone. The key is configurable via `close_buffer_key`.
 
@@ -93,6 +93,7 @@ require('fuzzy').setup({
   send_to_qf_key = "<M-q>",   -- Key to send picker results to QF (false to disable)
   edit_grep_flags_key = "<M-r>", -- Key to edit rg flags in live grep pickers
   close_buffer_key = "<C-d>", -- Key to close buffer(s) in FuzzyBuffers (false to disable)
+  buffer_split_direction = "vertical", -- "vertical" | "horizontal" — split direction for 2+ marked buffers
   window = {                   -- Picker window geometry (height/width/row/col are 0..1)
     height = 0.4,              -- max fraction of vim.o.lines used by the picker
     width  = 0.6,              -- fraction of vim.o.columns
@@ -124,6 +125,9 @@ require('fuzzy').setup({
 
 - **`close_buffer_key`** (string|false, default: `"<C-d>"`)
   Insert-mode key used inside `:FuzzyBuffers!` to close the buffer under the cursor, or every `<Tab>`-marked buffer when entries are marked. Buffers with unsaved changes are skipped and reported. Set to `false` to disable.
+
+- **`buffer_split_direction`** (`"vertical"` | `"horizontal"`, default: `"vertical"`)
+  When two or more buffers are `<Tab>`-marked in `:FuzzyBuffers!`, `<CR>` opens the first in the current window and the rest as splits in this direction.
 
 - **`window`** (table)
   Picker window geometry. `height`/`width` are fractions of the editor; `row`/`col` are positions within the free space (0=top/left, 1=bottom/right, 0.5=centered). `border` accepts any value `nvim_open_win()` does. `title_pos` is `"left"`, `"center"`, or `"right"`. The picker still shrinks to fit fewer results — `height` is a cap.

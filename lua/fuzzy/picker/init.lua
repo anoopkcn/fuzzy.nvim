@@ -637,7 +637,24 @@ local function open_for(kind, opts)
                 local bufnr = by_path[rel]
                 if bufnr then util.switch_to_buffer(bufnr) end
             end,
-            on_marked = function() end,
+            on_marked = function(marked_items)
+                local bufnrs = {}
+                for _, rel in ipairs(marked_items) do
+                    local b = by_path[rel]
+                    if b and vim.api.nvim_buf_is_valid(b) then
+                        bufnrs[#bufnrs + 1] = b
+                    end
+                end
+                if #bufnrs == 0 then return end
+                util.switch_to_buffer(bufnrs[1])
+                if #bufnrs == 1 then return end
+                local split_cmd = (config.get().buffer_split_direction == "horizontal")
+                    and "split" or "vsplit"
+                for i = 2, #bufnrs do
+                    vim.cmd(split_cmd)
+                    pcall(vim.api.nvim_set_current_buf, bufnrs[i])
+                end
+            end,
             on_quickfix = function(visible_items)
                 if #visible_items == 0 then
                     vim.notify("Fuzzy: no items to send to quickfix.", vim.log.levels.INFO)
