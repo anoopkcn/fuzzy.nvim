@@ -74,8 +74,11 @@ Inside any interactive picker:
 | `<Esc>` / `<C-c>` | Close picker |
 | `<M-q>` | Send visible results, or marked results, to quickfix and close where supported |
 | `<M-r>` | Edit ripgrep backend flags in `:FuzzyGrep!` / `:FuzzyGrepIn!` |
+| `<C-d>` | Close buffer under cursor in `:FuzzyBuffers!`; closes all marked buffers when entries are marked with `<Tab>` |
 
 In `:FuzzyBuffers!`, marked entries are already open buffers, so `<CR>` does not perform any extra load for them. `<M-q>` respects the current filter when nothing is marked. The key is configurable via `send_to_qf_key` (see [Configuration](#configuration-optional)). `:FuzzyCommands` does not expose `<M-q>` because command entries are actions, not file locations.
+
+`<C-d>` in `:FuzzyBuffers!` closes the buffer under the cursor, or every `<Tab>`-marked buffer at once. Modified buffers are skipped and reported in a single notification — the picker refreshes in place and closes when the last buffer is gone. The key is configurable via `close_buffer_key`.
 
 In `:FuzzyGrep!` and `:FuzzyGrepIn!`, press `<M-r>` to edit the active ripgrep flags (for example `-t lua -g '*.md'`) while keeping the current query in place. The key is configurable via `edit_grep_flags_key`.
 
@@ -89,6 +92,7 @@ require('fuzzy').setup({
   grep_path_truncate = true,   -- Shorten long paths in the live-grep picker (default: true)
   send_to_qf_key = "<M-q>",   -- Key to send picker results to QF (false to disable)
   edit_grep_flags_key = "<M-r>", -- Key to edit rg flags in live grep pickers
+  close_buffer_key = "<C-d>", -- Key to close buffer(s) in FuzzyBuffers (false to disable)
   window = {                   -- Picker window geometry (height/width/row/col are 0..1)
     height = 0.4,              -- max fraction of vim.o.lines used by the picker
     width  = 0.6,              -- fraction of vim.o.columns
@@ -117,6 +121,9 @@ require('fuzzy').setup({
 
 - **`edit_grep_flags_key`** (string|false, default: `"<M-r>"`)
   Insert-mode key used inside `:FuzzyGrep!` and `:FuzzyGrepIn!` to edit ripgrep backend flags without closing the picker. Set to `false` to disable.
+
+- **`close_buffer_key`** (string|false, default: `"<C-d>"`)
+  Insert-mode key used inside `:FuzzyBuffers!` to close the buffer under the cursor, or every `<Tab>`-marked buffer when entries are marked. Buffers with unsaved changes are skipped and reported. Set to `false` to disable.
 
 - **`window`** (table)
   Picker window geometry. `height`/`width` are fractions of the editor; `row`/`col` are positions within the free space (0=top/left, 1=bottom/right, 0.5=centered). `border` accepts any value `nvim_open_win()` does. `title_pos` is `"left"`, `"center"`, or `"right"`. The picker still shrinks to fit fewer results — `height` is a cap.

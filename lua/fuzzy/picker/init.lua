@@ -72,6 +72,8 @@ end
 ---@field set_items fun(items: any[])
 ---@field append_items fun(items: any[])
 ---@field get_items fun(): any[]
+---@field get_marked fun(): any[]
+---@field get_cursor fun(): any|nil
 ---@field get_query fun(): string
 ---@field is_closed fun(): boolean
 ---@field set_title fun(title: string)
@@ -324,6 +326,15 @@ local function open(opts)
     end
 
     function controller.get_items() return items end
+    function controller.get_marked()
+        if selected_count == 0 then return {} end
+        local out = {}
+        for _, item in ipairs(items) do
+            if selected[item] then out[#out + 1] = item end
+        end
+        return out
+    end
+    function controller.get_cursor() return current[cursor] end
     function controller.get_query() return read_query() end
     function controller.is_closed() return closed end
 
@@ -601,14 +612,18 @@ local function open_for(kind, opts)
             end,
         })
     elseif kind == "buffers" then
-        local bufs = util.get_listed_buffers()
-        local items, by_path, by_path_abs = {}, {}, {}
-        for _, b in ipairs(bufs) do
-            local rel = vim.fn.fnamemodify(b.path, ":.")
-            items[#items + 1] = rel
-            by_path[rel] = b.bufnr
-            by_path_abs[rel] = b.path
+        local items, by_path, by_path_abs
+        local function build()
+            local bufs = util.get_listed_buffers()
+            items, by_path, by_path_abs = {}, {}, {}
+            for _, b in ipairs(bufs) do
+                local rel = vim.fn.fnamemodify(b.path, ":.")
+                items[#items + 1] = rel
+                by_path[rel] = b.bufnr
+                by_path_abs[rel] = b.path
+            end
         end
+        build()
         if #items == 0 then
             vim.notify("Fuzzy: no listed buffers.", vim.log.levels.INFO)
             return
@@ -636,6 +651,54 @@ local function open_for(kind, opts)
                 end
                 quickfix.update(qf_items, { title = "FuzzyBuffers", command = "FuzzyBuffers" })
                 quickfix.open_if_results(#qf_items)
+            end,
+            on_setup = function(picker, imap)
+                local close_key = config.get().close_buffer_key
+                if not close_key or close_key == "" then return end
+                imap(close_key, function()
+                    local targets = picker.get_marked()
+                    if #targets == 0 then
+                        local cur = picker.get_cursor()
+                        if cur ~= nil then targets = { cur } end
+                    end
+                    if #targets == 0 then return end
+
+                    local modified_failed, other_failed = {}, {}
+                    for _, rel in ipairs(targets) do
+                        local bufnr = by_path[rel]
+                        if bufnr and vim.api.nvim_buf_is_valid(bufnr) then
+                            local was_modified = vim.bo[bufnr].modified
+                            local ok = pcall(vim.api.nvim_buf_delete, bufnr, { force = false })
+                            if not ok then
+                                if was_modified then
+                                    modified_failed[#modified_failed + 1] = rel
+                                else
+                                    other_failed[#other_failed + 1] = rel
+                                end
+                            end
+                        end
+                    end
+                    if #modified_failed > 0 then
+                        vim.notify(
+                            "Fuzzy: unsaved changes: " .. table.concat(modified_failed, ", "),
+                            vim.log.levels.WARN
+                        )
+                    end
+                    if #other_failed > 0 then
+                        vim.notify(
+                            "Fuzzy: could not close: " .. table.concat(other_failed, ", "),
+                            vim.log.levels.WARN
+                        )
+                    end
+
+                    build()
+                    if #items == 0 then
+                        vim.notify("Fuzzy: no listed buffers.", vim.log.levels.INFO)
+                        picker.close()
+                    else
+                        picker.set_items(items)
+                    end
+                end)
             end,
         })
     elseif kind == "grep" then
