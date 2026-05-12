@@ -23,7 +23,7 @@ local function divider_line(width)
     return horiz:rep(width)
 end
 
----@param opts { title: string, ns: integer, item_count: integer, prompt_sigil?: string }
+---@param opts { title: string, ns: integer, item_count: integer, prompt_sigil?: string, preview?: boolean, preview_visible?: boolean }
 ---@return table view
 function M.create(opts)
     local win_cfg = config.get().window
@@ -138,6 +138,60 @@ function M.create(opts)
         zindex = 60,
     })
 
+    -- Preview slot: managed entirely here so view.resize() can reposition it
+    -- atomically as the picker grows or shrinks. preview.lua is content-only.
+    local preview_buf, preview_win
+    local has_picker_border = win_cfg.border ~= nil and win_cfg.border ~= "none"
+    local preview_border_h = has_picker_border and 2 or 0
+
+    local function preview_geom(disp)
+        if not opts.preview then return nil end
+        local content_h = (disp == 0) and 1 or (disp + 2)
+        local prow = frame_row + content_h + (has_picker_border and 2 or 0)
+        local desired_h = math.max(3, math.floor(total_lines * (win_cfg.preview_height or 0.3)))
+        local room = total_lines - prow - preview_border_h
+        if room < 3 then return nil end
+        return {
+            relative = "editor",
+            row      = prow,
+            col      = frame_col,
+            width    = width,
+            height   = math.min(desired_h, room),
+        }
+    end
+
+    if opts.preview then
+        local pgeom = preview_geom(displayed)
+        if pgeom then
+            preview_buf = vim.api.nvim_create_buf(false, true)
+            vim.bo[preview_buf].bufhidden  = "wipe"
+            vim.bo[preview_buf].modifiable = false
+            local pwin_opts = {
+                relative  = "editor",
+                row       = pgeom.row,
+                col       = pgeom.col,
+                width     = pgeom.width,
+                height    = pgeom.height,
+                style     = "minimal",
+                border    = win_cfg.border,
+                focusable = true,
+                zindex    = 45,
+                noautocmd = true,
+                hide      = not (opts.preview_visible == true),
+            }
+            preview_win = vim.api.nvim_open_win(preview_buf, false, pwin_opts)
+            vim.wo[preview_win].wrap         = false
+            vim.wo[preview_win].number       = false
+            vim.wo[preview_win].signcolumn   = "no"
+            vim.wo[preview_win].cursorline   = false
+            vim.wo[preview_win].winhighlight = CONTENT_WINHL
+        else
+            vim.schedule(function()
+                vim.notify("Fuzzy: not enough room for preview", vim.log.levels.INFO)
+            end)
+        end
+    end
+
     vim.wo[result_win].wrap = false
     vim.wo[frame_win].winhighlight  = WINHL
     vim.wo[result_win].winhighlight = CONTENT_WINHL
@@ -221,14 +275,18 @@ function M.create(opts)
         frame_buf   = frame_buf,
         input_buf   = input_buf,
         result_buf  = result_buf,
+        preview_buf = preview_buf,
         frame_win   = frame_win,
         input_win   = input_win,
         result_win  = result_win,
+        preview_win = preview_win,
         write_frame = write_frame,
         refresh_prompt = refresh_prompt,
     }
 
     --- Resize the result/frame windows when the visible item count changes.
+    --- Repositions the preview (if any) to stay flush against the picker's
+    --- current bottom edge.
     function view.resize(target)
         target = math.min(math.max(0, target), view.max_height)
         if target == view.displayed then return end
@@ -251,7 +309,29 @@ function M.create(opts)
             height = math.max(1, target),
             hide = target == 0,
         })
+        if view.preview_win and vim.api.nvim_win_is_valid(view.preview_win) then
+            local pgeom = preview_geom(target)
+            if pgeom then
+                pcall(vim.api.nvim_win_set_config, view.preview_win, pgeom)
+            end
+        end
         pcall(vim.api.nvim__redraw, { win = view.frame_win, flush = true })
+    end
+
+    --- Show/hide the preview window without destroying it. Buffer + filetype
+    --- + cursor position persist across toggles.
+    function view.set_preview_visible(visible)
+        if not (view.preview_win and vim.api.nvim_win_is_valid(view.preview_win)) then return end
+        pcall(vim.api.nvim_win_set_config, view.preview_win, { hide = not visible })
+    end
+
+    --- Replace the preview buffer's content. Toggles `modifiable` internally
+    --- so callers don't need to know the buffer is read-only.
+    function view.set_preview_lines(lines)
+        if not (view.preview_buf and vim.api.nvim_buf_is_valid(view.preview_buf)) then return end
+        vim.bo[view.preview_buf].modifiable = true
+        vim.api.nvim_buf_set_lines(view.preview_buf, 0, -1, false, lines)
+        vim.bo[view.preview_buf].modifiable = false
     end
 
     function view.set_title(new_title)
@@ -289,6 +369,9 @@ function M.create(opts)
         if vim.api.nvim_win_is_valid(view.input_win)  then pcall(vim.api.nvim_win_close, view.input_win,  true) end
         if vim.api.nvim_win_is_valid(view.result_win) then pcall(vim.api.nvim_win_close, view.result_win, true) end
         if vim.api.nvim_win_is_valid(view.frame_win)  then pcall(vim.api.nvim_win_close, view.frame_win,  true) end
+        if view.preview_win and vim.api.nvim_win_is_valid(view.preview_win) then
+            pcall(vim.api.nvim_win_close, view.preview_win, true)
+        end
     end
 
     return view

@@ -113,6 +113,8 @@ local function open(opts)
         title = title,
         ns = ns_content,
         item_count = #items,
+        preview = opts.preview_source ~= nil,
+        preview_visible = config.get().preview == true,
     })
     local result_buf = view.result_buf
     local input_buf  = view.input_buf
@@ -444,12 +446,9 @@ local function open(opts)
                 local cur = vim.api.nvim_get_current_win()
                 if cur == view.input_win
                     or cur == view.result_win
-                    or cur == view.frame_win then
+                    or cur == view.frame_win
+                    or cur == view.preview_win then
                     return
-                end
-                if preview_ctrl then
-                    local pw = preview_ctrl.get_win()
-                    if pw and pw == cur then return end
                 end
                 close()
             end)
