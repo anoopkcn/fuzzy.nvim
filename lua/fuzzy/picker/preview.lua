@@ -342,6 +342,15 @@ function M.attach(args)
         return enabled and win ~= nil and vim.api.nvim_win_is_valid(win)
     end
 
+    local function scroll(termcode)
+        if closed or not ctrl.is_open() then return end
+        local keys = vim.api.nvim_replace_termcodes("normal! " .. termcode, true, false, true)
+        pcall(vim.api.nvim_win_call, win, function() vim.cmd(keys) end)
+    end
+
+    function ctrl.scroll_down() scroll("<C-d>") end
+    function ctrl.scroll_up()   scroll("<C-u>") end
+
     if enabled then
         -- Defer initial render so the picker has time to populate the first cursor.
         vim.schedule(function() if not closed then do_render() end end)

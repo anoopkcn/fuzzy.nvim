@@ -237,7 +237,7 @@ Examples: >
     :FuzzyBuffers!              " open buffer picker
     :FuzzyBuffers! init         " open picker pre-filled with 'init'
 <
-Inside :FuzzyBuffers!, <C-d> closes the buffer under the cursor, or every
+Inside :FuzzyBuffers!, <C-x> closes the buffer under the cursor, or every
 <Tab>-marked buffer at once. Buffers with unsaved changes are skipped and
 reported in a notification; underlying windows showing a closed buffer are
 swapped onto another listed buffer first to avoid surfacing [No Name]. The
@@ -323,12 +323,16 @@ Interactive pickers share these insert-mode keymaps:
                     :FuzzyGrepIn!
                     (key is configurable, see
                     |fuzzy-edit_grep_flags_key|)
-    <C-d>           In :FuzzyBuffers! close the buffer under the cursor,
+    <C-x>           In :FuzzyBuffers! close the buffer under the cursor,
                     or every <Tab>-marked buffer when entries are marked
                     (key is configurable, see |fuzzy-close_buffer_key|)
     <M-p>           Toggle the preview pane in :FuzzyFiles, :FuzzyBuffers,
                     :FuzzyGrep!, :FuzzyGrepIn!, :FuzzyHelp
                     (key is configurable, see |fuzzy-preview_toggle_key|)
+    <C-d> / <C-u>   Scroll the preview pane half-page down / up
+                    (no-op when preview is hidden; see
+                    |fuzzy-preview_scroll_down_key| and
+                    |fuzzy-preview_scroll_up_key|)
 
 The <M-q> key respects the current filter query: only items visible in the
 picker at that moment are sent to quickfix when nothing is marked. This lets
@@ -425,10 +429,12 @@ Setup the plugin in your init.lua: >
         grep_path_truncate = true,
         send_to_qf_key = "<M-q>",
         edit_grep_flags_key = "<M-r>",
-        close_buffer_key = "<C-d>",
+        close_buffer_key = "<C-x>",
         buffer_split_direction = "vertical",
         preview = false,
         preview_toggle_key = "<M-p>",
+        preview_scroll_down_key = "<C-d>",
+        preview_scroll_up_key = "<C-u>",
         preview_grep_context = 10,
         preview_max_lines = 5000,
         window = {
@@ -524,7 +530,7 @@ To use a different key: >
                                                  *fuzzy-close_buffer_key*
 close_buffer_key~
     Type: string|false
-    Default: "<C-d>"
+    Default: "<C-x>"
 
 Key (in insert mode) used inside :FuzzyBuffers! to close the buffer under
 the cursor, or every <Tab>-marked buffer at once when entries are marked.
@@ -539,7 +545,7 @@ Set to false to disable the mapping entirely. >
     require('fuzzy').setup({ close_buffer_key = false })
 <
 To use a different key: >
-    require('fuzzy').setup({ close_buffer_key = "<C-x>" })
+    require('fuzzy').setup({ close_buffer_key = "<C-q>" })
 <
 ------------------------------------------------------------------------------
                                             *fuzzy-buffer_split_direction*
@@ -579,6 +585,24 @@ off for the current session.
 
 Set to false to disable the mapping entirely. >
     require('fuzzy').setup({ preview_toggle_key = false })
+<
+------------------------------------------------------------------------------
+                                        *fuzzy-preview_scroll_down_key*
+                                          *fuzzy-preview_scroll_up_key*
+preview_scroll_down_key~
+preview_scroll_up_key~
+    Type: string|false
+    Defaults: "<C-d>" / "<C-u>"
+
+Insert-mode keys that scroll the preview pane half-page down or up while
+the picker keeps focus, mirroring vim's <C-d> and <C-u> in a normal
+buffer. Both mappings are no-ops while the preview is hidden.
+
+Set either to false to disable that mapping entirely. >
+    require('fuzzy').setup({
+        preview_scroll_down_key = "<C-f>",
+        preview_scroll_up_key   = "<C-b>",
+    })
 <
 ------------------------------------------------------------------------------
                                             *fuzzy-preview_grep_context*

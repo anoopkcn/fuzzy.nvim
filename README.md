@@ -74,12 +74,13 @@ Inside any interactive picker:
 | `<Esc>` / `<C-c>` | Close picker |
 | `<M-q>` | Send visible results, or marked results, to quickfix and close where supported |
 | `<M-r>` | Edit ripgrep backend flags in `:FuzzyGrep!` / `:FuzzyGrepIn!` |
-| `<C-d>` | Close buffer under cursor in `:FuzzyBuffers!`; closes all marked buffers when entries are marked with `<Tab>` |
+| `<C-x>` | Close buffer under cursor in `:FuzzyBuffers!`; closes all marked buffers when entries are marked with `<Tab>` |
 | `<M-p>` | Toggle the preview pane in `:FuzzyFiles`, `:FuzzyBuffers`, `:FuzzyGrep!`, `:FuzzyGrepIn!`, and `:FuzzyHelp` |
+| `<C-d>` / `<C-u>` | Scroll the preview pane half-page down / up |
 
 In `:FuzzyBuffers!`, marked entries are already loaded, so `<CR>` does not re-read them from disk; with two or more marked, it opens the first in the current window and the rest in vertical splits (horizontal if `buffer_split_direction = "horizontal"`). `<M-q>` respects the current filter when nothing is marked. The key is configurable via `send_to_qf_key` (see [Configuration](#configuration-optional)). `:FuzzyCommands` does not expose `<M-q>` because command entries are actions, not file locations.
 
-`<C-d>` in `:FuzzyBuffers!` closes the buffer under the cursor, or every `<Tab>`-marked buffer at once. Modified buffers are skipped and reported in a single notification — the picker refreshes in place and closes when the last buffer is gone. The key is configurable via `close_buffer_key`.
+`<C-x>` in `:FuzzyBuffers!` closes the buffer under the cursor, or every `<Tab>`-marked buffer at once. Modified buffers are skipped and reported in a single notification — the picker refreshes in place and closes when the last buffer is gone. The key is configurable via `close_buffer_key`.
 
 In `:FuzzyGrep!` and `:FuzzyGrepIn!`, press `<M-r>` to edit the active ripgrep flags (for example `-t lua -g '*.md'`) while keeping the current query in place. The key is configurable via `edit_grep_flags_key`.
 
@@ -95,10 +96,12 @@ require('fuzzy').setup({
   grep_path_truncate = true,   -- Shorten long paths in the live-grep picker (default: true)
   send_to_qf_key = "<M-q>",   -- Key to send picker results to QF (false to disable)
   edit_grep_flags_key = "<M-r>", -- Key to edit rg flags in live grep pickers
-  close_buffer_key = "<C-d>", -- Key to close buffer(s) in FuzzyBuffers (false to disable)
+  close_buffer_key = "<C-x>", -- Key to close buffer(s) in FuzzyBuffers (false to disable)
   buffer_split_direction = "vertical", -- "vertical" | "horizontal" — split direction for 2+ marked buffers
   preview = false,             -- Open the preview pane by default
   preview_toggle_key = "<M-p>", -- Insert-mode key to toggle the preview pane (false to disable)
+  preview_scroll_down_key = "<C-d>", -- Key to scroll the preview half-page down (false to disable)
+  preview_scroll_up_key = "<C-u>",   -- Key to scroll the preview half-page up (false to disable)
   preview_grep_context = 10,   -- Lines above/below the matched line in grep preview
   preview_max_lines = 5000,    -- Cap on lines read from disk for file/help previews
   window = {                   -- Picker window geometry (height/width/row/col are 0..1)
@@ -131,7 +134,7 @@ require('fuzzy').setup({
 - **`edit_grep_flags_key`** (string|false, default: `"<M-r>"`)
   Insert-mode key used inside `:FuzzyGrep!` and `:FuzzyGrepIn!` to edit ripgrep backend flags without closing the picker. Set to `false` to disable.
 
-- **`close_buffer_key`** (string|false, default: `"<C-d>"`)
+- **`close_buffer_key`** (string|false, default: `"<C-x>"`)
   Insert-mode key used inside `:FuzzyBuffers!` to close the buffer under the cursor, or every `<Tab>`-marked buffer when entries are marked. Buffers with unsaved changes are skipped and reported. Set to `false` to disable.
 
 - **`buffer_split_direction`** (`"vertical"` | `"horizontal"`, default: `"vertical"`)
@@ -142,6 +145,9 @@ require('fuzzy').setup({
 
 - **`preview_toggle_key`** (string|false, default: `"<M-p>"`)
   Insert-mode key inside a picker that shows or hides the preview pane. Available in `:FuzzyFiles`, `:FuzzyBuffers`, `:FuzzyGrep!`, `:FuzzyGrepIn!`, and `:FuzzyHelp`. Set to `false` to disable.
+
+- **`preview_scroll_down_key`** / **`preview_scroll_up_key`** (string|false, defaults: `"<C-d>"` / `"<C-u>"`)
+  Insert-mode keys that scroll the preview pane half-page down or up, mirroring vim's `<C-d>` / `<C-u>` in a normal buffer. No-op while the preview is hidden.
 
 - **`preview_grep_context`** (number, default: `10`)
   Number of lines shown above *and* below the matched line in grep / help previews.

@@ -528,9 +528,15 @@ local function open(opts)
             get_query = function() return read_query() end,
             enabled = config.get().preview == true,
         })
-        local toggle_key = config.get().preview_toggle_key
-        if toggle_key and toggle_key ~= "" then
-            imap(toggle_key, function() preview_ctrl.toggle() end)
+        local cfg = config.get()
+        if cfg.preview_toggle_key and cfg.preview_toggle_key ~= "" then
+            imap(cfg.preview_toggle_key, function() preview_ctrl.toggle() end)
+        end
+        if cfg.preview_scroll_down_key and cfg.preview_scroll_down_key ~= "" then
+            imap(cfg.preview_scroll_down_key, function() preview_ctrl.scroll_down() end)
+        end
+        if cfg.preview_scroll_up_key and cfg.preview_scroll_up_key ~= "" then
+            imap(cfg.preview_scroll_up_key, function() preview_ctrl.scroll_up() end)
         end
     end
 

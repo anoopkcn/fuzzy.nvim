@@ -25,6 +25,8 @@ local M = {}
 ---@field buffer_split_direction "vertical"|"horizontal" Split direction when opening 2+ marked buffers from :FuzzyBuffers
 ---@field preview boolean Open the preview pane by default
 ---@field preview_toggle_key string|false Key to toggle the preview pane (false to disable)
+---@field preview_scroll_down_key string|false Key to scroll the preview half-page down (false to disable)
+---@field preview_scroll_up_key string|false Key to scroll the preview half-page up (false to disable)
 ---@field preview_grep_context integer Lines above/below the matched line in grep preview
 ---@field preview_max_lines integer Cap on lines read for file/help previews
 ---@field window FuzzyWindowConfig Picker window geometry and border
@@ -35,10 +37,12 @@ local defaults = {
     grep_path_truncate = true,
     send_to_qf_key = "<M-q>",
     edit_grep_flags_key = "<M-r>",
-    close_buffer_key = "<C-d>",
+    close_buffer_key = "<C-x>",
     buffer_split_direction = "vertical",
     preview = false,
     preview_toggle_key = "<M-p>",
+    preview_scroll_down_key = "<C-d>",
+    preview_scroll_up_key = "<C-u>",
     preview_grep_context = 10,
     preview_max_lines = 5000,
     window = {
@@ -106,6 +110,18 @@ function M.setup(opts)
             assert(
                 opts.preview_toggle_key == false or type(opts.preview_toggle_key) == "string",
                 "preview_toggle_key must be a string or false"
+            )
+        end
+        if opts.preview_scroll_down_key ~= nil then
+            assert(
+                opts.preview_scroll_down_key == false or type(opts.preview_scroll_down_key) == "string",
+                "preview_scroll_down_key must be a string or false"
+            )
+        end
+        if opts.preview_scroll_up_key ~= nil then
+            assert(
+                opts.preview_scroll_up_key == false or type(opts.preview_scroll_up_key) == "string",
+                "preview_scroll_up_key must be a string or false"
             )
         end
         if opts.preview_grep_context ~= nil then
