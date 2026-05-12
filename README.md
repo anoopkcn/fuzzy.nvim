@@ -87,6 +87,8 @@ In `:FuzzyGrep!` and `:FuzzyGrepIn!`, press `<M-r>` to edit the active ripgrep f
 
 The preview pane is off by default. Set `preview = true` to open it automatically, or press `<M-p>` inside a supported picker to toggle it for that session. `:FuzzyFiles` and `:FuzzyBuffers` show the file/buffer contents; `:FuzzyGrep!` / `:FuzzyGrepIn!` show `preview_grep_context` lines (default 10) on either side of the matched line with the match highlighted; `:FuzzyHelp` jumps to the tag's source line. The pane is rendered below the picker — if there isn't enough vertical room, it is skipped with a one-shot notification.
 
+You can click into the preview pane to select and yank text without dismissing the picker — the buffer is read-only and the picker keeps tracking the preview as its own window. From inside the preview, press `<Esc>`, `q`, or `<CR>` to return focus to the picker input.
+
 ## Configuration (optional)
 
 ```lua

@@ -578,6 +578,10 @@ opens. Supported pickers: :FuzzyFiles, :FuzzyBuffers, :FuzzyGrep!,
 The pane is anchored below the picker. If there isn't enough vertical room
 for both, the preview is skipped and a one-shot notification fires.
 
+The preview window is focusable and the buffer is read-only — click into
+it to select and yank text without dismissing the picker. From inside the
+preview press <Esc>, q, or <CR> to return focus to the picker input.
+
 ------------------------------------------------------------------------------
                                               *fuzzy-preview_toggle_key*
 preview_toggle_key~

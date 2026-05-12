@@ -427,16 +427,34 @@ local function open(opts)
         callback = update_filter,
     })
 
-    vim.api.nvim_create_autocmd("BufLeave", {
-        buffer = input_buf,
-        once = true,
-        callback = close,
-    })
-
-    -- Fallbacks if BufLeave doesn't fire (buffer wiped externally) or the user
-    -- closes the input window via :q. Keep in one group so we don't leak.
+    -- Fallbacks if focus leaves the picker entirely, or the user closes the
+    -- input window via :q. Keep in one group so we don't leak.
     cleanup_group = vim.api.nvim_create_augroup(
         "fuzzy.picker.cleanup." .. input_buf, { clear = true })
+
+    -- Close when focus moves to a window the picker doesn't own. Schedule
+    -- the check so transient `nvim_win_call` switches (preview uses these
+    -- for scrolling/centering) settle before we read the current window.
+    vim.api.nvim_create_autocmd("WinEnter", {
+        group = cleanup_group,
+        callback = function()
+            if closed then return end
+            vim.schedule(function()
+                if closed then return end
+                local cur = vim.api.nvim_get_current_win()
+                if cur == view.input_win
+                    or cur == view.result_win
+                    or cur == view.frame_win then
+                    return
+                end
+                if preview_ctrl then
+                    local pw = preview_ctrl.get_win()
+                    if pw and pw == cur then return end
+                end
+                close()
+            end)
+        end,
+    })
 
     vim.api.nvim_create_autocmd("BufWipeout", {
         group = cleanup_group,
@@ -527,6 +545,7 @@ local function open(opts)
             get_cursor = function() return current[cursor] end,
             get_query = function() return read_query() end,
             enabled = config.get().preview == true,
+            input_win = view.input_win,
         })
         local cfg = config.get()
         if cfg.preview_toggle_key and cfg.preview_toggle_key ~= "" then

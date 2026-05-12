@@ -150,7 +150,10 @@ local function geometry(view)
         height    = math.min(desired_h, room),
         style     = "minimal",
         border    = border,
-        focusable = false,
+        -- focusable=true lets the user click the preview to select/yank
+        -- without dismissing the picker. The picker's WinEnter handler
+        -- whitelists this window so focus shifts here don't close it.
+        focusable = true,
         zindex    = 45,
         noautocmd = true,
     }
@@ -158,13 +161,14 @@ end
 
 -- ---------- attach ----------
 
----@param args { view: table, source: table, get_cursor: fun(): any?, get_query: fun(): string, enabled: boolean }
+---@param args { view: table, source: table, get_cursor: fun(): any?, get_query: fun(): string, enabled: boolean, input_win: integer|nil }
 ---@return table preview_ctrl
 function M.attach(args)
     local view       = args.view
     local source     = args.source
     local get_cursor = args.get_cursor
     local get_query  = args.get_query
+    local input_win  = args.input_win
     local kind       = source and source.kind or "file"
     local resolve    = source and source.resolve or function(_) return nil end
 
@@ -212,6 +216,19 @@ function M.attach(args)
         end
         buf = vim.api.nvim_create_buf(false, true)
         vim.bo[buf].bufhidden = "wipe"
+        vim.bo[buf].modifiable = false
+        if input_win then
+            local function return_to_input()
+                if vim.api.nvim_win_is_valid(input_win) then
+                    pcall(vim.api.nvim_set_current_win, input_win)
+                    pcall(vim.cmd, "startinsert")
+                end
+            end
+            for _, lhs in ipairs({ "<Esc>", "q", "<CR>" }) do
+                vim.keymap.set("n", lhs, return_to_input,
+                    { buffer = buf, nowait = true, silent = true })
+            end
+        end
         win = vim.api.nvim_open_win(buf, false, geom)
         vim.wo[win].wrap = false
         vim.wo[win].number = false
@@ -258,6 +275,12 @@ function M.attach(args)
         end
     end
 
+    local function set_lines(lines)
+        vim.bo[buf].modifiable = true
+        vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+        vim.bo[buf].modifiable = false
+    end
+
     local function do_render()
         if closed or not enabled then return end
         if not ensure_win() then return end
@@ -270,7 +293,7 @@ function M.attach(args)
         last_key = key
 
         if not target then
-            vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "(no preview)" })
+            set_lines({ "(no preview)" })
             vim.api.nvim_buf_clear_namespace(buf, match_ns, 0, -1)
             if current_ft ~= "" then
                 pcall(function() vim.bo[buf].filetype = "" end)
@@ -283,7 +306,7 @@ function M.attach(args)
         local lines, match_row, ft = build(kind, target, cfg)
         lines = lines or { "(no preview)" }
 
-        vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+        set_lines(lines)
         vim.api.nvim_buf_clear_namespace(buf, match_ns, 0, -1)
 
         local want_ft = (#lines > FT_LINE_LIMIT) and "" or (ft or "")
@@ -340,6 +363,11 @@ function M.attach(args)
 
     function ctrl.is_open()
         return enabled and win ~= nil and vim.api.nvim_win_is_valid(win)
+    end
+
+    function ctrl.get_win()
+        if win and vim.api.nvim_win_is_valid(win) then return win end
+        return nil
     end
 
     local function scroll(termcode)
