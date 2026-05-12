@@ -75,12 +75,15 @@ Inside any interactive picker:
 | `<M-q>` | Send visible results, or marked results, to quickfix and close where supported |
 | `<M-r>` | Edit ripgrep backend flags in `:FuzzyGrep!` / `:FuzzyGrepIn!` |
 | `<C-d>` | Close buffer under cursor in `:FuzzyBuffers!`; closes all marked buffers when entries are marked with `<Tab>` |
+| `<M-p>` | Toggle the preview pane in `:FuzzyFiles`, `:FuzzyBuffers`, `:FuzzyGrep!`, `:FuzzyGrepIn!`, and `:FuzzyHelp` |
 
 In `:FuzzyBuffers!`, marked entries are already loaded, so `<CR>` does not re-read them from disk; with two or more marked, it opens the first in the current window and the rest in vertical splits (horizontal if `buffer_split_direction = "horizontal"`). `<M-q>` respects the current filter when nothing is marked. The key is configurable via `send_to_qf_key` (see [Configuration](#configuration-optional)). `:FuzzyCommands` does not expose `<M-q>` because command entries are actions, not file locations.
 
 `<C-d>` in `:FuzzyBuffers!` closes the buffer under the cursor, or every `<Tab>`-marked buffer at once. Modified buffers are skipped and reported in a single notification — the picker refreshes in place and closes when the last buffer is gone. The key is configurable via `close_buffer_key`.
 
 In `:FuzzyGrep!` and `:FuzzyGrepIn!`, press `<M-r>` to edit the active ripgrep flags (for example `-t lua -g '*.md'`) while keeping the current query in place. The key is configurable via `edit_grep_flags_key`.
+
+The preview pane is off by default. Set `preview = true` to open it automatically, or press `<M-p>` inside a supported picker to toggle it for that session. `:FuzzyFiles` and `:FuzzyBuffers` show the file/buffer contents; `:FuzzyGrep!` / `:FuzzyGrepIn!` show `preview_grep_context` lines (default 10) on either side of the matched line with the match highlighted; `:FuzzyHelp` jumps to the tag's source line. The pane is rendered below the picker — if there isn't enough vertical room, it is skipped with a one-shot notification.
 
 ## Configuration (optional)
 
@@ -94,6 +97,10 @@ require('fuzzy').setup({
   edit_grep_flags_key = "<M-r>", -- Key to edit rg flags in live grep pickers
   close_buffer_key = "<C-d>", -- Key to close buffer(s) in FuzzyBuffers (false to disable)
   buffer_split_direction = "vertical", -- "vertical" | "horizontal" — split direction for 2+ marked buffers
+  preview = false,             -- Open the preview pane by default
+  preview_toggle_key = "<M-p>", -- Insert-mode key to toggle the preview pane (false to disable)
+  preview_grep_context = 10,   -- Lines above/below the matched line in grep preview
+  preview_max_lines = 5000,    -- Cap on lines read from disk for file/help previews
   window = {                   -- Picker window geometry (height/width/row/col are 0..1)
     height = 0.4,              -- max fraction of vim.o.lines used by the picker
     width  = 0.6,              -- fraction of vim.o.columns
@@ -101,6 +108,7 @@ require('fuzzy').setup({
     col    = 0.5,              -- 0=left, 1=right of free space (0.5 = centered)
     border = "rounded",        -- passthrough to nvim_open_win()
     title_pos = "center",      -- "left" | "center" | "right"
+    preview_height = 0.3,      -- Fraction of vim.o.lines used by the preview pane
   },
 })
 ```
@@ -129,8 +137,20 @@ require('fuzzy').setup({
 - **`buffer_split_direction`** (`"vertical"` | `"horizontal"`, default: `"vertical"`)
   When two or more buffers are `<Tab>`-marked in `:FuzzyBuffers!`, `<CR>` opens the first in the current window and the rest as splits in this direction.
 
+- **`preview`** (boolean, default: `false`)
+  Open the preview pane automatically when a supported picker opens. Off by default; can still be toggled at runtime via `preview_toggle_key`.
+
+- **`preview_toggle_key`** (string|false, default: `"<M-p>"`)
+  Insert-mode key inside a picker that shows or hides the preview pane. Available in `:FuzzyFiles`, `:FuzzyBuffers`, `:FuzzyGrep!`, `:FuzzyGrepIn!`, and `:FuzzyHelp`. Set to `false` to disable.
+
+- **`preview_grep_context`** (number, default: `10`)
+  Number of lines shown above *and* below the matched line in grep / help previews.
+
+- **`preview_max_lines`** (number, default: `5000`)
+  Upper bound on the number of lines read from disk when previewing a file or help tag. Caps preview cost on huge files.
+
 - **`window`** (table)
-  Picker window geometry. `height`/`width` are fractions of the editor; `row`/`col` are positions within the free space (0=top/left, 1=bottom/right, 0.5=centered). `border` accepts any value `nvim_open_win()` does. `title_pos` is `"left"`, `"center"`, or `"right"`. The picker still shrinks to fit fewer results — `height` is a cap.
+  Picker window geometry. `height`/`width` are fractions of the editor; `row`/`col` are positions within the free space (0=top/left, 1=bottom/right, 0.5=centered). `border` accepts any value `nvim_open_win()` does. `title_pos` is `"left"`, `"center"`, or `"right"`. The picker still shrinks to fit fewer results — `height` is a cap. `preview_height` (0..1) controls the size of the preview pane.
 
 ## Commands
 

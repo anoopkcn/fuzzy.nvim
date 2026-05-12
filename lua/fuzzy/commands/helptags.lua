@@ -93,6 +93,15 @@ function M.collect()
     return tags
 end
 
+--- Resolve a tags-file excmd into a quickfix target ({ lnum?, pattern? }).
+--- Exported so other modules (e.g. the picker preview) can locate a help
+--- tag's source line without re-running the help command.
+---@param excmd string
+---@return { lnum?: integer, pattern?: string }
+function M.excmd_to_qf_target(excmd)
+    return excmd_to_qf_target(excmd)
+end
+
 --- Build quickfix items from a list of FuzzyHelpEntry values.
 ---@param entries FuzzyHelpEntry[]
 ---@return table[] quickfix items

@@ -12,6 +12,7 @@ local M = {}
 ---@field cursor_indicator boolean Show a left-edge bar on the cursor row
 ---@field keys_hint boolean|string Footer cheatsheet (true = default text, string = custom)
 ---@field show_count boolean Show "visible/total" counter in title
+---@field preview_height number Fraction of vim.o.lines for the preview pane (0..1)
 
 ---@class FuzzyConfig
 ---@field open_single_result boolean Auto-open when only one result matches
@@ -22,6 +23,10 @@ local M = {}
 ---@field edit_grep_flags_key string|false Key to edit ripgrep flags in live grep pickers (false to disable)
 ---@field close_buffer_key string|false Key to close buffer(s) in :FuzzyBuffers (false to disable)
 ---@field buffer_split_direction "vertical"|"horizontal" Split direction when opening 2+ marked buffers from :FuzzyBuffers
+---@field preview boolean Open the preview pane by default
+---@field preview_toggle_key string|false Key to toggle the preview pane (false to disable)
+---@field preview_grep_context integer Lines above/below the matched line in grep preview
+---@field preview_max_lines integer Cap on lines read for file/help previews
 ---@field window FuzzyWindowConfig Picker window geometry and border
 local defaults = {
     open_single_result = false,
@@ -32,6 +37,10 @@ local defaults = {
     edit_grep_flags_key = "<M-r>",
     close_buffer_key = "<C-d>",
     buffer_split_direction = "vertical",
+    preview = false,
+    preview_toggle_key = "<M-p>",
+    preview_grep_context = 10,
+    preview_max_lines = 5000,
     window = {
         height = 0.4,
         width  = 0.6,
@@ -44,6 +53,7 @@ local defaults = {
         cursor_indicator = true,
         keys_hint = false,
         show_count = true,
+        preview_height = 0.3,
     },
 }
 
@@ -91,6 +101,25 @@ function M.setup(opts)
                 "buffer_split_direction must be 'vertical' or 'horizontal'"
             )
         end
+        vim.validate("preview", opts.preview, "boolean", true)
+        if opts.preview_toggle_key ~= nil then
+            assert(
+                opts.preview_toggle_key == false or type(opts.preview_toggle_key) == "string",
+                "preview_toggle_key must be a string or false"
+            )
+        end
+        if opts.preview_grep_context ~= nil then
+            assert(type(opts.preview_grep_context) == "number"
+                and opts.preview_grep_context >= 0
+                and opts.preview_grep_context == math.floor(opts.preview_grep_context),
+                "preview_grep_context must be a non-negative integer")
+        end
+        if opts.preview_max_lines ~= nil then
+            assert(type(opts.preview_max_lines) == "number"
+                and opts.preview_max_lines >= 1
+                and opts.preview_max_lines == math.floor(opts.preview_max_lines),
+                "preview_max_lines must be a positive integer")
+        end
         if opts.window ~= nil then
             vim.validate("window", opts.window, "table")
             local w = opts.window
@@ -106,6 +135,7 @@ function M.setup(opts)
             unit("window.width", w.width, true)
             unit("window.row", w.row, false)
             unit("window.col", w.col, false)
+            unit("window.preview_height", w.preview_height, true)
             if w.border ~= nil then
                 assert(
                     type(w.border) == "string" or type(w.border) == "table",

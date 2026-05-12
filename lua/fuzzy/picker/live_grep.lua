@@ -352,6 +352,14 @@ function M.open(opts, picker_open)
         highlight_matches = true,
         highlight_fn = grep_highlight,
         format_item = grep_display,
+        preview_source = {
+            kind = "grep",
+            resolve = function(item)
+                local qf = item and item.qf
+                if not qf or not qf.filename then return nil end
+                return { path = qf.filename, lnum = qf.lnum, col = qf.col }
+            end,
+        },
         on_change = schedule_search,
         on_close = stop_all,
         on_select = function(item, _, all_items)

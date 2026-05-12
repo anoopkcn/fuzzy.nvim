@@ -326,6 +326,9 @@ Interactive pickers share these insert-mode keymaps:
     <C-d>           In :FuzzyBuffers! close the buffer under the cursor,
                     or every <Tab>-marked buffer when entries are marked
                     (key is configurable, see |fuzzy-close_buffer_key|)
+    <M-p>           Toggle the preview pane in :FuzzyFiles, :FuzzyBuffers,
+                    :FuzzyGrep!, :FuzzyGrepIn!, :FuzzyHelp
+                    (key is configurable, see |fuzzy-preview_toggle_key|)
 
 The <M-q> key respects the current filter query: only items visible in the
 picker at that moment are sent to quickfix when nothing is marked. This lets
@@ -424,6 +427,10 @@ Setup the plugin in your init.lua: >
         edit_grep_flags_key = "<M-r>",
         close_buffer_key = "<C-d>",
         buffer_split_direction = "vertical",
+        preview = false,
+        preview_toggle_key = "<M-p>",
+        preview_grep_context = 10,
+        preview_max_lines = 5000,
         window = {
             height = 0.4,
             width  = 0.6,
@@ -431,6 +438,7 @@ Setup the plugin in your init.lua: >
             col    = 0.5,
             border = "rounded",
             title_pos = "center",
+            preview_height = 0.3,
         },
     })
 <
@@ -547,6 +555,50 @@ respect 'splitright' and 'splitbelow' for placement.
 To open marked buffers in horizontal splits instead: >
     require('fuzzy').setup({ buffer_split_direction = "horizontal" })
 <
+------------------------------------------------------------------------------
+                                                         *fuzzy-preview*
+preview~
+    Type: boolean
+    Default: false
+
+When true, the preview pane opens automatically each time a supported picker
+opens. Supported pickers: :FuzzyFiles, :FuzzyBuffers, :FuzzyGrep!,
+:FuzzyGrepIn!, :FuzzyHelp.
+
+The pane is anchored below the picker. If there isn't enough vertical room
+for both, the preview is skipped and a one-shot notification fires.
+
+------------------------------------------------------------------------------
+                                              *fuzzy-preview_toggle_key*
+preview_toggle_key~
+    Type: string|false
+    Default: "<M-p>"
+
+Insert-mode key inside a supported picker that toggles the preview pane on or
+off for the current session.
+
+Set to false to disable the mapping entirely. >
+    require('fuzzy').setup({ preview_toggle_key = false })
+<
+------------------------------------------------------------------------------
+                                            *fuzzy-preview_grep_context*
+preview_grep_context~
+    Type: number
+    Default: 10
+
+Number of lines shown above and below the matched line in grep / help
+previews. The matched line itself is highlighted.
+
+------------------------------------------------------------------------------
+                                              *fuzzy-preview_max_lines*
+preview_max_lines~
+    Type: number
+    Default: 5000
+
+Hard cap on the number of lines read from disk when previewing a file or
+help tag. Caps preview cost on huge files. Loaded buffers are previewed
+directly without re-reading from disk.
+
 ------------------------------------------------------------------------------
                                                           *fuzzy-window*
 window~

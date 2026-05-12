@@ -21,6 +21,7 @@ M.HL = {
     paletteAlias  = "FuzzyPickerPaletteAlias",
     paletteDetail = "FuzzyPickerPaletteDetail",
     paletteSep    = "FuzzyPickerPaletteSep",
+    previewMatch  = "FuzzyPickerPreviewMatch",
 }
 
 M.WINHL         = ("Normal:%s,FloatBorder:%s,FloatTitle:%s"):format(M.HL.normal, M.HL.border, M.HL.title)
@@ -47,5 +48,6 @@ set_default_hl(M.HL.paletteName,   "Function")
 set_default_hl(M.HL.paletteAlias,  "Constant")
 set_default_hl(M.HL.paletteDetail, "Comment")
 set_default_hl(M.HL.paletteSep,    "Comment")
+set_default_hl(M.HL.previewMatch,  "Visual")
 
 return M

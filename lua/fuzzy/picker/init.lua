@@ -6,6 +6,7 @@ local util = require("fuzzy.util")
 local highlight = require("fuzzy.picker.highlight")
 local window = require("fuzzy.picker.window")
 local live_grep = require("fuzzy.picker.live_grep")
+local preview_mod = require("fuzzy.picker.preview")
 
 local HL = highlight.HL
 
@@ -67,6 +68,7 @@ end
 ---@field height? integer
 ---@field initial_query? string
 ---@field on_setup? fun(picker: FuzzyPickerController, imap: fun(lhs: string, rhs: function), input_buf: integer)
+---@field preview_source? { kind: "file"|"buffer"|"grep"|"help", resolve: fun(item: any): table|nil }
 
 ---@class FuzzyPickerController
 ---@field set_items fun(items: any[])
@@ -128,6 +130,7 @@ local function open(opts)
     local controller = {}
     local selected = {}
     local selected_count = 0
+    local preview_ctrl = nil  -- set later if opts.preview_source is provided
 
     -- Cap scored results to a small multiple of visible rows. match.filter
     -- still walks every item to score, but trims after sort.
@@ -193,6 +196,7 @@ local function open(opts)
                 })
             end
         end
+        if preview_ctrl then preview_ctrl.refresh() end
     end
 
     local function render()
@@ -373,6 +377,7 @@ local function open(opts)
         if closed then return end
         closed = true
         close_timers()
+        if preview_ctrl then preview_ctrl.close() end
         safe_call(on_close)
         if cleanup_group then pcall(vim.api.nvim_del_augroup_by_id, cleanup_group) end
         pcall(vim.cmd.stopinsert)
@@ -515,6 +520,20 @@ local function open(opts)
     imap("<Esc>",   close)
     imap("<C-c>",   close)
 
+    if opts.preview_source then
+        preview_ctrl = preview_mod.attach({
+            view = view,
+            source = opts.preview_source,
+            get_cursor = function() return current[cursor] end,
+            get_query = function() return read_query() end,
+            enabled = config.get().preview == true,
+        })
+        local toggle_key = config.get().preview_toggle_key
+        if toggle_key and toggle_key ~= "" then
+            imap(toggle_key, function() preview_ctrl.toggle() end)
+        end
+    end
+
     if on_quickfix then
         local qf_key = config.get().send_to_qf_key
         if qf_key and qf_key ~= "" then
@@ -591,6 +610,13 @@ local function open_for(kind, opts)
             prompt = "Files",
             initial_query = opts.initial_query,
             highlight_paths = false,
+            preview_source = {
+                kind = "file",
+                resolve = function(p)
+                    if type(p) ~= "string" or p == "" then return nil end
+                    return { path = vim.fn.fnamemodify(p, ":p") }
+                end,
+            },
             on_select = function(path) util.open_file(path) end,
             on_marked = function(marked_items, picked_item)
                 util.load_files(marked_items)
@@ -633,6 +659,13 @@ local function open_for(kind, opts)
             prompt = "Buffers",
             initial_query = opts.initial_query,
             highlight_paths = false,
+            preview_source = {
+                kind = "buffer",
+                resolve = function(rel)
+                    if type(rel) ~= "string" then return nil end
+                    return { bufnr = by_path[rel], path = by_path_abs[rel] }
+                end,
+            },
             on_select = function(rel)
                 local bufnr = by_path[rel]
                 if bufnr then util.switch_to_buffer(bufnr) end
@@ -779,6 +812,14 @@ local function open_for(kind, opts)
             highlight_paths = false,
             format_item = function(entry) return entry.tag .. "  " .. entry.filename_short end,
             filter_text = function(entry) return entry.tag .. "  " .. entry.filename_short end,
+            preview_source = {
+                kind = "help",
+                resolve = function(entry)
+                    if type(entry) ~= "table" or not entry.file then return nil end
+                    local t = helptags.excmd_to_qf_target(entry.excmd or "")
+                    return { path = entry.file, lnum = t and t.lnum, pattern = t and t.pattern }
+                end,
+            },
             on_select = function(entry)
                 local ok, err = pcall(vim.cmd, { cmd = "help", args = { entry.tag } })
                 if not ok then
