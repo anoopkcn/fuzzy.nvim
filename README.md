@@ -77,6 +77,7 @@ Inside any interactive picker:
 | `<C-x>` | Close buffer under cursor in `:FuzzyBuffers!`; closes all marked buffers when entries are marked with `<Tab>` |
 | `<M-p>` | Toggle the preview pane in `:FuzzyFiles`, `:FuzzyBuffers`, `:FuzzyGrep!`, `:FuzzyGrepIn!`, and `:FuzzyHelp` |
 | `<C-d>` / `<C-u>` | Scroll the preview pane half-page down / up |
+| Mouse wheel | Scroll the preview pane by `mousescroll` lines per tick (requires `:set mouse=a` or `:set mouse+=i`) |
 
 In `:FuzzyBuffers!`, marked entries are already loaded, so `<CR>` does not re-read them from disk; with two or more marked, it opens the first in the current window and the rest in vertical splits (horizontal if `buffer_split_direction = "horizontal"`). `<M-q>` respects the current filter when nothing is marked. The key is configurable via `send_to_qf_key` (see [Configuration](#configuration-optional)). `:FuzzyCommands` does not expose `<M-q>` because command entries are actions, not file locations.
 

@@ -538,6 +538,8 @@ local function open(opts)
         if cfg.preview_scroll_up_key and cfg.preview_scroll_up_key ~= "" then
             imap(cfg.preview_scroll_up_key, function() preview_ctrl.scroll_up() end)
         end
+        imap("<ScrollWheelDown>", function() preview_ctrl.mouse_scroll_down() end)
+        imap("<ScrollWheelUp>",   function() preview_ctrl.mouse_scroll_up() end)
     end
 
     if on_quickfix then

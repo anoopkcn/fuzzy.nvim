@@ -333,6 +333,10 @@ Interactive pickers share these insert-mode keymaps:
                     (no-op when preview is hidden; see
                     |fuzzy-preview_scroll_down_key| and
                     |fuzzy-preview_scroll_up_key|)
+    Mouse wheel     Scroll the preview pane by 'mousescroll' lines per
+                    tick. Requires 'mouse' to include "i" or "a" so the
+                    wheel events reach insert mode. No-op when the
+                    preview is hidden.
 
 The <M-q> key respects the current filter query: only items visible in the
 picker at that moment are sent to quickfix when nothing is marked. This lets

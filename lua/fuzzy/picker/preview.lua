@@ -348,8 +348,18 @@ function M.attach(args)
         pcall(vim.api.nvim_win_call, win, function() vim.cmd(keys) end)
     end
 
+    local function mousescroll_ver()
+        for part in (vim.o.mousescroll or ""):gmatch("[^,]+") do
+            local n = part:match("^ver:(%d+)$")
+            if n then return tonumber(n) end
+        end
+        return 3
+    end
+
     function ctrl.scroll_down() scroll("<C-d>") end
     function ctrl.scroll_up()   scroll("<C-u>") end
+    function ctrl.mouse_scroll_down() scroll(("%d<C-e>"):format(mousescroll_ver())) end
+    function ctrl.mouse_scroll_up()   scroll(("%d<C-y>"):format(mousescroll_ver())) end
 
     if enabled then
         -- Defer initial render so the picker has time to populate the first cursor.
