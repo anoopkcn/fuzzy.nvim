@@ -27,11 +27,32 @@ end
 ---@return table view
 function M.create(opts)
     local win_cfg = config.get().window
-    local cmdh = vim.o.cmdheight
-    local total_lines = vim.o.lines - cmdh
-    local total_cols = vim.o.columns
-    local max_h_lines = math.floor(total_lines * win_cfg.height)
-    local max_height = math.max(3, math.min(max_h_lines - 2, total_lines - 6))
+
+    -- Geometry vars are mutable upvalues so reflow_geometry() can recompute
+    -- them on VimResized without recreating any buffers/windows.
+    local total_lines, total_cols
+    local max_h_lines, max_height
+    local width, frame_h_max, frame_row, frame_col
+    local input_row, result_row, content_col
+    local blank, divider
+
+    local function recompute_geometry()
+        local cmdh = vim.o.cmdheight
+        total_lines = vim.o.lines - cmdh
+        total_cols  = vim.o.columns
+        max_h_lines = math.floor(total_lines * win_cfg.height)
+        max_height  = math.max(3, math.min(max_h_lines - 2, total_lines - 6))
+        width       = math.max(10, math.floor(total_cols * win_cfg.width))
+        frame_h_max = max_height + 2
+        frame_row   = math.max(0, math.floor((total_lines - frame_h_max) * win_cfg.row))
+        frame_col   = math.max(0, math.floor((total_cols - (width + 2)) * win_cfg.col))
+        input_row   = frame_row + 1
+        result_row  = frame_row + 3
+        content_col = frame_col + 1
+        blank       = (" "):rep(width)
+        divider     = divider_line(width)
+    end
+    recompute_geometry()
 
     local frame_buf  = vim.api.nvim_create_buf(false, true)
     local input_buf  = vim.api.nvim_create_buf(false, true)
@@ -39,18 +60,6 @@ function M.create(opts)
     vim.bo[frame_buf].bufhidden  = "wipe"
     vim.bo[input_buf].bufhidden  = "wipe"
     vim.bo[result_buf].bufhidden = "wipe"
-
-    local width = math.max(10, math.floor(total_cols * win_cfg.width))
-    -- Anchor against max frame height so the picker doesn't jitter as results filter.
-    local frame_h_max = max_height + 2
-    local frame_row = math.max(0, math.floor((total_lines - frame_h_max) * win_cfg.row))
-    local frame_col = math.max(0, math.floor((total_cols - (width + 2)) * win_cfg.col))
-    local input_row  = frame_row + 1
-    local result_row = frame_row + 3
-    local content_col = frame_col + 1
-
-    local blank = (" "):rep(width)
-    local divider = divider_line(width)
 
     local ns = opts.ns
     local prompt_sigil = opts.prompt_sigil or win_cfg.prompt or "> "
@@ -313,6 +322,57 @@ function M.create(opts)
             local pgeom = preview_geom(target)
             if pgeom then
                 pcall(vim.api.nvim_win_set_config, view.preview_win, pgeom)
+            end
+        end
+        pcall(vim.api.nvim__redraw, { win = view.frame_win, flush = true })
+    end
+
+    --- Recompute layout against current vim.o.lines/columns and apply it to
+    --- every owned window. Called from picker/init.lua on VimResized so the
+    --- picker survives terminal resizes instead of being dismissed.
+    function view.reflow_geometry()
+        recompute_geometry()
+        view.max_height  = max_height
+        view.width       = width
+        view.frame_row   = frame_row
+        view.frame_col   = frame_col
+        view.result_row  = result_row
+        view.content_col = content_col
+        view.displayed   = math.min(view.displayed, max_height)
+
+        -- Frame contents (blank/divider) depend on width, so rewrite.
+        write_frame(view.displayed)
+
+        pcall(vim.api.nvim_win_set_config, view.frame_win, {
+            relative = "editor",
+            row      = frame_row,
+            col      = frame_col,
+            width    = width,
+            height   = (view.displayed == 0) and 1 or (view.displayed + 2),
+        })
+        pcall(vim.api.nvim_win_set_config, view.input_win, {
+            relative = "editor",
+            row      = input_row,
+            col      = content_col,
+            width    = width,
+            height   = 1,
+        })
+        pcall(vim.api.nvim_win_set_config, view.result_win, {
+            relative = "editor",
+            row      = result_row,
+            col      = content_col,
+            width    = width,
+            height   = math.max(1, view.displayed),
+            hide     = view.displayed == 0,
+        })
+        if view.preview_win and vim.api.nvim_win_is_valid(view.preview_win) then
+            local pg = preview_geom(view.displayed)
+            if pg then
+                pcall(vim.api.nvim_win_set_config, view.preview_win, pg)
+            else
+                -- Not enough room anymore — hide rather than destroy so a
+                -- subsequent up-resize can bring it back.
+                pcall(vim.api.nvim_win_set_config, view.preview_win, { hide = true })
             end
         end
         pcall(vim.api.nvim__redraw, { win = view.frame_win, flush = true })

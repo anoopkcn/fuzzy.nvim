@@ -467,11 +467,16 @@ local function open(opts)
         callback = close,
     })
 
-    -- Reflowing floats correctly across resize is more code than it's worth;
-    -- close the picker on resize so the user can re-open at the new dims.
+    -- On terminal resize, reflow the picker (and preview) against the new
+    -- editor dimensions, then re-render so result lines reflect any width
+    -- change. Layout lives in window.lua; here we just trigger it.
     vim.api.nvim_create_autocmd("VimResized", {
         group = cleanup_group,
-        callback = close,
+        callback = function()
+            if closed then return end
+            view.reflow_geometry()
+            render()
+        end,
     })
 
     local function imap(lhs, rhs)
