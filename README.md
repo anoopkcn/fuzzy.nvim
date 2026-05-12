@@ -76,6 +76,7 @@ Inside any interactive picker:
 | `<M-r>` | Edit ripgrep backend flags in `:FuzzyGrep!` / `:FuzzyGrepIn!` |
 | `<C-x>` | Close buffer under cursor in `:FuzzyBuffers!`; closes all marked buffers when entries are marked with `<Tab>` |
 | `<M-p>` | Toggle the preview pane in `:FuzzyFiles`, `:FuzzyBuffers`, `:FuzzyGrep!`, `:FuzzyGrepIn!`, and `:FuzzyHelp` |
+| `<M-w>` | Move focus into the preview pane — use vim motions to navigate, `v`/`V` to select, `y` to yank; `<Esc>`/`q`/`<CR>` to return |
 | `<C-d>` / `<C-u>` | Scroll the preview pane half-page down / up |
 | Mouse wheel | Scroll the preview pane by `mousescroll` lines per tick (requires `:set mouse=a` or `:set mouse+=i`) |
 
@@ -87,7 +88,7 @@ In `:FuzzyGrep!` and `:FuzzyGrepIn!`, press `<M-r>` to edit the active ripgrep f
 
 The preview pane is off by default. Set `preview = true` to open it automatically, or press `<M-p>` inside a supported picker to toggle it for that session. `:FuzzyFiles` and `:FuzzyBuffers` show the file/buffer contents; `:FuzzyGrep!` / `:FuzzyGrepIn!` show `preview_grep_context` lines (default 10) on either side of the matched line with the match highlighted; `:FuzzyHelp` jumps to the tag's source line. The pane is rendered below the picker — if there isn't enough vertical room, it is skipped with a one-shot notification.
 
-You can click into the preview pane to select and yank text without dismissing the picker — the buffer is read-only and the picker keeps tracking the preview as its own window. From inside the preview, press `<Esc>`, `q`, or `<CR>` to return focus to the picker input.
+You can also navigate the preview from the keyboard: press `<M-w>` from the picker to shift focus into the preview pane. Once focused, use vim motions (`hjkl`, `gg`, `G`, `/`), enter visual mode (`v`, `V`, `<C-v>`) to select a region, and `y` to yank — or `"+y` to copy to the system clipboard. Press `<Esc>`, `q`, or `<CR>` to return to the picker input. Clicking into the preview with the mouse has the same effect; the buffer is read-only either way.
 
 ## Configuration (optional)
 
@@ -148,6 +149,9 @@ require('fuzzy').setup({
 
 - **`preview_toggle_key`** (string|false, default: `"<M-p>"`)
   Insert-mode key inside a picker that shows or hides the preview pane. Available in `:FuzzyFiles`, `:FuzzyBuffers`, `:FuzzyGrep!`, `:FuzzyGrepIn!`, and `:FuzzyHelp`. Set to `false` to disable.
+
+- **`preview_focus_key`** (string|false, default: `"<M-w>"`)
+  Insert-mode key that moves focus from the picker into the preview pane, so you can drive selection and yanking with vim motions instead of the mouse. No-op while the preview is hidden. From inside the preview, `<Esc>`/`q`/`<CR>` return to the picker input. Set to `false` to disable.
 
 - **`preview_scroll_down_key`** / **`preview_scroll_up_key`** (string|false, defaults: `"<C-d>"` / `"<C-u>"`)
   Insert-mode keys that scroll the preview pane half-page down or up, mirroring vim's `<C-d>` / `<C-u>` in a normal buffer. No-op while the preview is hidden.

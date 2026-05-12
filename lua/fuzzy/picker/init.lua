@@ -555,6 +555,16 @@ local function open(opts)
         if cfg.preview_toggle_key and cfg.preview_toggle_key ~= "" then
             imap(cfg.preview_toggle_key, function() preview_ctrl.toggle() end)
         end
+        if cfg.preview_focus_key and cfg.preview_focus_key ~= "" then
+            imap(cfg.preview_focus_key, function()
+                if not preview_ctrl.is_open() then return end
+                local pw = preview_ctrl.get_win()
+                if pw and vim.api.nvim_win_is_valid(pw) then
+                    pcall(vim.cmd, "stopinsert")
+                    pcall(vim.api.nvim_set_current_win, pw)
+                end
+            end)
+        end
         if cfg.preview_scroll_down_key and cfg.preview_scroll_down_key ~= "" then
             imap(cfg.preview_scroll_down_key, function() preview_ctrl.scroll_down() end)
         end

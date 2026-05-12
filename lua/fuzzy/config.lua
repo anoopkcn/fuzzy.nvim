@@ -25,6 +25,7 @@ local M = {}
 ---@field buffer_split_direction "vertical"|"horizontal" Split direction when opening 2+ marked buffers from :FuzzyBuffers
 ---@field preview boolean Open the preview pane by default
 ---@field preview_toggle_key string|false Key to toggle the preview pane (false to disable)
+---@field preview_focus_key string|false Key to move focus from the picker into the preview pane (false to disable)
 ---@field preview_scroll_down_key string|false Key to scroll the preview half-page down (false to disable)
 ---@field preview_scroll_up_key string|false Key to scroll the preview half-page up (false to disable)
 ---@field preview_grep_context integer Lines above/below the matched line in grep preview
@@ -41,6 +42,7 @@ local defaults = {
     buffer_split_direction = "vertical",
     preview = false,
     preview_toggle_key = "<M-p>",
+    preview_focus_key = "<M-w>",
     preview_scroll_down_key = "<C-d>",
     preview_scroll_up_key = "<C-u>",
     preview_grep_context = 10,
@@ -110,6 +112,12 @@ function M.setup(opts)
             assert(
                 opts.preview_toggle_key == false or type(opts.preview_toggle_key) == "string",
                 "preview_toggle_key must be a string or false"
+            )
+        end
+        if opts.preview_focus_key ~= nil then
+            assert(
+                opts.preview_focus_key == false or type(opts.preview_focus_key) == "string",
+                "preview_focus_key must be a string or false"
             )
         end
         if opts.preview_scroll_down_key ~= nil then

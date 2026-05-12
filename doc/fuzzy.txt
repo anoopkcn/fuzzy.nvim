@@ -329,6 +329,10 @@ Interactive pickers share these insert-mode keymaps:
     <M-p>           Toggle the preview pane in :FuzzyFiles, :FuzzyBuffers,
                     :FuzzyGrep!, :FuzzyGrepIn!, :FuzzyHelp
                     (key is configurable, see |fuzzy-preview_toggle_key|)
+    <M-w>           Move focus into the preview pane. Use vim motions to
+                    navigate; v/V to select; y to yank; <Esc>/q/<CR> to
+                    return to the picker input
+                    (key is configurable, see |fuzzy-preview_focus_key|)
     <C-d> / <C-u>   Scroll the preview pane half-page down / up
                     (no-op when preview is hidden; see
                     |fuzzy-preview_scroll_down_key| and
@@ -437,6 +441,7 @@ Setup the plugin in your init.lua: >
         buffer_split_direction = "vertical",
         preview = false,
         preview_toggle_key = "<M-p>",
+        preview_focus_key = "<M-w>",
         preview_scroll_down_key = "<C-d>",
         preview_scroll_up_key = "<C-u>",
         preview_grep_context = 10,
@@ -579,8 +584,11 @@ The pane is anchored below the picker. If there isn't enough vertical room
 for both, the preview is skipped and a one-shot notification fires.
 
 The preview window is focusable and the buffer is read-only — click into
-it to select and yank text without dismissing the picker. From inside the
-preview press <Esc>, q, or <CR> to return focus to the picker input.
+it (or press the |fuzzy-preview_focus_key|, default <M-w>) to select and
+yank text without dismissing the picker. Once focused, use vim motions
+(hjkl, gg, G, /, etc.), v/V/<C-v> for visual selection, and y to yank.
+From inside the preview press <Esc>, q, or <CR> to return focus to the
+picker input.
 
 ------------------------------------------------------------------------------
                                               *fuzzy-preview_toggle_key*
@@ -593,6 +601,22 @@ off for the current session.
 
 Set to false to disable the mapping entirely. >
     require('fuzzy').setup({ preview_toggle_key = false })
+<
+------------------------------------------------------------------------------
+                                              *fuzzy-preview_focus_key*
+preview_focus_key~
+    Type: string|false
+    Default: "<M-w>"
+
+Insert-mode key that moves focus from the picker into the preview pane.
+Once focused, the preview's read-only buffer accepts standard vim motions
+(hjkl, gg, G, /, etc.), visual-mode selection (v, V, <C-v>), and yanking
+(y / "+y for the system clipboard). Press <Esc>, q, or <CR> inside the
+preview to return focus to the picker input. No-op while the preview is
+hidden.
+
+Set to false to disable the mapping entirely. >
+    require('fuzzy').setup({ preview_focus_key = false })
 <
 ------------------------------------------------------------------------------
                                         *fuzzy-preview_scroll_down_key*
