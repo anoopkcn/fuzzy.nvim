@@ -153,7 +153,7 @@ function M.attach(args)
         local function return_to_input()
             if vim.api.nvim_win_is_valid(input_win) then
                 pcall(vim.api.nvim_set_current_win, input_win)
-                pcall(vim.cmd, "startinsert")
+                pcall(vim.cmd, "startinsert!")
             end
         end
         for _, lhs in ipairs({ "<Esc>", "q", "<CR>" }) do
