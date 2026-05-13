@@ -641,9 +641,9 @@ local function open_for(kind, opts)
 
     if kind == "files" then
         local complete = require("fuzzy.complete")
-        local files = complete.get_files() or {}
+        local files = complete.get_files_sync() or {}
         if #files == 0 then
-            vim.notify("Fuzzy: file cache is empty (try again in a moment).", vim.log.levels.INFO)
+            vim.notify("Fuzzy: no files found in cwd.", vim.log.levels.INFO)
             return
         end
         return open({

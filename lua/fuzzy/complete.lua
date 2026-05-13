@@ -55,6 +55,35 @@ local function get_files()
     return file_cache.files or {}
 end
 
+--- Synchronously list files in cwd, bypassing the async cache.
+--- Updates the cache as a side effect so future completion lookups benefit.
+local function get_files_sync()
+    local cwd = vim.fn.getcwd()
+    local limit = config.get().file_match_limit or 10000
+    local files
+
+    if HAS_FD then
+        local obj = vim.system({
+            "fd", "--hidden", "--color", "never",
+            "--exclude", ".git", "--type", "f", "--max-results", tostring(limit),
+        }, { text = true, cwd = cwd }):wait()
+        if obj.code ~= 0 then
+            return file_cache.files or {}
+        end
+        files = vim.split(obj.stdout or "", "\n", { plain = true, trimempty = true })
+    else
+        local ok, results = pcall(vim.fs.find, function() return true end, {
+            path = ".", type = "file", limit = limit,
+            skip = function(name) return name == ".git" end,
+        })
+        if not ok then return file_cache.files or {} end
+        files = vim.iter(results):map(function(p) return p:gsub("^%./", "") end):totable()
+    end
+
+    file_cache = { cwd = cwd, files = files, timestamp = os.time(), warming = false }
+    return files
+end
+
 local function complete_files(arg_lead)
     if arg_lead:match("^%-") then
         return { "--hidden", "--no-ignore", "--follow", "--type", "--extension", "--exclude", "--max-depth" }
@@ -86,6 +115,7 @@ return {
     complete_buffers = complete_buffers,
     warm_cache = warm_cache,
     get_files = get_files,
+    get_files_sync = get_files_sync,
     make_file_completer = function() return function(a) return complete_files(a) end end,
     make_buffer_completer = function() return function(a) return complete_buffers(a) end end,
 }
