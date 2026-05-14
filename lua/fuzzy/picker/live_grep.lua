@@ -92,28 +92,20 @@ local function pick_marked_target(marked_items, picked_item, path_fn)
     return marked_items[1]
 end
 
----@param opts { dir?: string, initial_query?: string, initial_flags?: string[] }
+---@param opts { initial_query?: string, initial_flags?: string[] }
 ---@param picker_open fun(opts: table): table
 function M.open(opts, picker_open)
     opts = opts or {}
 
     local dedupe_lines = config.get().grep_dedupe
-    local netrw_dir = opts.dir or util.get_netrw_dir()
+    local netrw_dir = util.get_netrw_dir()
     local grep_flags = parse.normalize(opts.initial_flags or {})
-    local label
-    if opts.dir then
-        label = dedupe_lines and "FuzzyGrepIn" or "FuzzyGrepIn!"
-    else
-        label = dedupe_lines and "FuzzyGrep" or "FuzzyGrep!"
-    end
+    local label = dedupe_lines and "FuzzyGrep" or "FuzzyGrep!"
 
     local function format_flags() return parse.join(grep_flags) end
 
     local function picker_title()
         local base = "Grep"
-        if opts.dir then
-            base = ("Grep in %s"):format(vim.fn.fnamemodify(opts.dir, ":~"))
-        end
         local flags = format_flags()
         if flags == "" then return base end
         return ("%s [%s]"):format(base, flags)

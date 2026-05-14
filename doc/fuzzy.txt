@@ -10,21 +10,19 @@ CONTENTS                                                      *fuzzy-contents*
 2. Requirements ............................ |fuzzy-requirements|
 3. Commands ................................ |fuzzy-commands|
     3.1 FuzzyGrep .......................... |:FuzzyGrep|
-    3.2 FuzzyGrepIn ........................ |:FuzzyGrepIn|
-    3.3 FuzzyFiles ......................... |:FuzzyFiles|
-    3.4 FuzzyBuffers ....................... |:FuzzyBuffers|
-    3.5 FuzzyCommands ...................... |:FuzzyCommands|
-    3.6 FuzzyList .......................... |:FuzzyList|
-    3.7 FuzzyNext / FuzzyPrev .............. |:FuzzyNext|
-    3.8 Picker keymaps ..................... |fuzzy-picker-keys|
-    3.9 FuzzyHelp .......................... |:FuzzyHelp|
-    3.10 FuzzyGitBranches .................. |:FuzzyGitBranches|
-    3.11 FuzzyGitWorktrees ................. |:FuzzyGitWorktrees|
+    3.2 FuzzyFiles ......................... |:FuzzyFiles|
+    3.3 FuzzyBuffers ....................... |:FuzzyBuffers|
+    3.4 FuzzyCommands ...................... |:FuzzyCommands|
+    3.5 FuzzyList .......................... |:FuzzyList|
+    3.6 FuzzyNext / FuzzyPrev .............. |:FuzzyNext|
+    3.7 Picker keymaps ..................... |fuzzy-picker-keys|
+    3.8 FuzzyHelp .......................... |:FuzzyHelp|
+    3.9 FuzzyGitBranches .................. |:FuzzyGitBranches|
+    3.10 FuzzyGitWorktrees ................. |:FuzzyGitWorktrees|
 4. Configuration ........................... |fuzzy-configuration|
 5. Functions ............................... |fuzzy-functions|
     5.1 fuzzy.setup() ...................... |fuzzy.setup()|
     5.2 fuzzy.grep() ....................... |fuzzy.grep()|
-    5.3 fuzzy.grep_in() .................... |fuzzy.grep_in()|
 6. Examples ................................ |fuzzy-examples|
 
 ==============================================================================
@@ -91,7 +89,7 @@ FuzzyCommands stages commands in the command line instead of exporting to
 quickfix. FuzzyGitBranches and FuzzyGitWorktrees perform Git switch actions and
 do not export to quickfix.
 
-In :FuzzyGrep! and :FuzzyGrepIn!, press <M-r> (Alt+r, configurable via
+In :FuzzyGrep!, press <M-r> (Alt+r, configurable via
 |fuzzy-edit_grep_flags_key|) to edit ripgrep backend flags without leaving the
 picker.
 
@@ -153,32 +151,7 @@ backend flags without closing the picker. Result caching is scoped by both the
 query and the active backend flags.
 
 ------------------------------------------------------------------------------
-3.2 FuzzyGrepIn                                                *:FuzzyGrepIn*
-
-Grep inside a specific directory instead of the current working directory.
-
-Syntax: >
-    :FuzzyGrepIn[!] <dir> [pattern] [rg options]
-<
-`dir` is expanded (supports ~ and $ENV variables) and must be a valid
-directory. A clear error is shown if it does not exist.
-
-Without [!]: Streams ripgrep results for [pattern] inside <dir> to the
-             quickfix list. Requires both a directory and a pattern.
-With [!]:    Opens a live grep picker scoped to <dir>. Optionally pre-fills
-             the picker with [pattern] and initial ripgrep options.
-
-Deduplication is controlled by |fuzzy-grep_dedupe|.
-
-Examples: >
-    :FuzzyGrepIn! $VIMRUNTIME/doc          " live grep vim help docs
-    :FuzzyGrepIn! $VIMRUNTIME/doc autocmd  " picker pre-filled
-    :FuzzyGrepIn! $VIMRUNTIME/doc TODO -t lua
-    :FuzzyGrepIn ~/.config/nvim TODO       " stream to quickfix
-    :FuzzyGrepIn ~/projects/foo -t lua require
-<
-------------------------------------------------------------------------------
-3.3 FuzzyFiles                                                  *:FuzzyFiles*
+3.2 FuzzyFiles                                                  *:FuzzyFiles*
 
 Find files using fd.
 
@@ -217,7 +190,7 @@ Unlike the live grep pickers, :FuzzyFiles! does not edit backend fd flags from
 inside the picker; it filters the warmed file cache by query only.
 
 ------------------------------------------------------------------------------
-3.4 FuzzyBuffers                                              *:FuzzyBuffers*
+3.3 FuzzyBuffers                                              *:FuzzyBuffers*
 
 List and filter open buffers.
 
@@ -250,7 +223,7 @@ direction is controlled by |fuzzy-buffer_split_direction| ("vertical" or
 "horizontal", default "vertical"); splits respect 'splitright' / 'splitbelow'.
 
 ------------------------------------------------------------------------------
-3.5 FuzzyCommands                                          *:FuzzyCommands*
+3.4 FuzzyCommands                                          *:FuzzyCommands*
 
 Browse built-in, user, and plugin commands available in the current Neovim
 session, plus Neovim options such as 'relativenumber'.
@@ -281,7 +254,7 @@ Examples: >
     :FuzzyCommands Fuzzy             " pre-filled with 'Fuzzy'
 <
 ------------------------------------------------------------------------------
-3.6 FuzzyList                                                    *:FuzzyList*
+3.5 FuzzyList                                                    *:FuzzyList*
 
 Browse and select from quickfix list history.
 
@@ -294,7 +267,7 @@ With [!]:    Shows only lists created by fuzzy commands.
 Uses |vim.ui.select()| when available (e.g., with dressing.nvim).
 
 ------------------------------------------------------------------------------
-3.7 FuzzyNext / FuzzyPrev                            *:FuzzyNext* *:FuzzyPrev*
+3.6 FuzzyNext / FuzzyPrev                            *:FuzzyNext* *:FuzzyPrev*
 
 Navigate quickfix entries with cycling.
 
@@ -303,7 +276,7 @@ Syntax: >
     :FuzzyPrev      " Previous entry (cycles to last at beginning)
 <
 ------------------------------------------------------------------------------
-3.8 Picker keymaps                                      *fuzzy-picker-keys*
+3.7 Picker keymaps                                      *fuzzy-picker-keys*
 
 Interactive pickers share these insert-mode keymaps:
 
@@ -319,15 +292,14 @@ Interactive pickers share these insert-mode keymaps:
                     or send marked results if any are selected
                     where supported
                     (key is configurable, see |fuzzy-send_to_qf_key|)
-    <M-r>           Edit ripgrep backend flags in :FuzzyGrep! and
-                    :FuzzyGrepIn!
+    <M-r>           Edit ripgrep backend flags in :FuzzyGrep!
                     (key is configurable, see
                     |fuzzy-edit_grep_flags_key|)
     <C-x>           In :FuzzyBuffers! close the buffer under the cursor,
                     or every <Tab>-marked buffer when entries are marked
                     (key is configurable, see |fuzzy-close_buffer_key|)
     <M-p>           Toggle the preview pane in :FuzzyFiles, :FuzzyBuffers,
-                    :FuzzyGrep!, :FuzzyGrepIn!, :FuzzyHelp
+                    :FuzzyGrep!, :FuzzyHelp
                     (key is configurable, see |fuzzy-preview_toggle_key|)
     <M-w>           Move focus into the preview pane. Use vim motions to
                     navigate; v/V to select; y to yank; <Esc>/q/<CR> to
@@ -351,7 +323,7 @@ marked buffer in the current window and the rest as splits (direction set
 by |fuzzy-buffer_split_direction|). |:FuzzyCommands| does not expose <M-q>
 because command entries are actions, not file locations.
 ------------------------------------------------------------------------------
-3.9 FuzzyHelp                                                    *:FuzzyHelp*
+3.8 FuzzyHelp                                                    *:FuzzyHelp*
 
 Browse and open Neovim/Vim help tags.
 
@@ -381,7 +353,7 @@ Examples: >
     :FuzzyHelp lsp.txt           " filter to tags from lsp.txt
 <
 ------------------------------------------------------------------------------
-3.10 FuzzyGitBranches                                      *:FuzzyGitBranches*
+3.9 FuzzyGitBranches                                      *:FuzzyGitBranches*
 
 Browse and switch Git branches.
 
@@ -405,7 +377,7 @@ Examples: >
     :FuzzyGitBranches feat         " picker pre-filled with 'feat'
 <
 ------------------------------------------------------------------------------
-3.11 FuzzyGitWorktrees                                  *:FuzzyGitWorktrees*
+3.10 FuzzyGitWorktrees                                  *:FuzzyGitWorktrees*
 
 Browse and switch Git worktrees.
 
@@ -491,7 +463,7 @@ grep_path_truncate~
     Type: boolean
     Default: true
 
-In the live-grep picker (:FuzzyGrep! / :FuzzyGrepIn!), when a result line
+In the live-grep picker (:FuzzyGrep!), when a result line
 "path:lnum:col:text" overflows the picker width, shorten each directory
 component to its first character so the matched text stays visible.
 
@@ -510,8 +482,7 @@ send_to_qf_key~
 
 Key (in insert mode) that sends the currently visible picker results to the
 quickfix list and closes the picker. Works in picker types that support
-quickfix export (:FuzzyGrep!, :FuzzyFiles!, :FuzzyBuffers!, :FuzzyGrepIn!,
-:FuzzyHelp).
+quickfix export (:FuzzyGrep!, :FuzzyFiles!, :FuzzyBuffers!, :FuzzyHelp).
 
 Set to false to disable the mapping entirely. >
     require('fuzzy').setup({ send_to_qf_key = false })
@@ -526,8 +497,8 @@ edit_grep_flags_key~
     Default: "<M-r>"
 
 Key (in insert mode) that opens an editable prompt for ripgrep backend flags in
-the live grep pickers (:FuzzyGrep! and :FuzzyGrepIn!). The current query stays
-in the picker input while the flags are updated separately.
+the live grep picker (:FuzzyGrep!). The current query stays in the picker
+input while the flags are updated separately.
 
 Set to false to disable the mapping entirely. >
     require('fuzzy').setup({ edit_grep_flags_key = false })
@@ -578,7 +549,7 @@ preview~
 
 When true, the preview pane opens automatically each time a supported picker
 opens. Supported pickers: :FuzzyFiles, :FuzzyBuffers, :FuzzyGrep!,
-:FuzzyGrepIn!, :FuzzyHelp.
+:FuzzyHelp.
 
 The pane is anchored below the picker. If there isn't enough vertical room
 for both, the preview is skipped and a one-shot notification fires.
@@ -713,22 +684,6 @@ fuzzy.grep({args})
         fuzzy.grep({ 'TODO', '-t', 'lua' })
         fuzzy.grep({ '-F', 'function(args)' })  -- literal search
 <
-------------------------------------------------------------------------------
-                                                              *fuzzy.grep_in()*
-fuzzy.grep_in({dir}, {args})
-    Programmatically grep inside a specific directory and populate the
-    quickfix list. ~ and $ENV variables in {dir} are expanded automatically.
-
-    Parameters: ~
-        {dir}    (string) Directory to search in
-        {args}   (table|string) Ripgrep arguments (pattern and options)
-
-    Example: >
-        local fuzzy = require('fuzzy')
-
-        fuzzy.grep_in('$VIMRUNTIME/doc', { 'autocmd' })
-        fuzzy.grep_in('~/.config/nvim', { 'TODO', '-t', 'lua' })
-<
 ==============================================================================
 6. EXAMPLES                                                  *fuzzy-examples*
 
@@ -777,9 +732,6 @@ Search help documentation~
     vim.keymap.set('n', 'K', function()
         vim.cmd('FuzzyHelp ' .. vim.fn.expand('<cword>'))
     end, { desc = 'Help for word' })
-
-    -- Live grep picker scoped to vim runtime help docs
-    vim.keymap.set('n', '<leader>fH', '<CMD>FuzzyGrepIn! $VIMRUNTIME/doc<CR>', { desc = 'Grep help docs' })
 <
 ==============================================================================
 vim:tw=78:ts=8:ft=help:norl:

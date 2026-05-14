@@ -613,8 +613,8 @@ local function open(opts)
     return controller
 end
 
----@param kind "files"|"buffers"|"grep"|"grep_in"|"helptags"|"commands"|"qflist"|"git_branches"|"git_worktrees"|"git_commits"|"git_status"|"git_stashes"
----@param opts? { bang?: boolean, initial_query?: string, initial_flags?: string[], fuzzy_only?: boolean, dir?: string }
+---@param kind "files"|"buffers"|"grep"|"helptags"|"commands"|"qflist"|"git_branches"|"git_worktrees"|"git_commits"|"git_status"|"git_stashes"
+---@param opts? { bang?: boolean, initial_query?: string, initial_flags?: string[], fuzzy_only?: boolean }
 local function open_for(kind, opts)
     opts = opts or {}
     local source_name = picker_sources[kind]
@@ -912,12 +912,6 @@ local function open_for(kind, opts)
         })
     elseif kind == "grep" then
         return live_grep.open(opts, open)
-    elseif kind == "grep_in" then
-        return live_grep.open({
-            dir = opts.dir,
-            initial_query = opts.initial_query,
-            initial_flags = opts.initial_flags,
-        }, open)
     elseif kind == "helptags" then
         local helptags = require("fuzzy.commands.helptags")
         local tag_entries = helptags.collect()

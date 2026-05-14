@@ -9,7 +9,6 @@ For workflows using neovim's **quickfix lists**. `fuzzy.nvim` populates the quic
     - Equivalent to the default vim command `:copen | silent grep <pattern>` but smarter
     - Live grep picker highlights matched text within results
     - Per-session result cache: refining a query (e.g. `foo` → `foobar`) filters instantly from cache; same query typed again skips grep entirely
-- **`:FuzzyGrepIn` - Grep inside a specific directory** (e.g. vim help docs, a subdirectory, `$VIMRUNTIME/doc`)
 - **`:FuzzyFiles` - File finding** using `fd` (fallback to `vim.fs.find`)
 - **`:FuzzyBuffers` - Buffer switching** with fuzzy filtering
 - **`:FuzzyHelp` - Help tag browser** with `'helplang'`-aware tag discovery across the full `runtimepath`
@@ -73,9 +72,9 @@ Inside any interactive picker:
 | `<Tab>` / `<S-Tab>` | Mark / unmark result |
 | `<Esc>` / `<C-c>` | Close picker |
 | `<M-q>` | Send visible results, or marked results, to quickfix and close where supported |
-| `<M-r>` | Edit ripgrep backend flags in `:FuzzyGrep!` / `:FuzzyGrepIn!` |
+| `<M-r>` | Edit ripgrep backend flags in `:FuzzyGrep!` |
 | `<C-x>` | Close buffer under cursor in `:FuzzyBuffers!`; closes all marked buffers when entries are marked with `<Tab>` |
-| `<M-p>` | Toggle the preview pane in `:FuzzyFiles`, `:FuzzyBuffers`, `:FuzzyGrep!`, `:FuzzyGrepIn!`, and `:FuzzyHelp` |
+| `<M-p>` | Toggle the preview pane in `:FuzzyFiles`, `:FuzzyBuffers`, `:FuzzyGrep!`, and `:FuzzyHelp` |
 | `<M-w>` | Move focus into the preview pane — use vim motions to navigate, `v`/`V` to select, `y` to yank; `<Esc>`/`q`/`<CR>` to return |
 | `<C-d>` / `<C-u>` | Scroll the preview pane half-page down / up |
 | Mouse wheel | Scroll the preview pane by `mousescroll` lines per tick (requires `:set mouse=a` or `:set mouse+=i`) |
@@ -84,9 +83,9 @@ In `:FuzzyBuffers!`, marked entries are already loaded, so `<CR>` does not re-re
 
 `<C-x>` in `:FuzzyBuffers!` closes the buffer under the cursor, or every `<Tab>`-marked buffer at once. Modified buffers are skipped and reported in a single notification — the picker refreshes in place and closes when the last buffer is gone. The key is configurable via `close_buffer_key`.
 
-In `:FuzzyGrep!` and `:FuzzyGrepIn!`, press `<M-r>` to edit the active ripgrep flags (for example `-t lua -g '*.md'`) while keeping the current query in place. The key is configurable via `edit_grep_flags_key`.
+In `:FuzzyGrep!`, press `<M-r>` to edit the active ripgrep flags (for example `-t lua -g '*.md'`) while keeping the current query in place. The key is configurable via `edit_grep_flags_key`.
 
-The preview pane is off by default. Set `preview = true` to open it automatically, or press `<M-p>` inside a supported picker to toggle it for that session. `:FuzzyFiles` and `:FuzzyBuffers` show the file/buffer contents; `:FuzzyGrep!` / `:FuzzyGrepIn!` show `preview_grep_context` lines (default 10) on either side of the matched line with the match highlighted; `:FuzzyHelp` jumps to the tag's source line. The pane is rendered below the picker — if there isn't enough vertical room, it is skipped with a one-shot notification.
+The preview pane is off by default. Set `preview = true` to open it automatically, or press `<M-p>` inside a supported picker to toggle it for that session. `:FuzzyFiles` and `:FuzzyBuffers` show the file/buffer contents; `:FuzzyGrep!` shows `preview_grep_context` lines (default 10) on either side of the matched line with the match highlighted; `:FuzzyHelp` jumps to the tag's source line. The pane is rendered below the picker — if there isn't enough vertical room, it is skipped with a one-shot notification.
 
 You can also navigate the preview from the keyboard: press `<M-w>` from the picker to shift focus into the preview pane. Once focused, use vim motions (`hjkl`, `gg`, `G`, `/`), enter visual mode (`v`, `V`, `<C-v>`) to select a region, and `y` to yank — or `"+y` to copy to the system clipboard. Press `<Esc>`, `q`, or `<CR>` to return to the picker input. Clicking into the preview with the mouse has the same effect; the buffer is read-only either way.
 
@@ -136,7 +135,7 @@ require('fuzzy').setup({
   Insert-mode key used inside picker types that support quickfix export to send the currently visible (filtered) results to the quickfix list and close the picker. Set to `false` to disable.
 
 - **`edit_grep_flags_key`** (string|false, default: `"<M-r>"`)
-  Insert-mode key used inside `:FuzzyGrep!` and `:FuzzyGrepIn!` to edit ripgrep backend flags without closing the picker. Set to `false` to disable.
+  Insert-mode key used inside `:FuzzyGrep!` to edit ripgrep backend flags without closing the picker. Set to `false` to disable.
 
 - **`close_buffer_key`** (string|false, default: `"<C-x>"`)
   Insert-mode key used inside `:FuzzyBuffers!` to close the buffer under the cursor, or every `<Tab>`-marked buffer when entries are marked. Buffers with unsaved changes are skipped and reported. Set to `false` to disable.
@@ -148,7 +147,7 @@ require('fuzzy').setup({
   Open the preview pane automatically when a supported picker opens. Off by default; can still be toggled at runtime via `preview_toggle_key`.
 
 - **`preview_toggle_key`** (string|false, default: `"<M-p>"`)
-  Insert-mode key inside a picker that shows or hides the preview pane. Available in `:FuzzyFiles`, `:FuzzyBuffers`, `:FuzzyGrep!`, `:FuzzyGrepIn!`, and `:FuzzyHelp`. Set to `false` to disable.
+  Insert-mode key inside a picker that shows or hides the preview pane. Available in `:FuzzyFiles`, `:FuzzyBuffers`, `:FuzzyGrep!`, and `:FuzzyHelp`. Set to `false` to disable.
 
 - **`preview_focus_key`** (string|false, default: `"<M-w>"`)
   Insert-mode key that moves focus from the picker into the preview pane, so you can drive selection and yanking with vim motions instead of the mouse. No-op while the preview is hidden. From inside the preview, `<Esc>`/`q`/`<CR>` return to the picker input. Set to `false` to disable.
@@ -183,24 +182,6 @@ The live grep picker caches results per session:
 - Matched text is highlighted within each result line.
 
 Inside the picker, press `<M-r>` to edit ripgrep backend flags without losing the current query. Cache entries are scoped by both the query and the active flags.
-
-### `:FuzzyGrepIn[!] <dir> [pattern] [rg options]`
-
-Grep inside a specific directory instead of the current working directory.
-
-- `:FuzzyGrepIn dir pattern` — streams results for `pattern` inside `dir` to the quickfix list.
-- `:FuzzyGrepIn! dir` — opens a live grep picker scoped to `dir`.
-- `:FuzzyGrepIn! dir pattern` — opens the picker pre-filled with `pattern`, scoped to `dir`.
-- `:FuzzyGrepIn! dir pattern [rg options]` — opens the picker with the pattern and initial ripgrep flags, scoped to `dir`.
-
-`dir` is expanded (supports `~` and `$ENV` variables) and must be a valid directory.
-
-Examples:
-```
-:FuzzyGrepIn! $VIMRUNTIME/doc          " live grep vim help docs
-:FuzzyGrepIn! ~/.config/nvim TODO      " search for TODO in nvim config
-:FuzzyGrepIn /path/to/project error    " stream results to quickfix
-```
 
 ### `:FuzzyFiles[!] [fd arguments]`
 
@@ -309,9 +290,6 @@ vim.keymap.set('n', '<leader>fW', function()
     local word = vim.fn.expand('<cWORD>')
     if word ~= '' then fuzzy.grep({ '-F', word }) end
 end, { desc = 'Grep WORD (literal)' })
-
--- Live grep inside vim help docs
-vim.keymap.set('n', '<leader>fH', '<CMD>FuzzyGrepIn! $VIMRUNTIME/doc<CR>', { desc = 'Search help docs' })
 ```
 
 ## API
@@ -329,18 +307,6 @@ Programmatically run a grep search and populate the quickfix list.
 ```lua
 fuzzy.grep({ 'TODO', '-t', 'lua' })
 fuzzy.grep({ '-F', 'function(args)' })  -- literal search
-```
-
-### `fuzzy.grep_in(dir, args)`
-
-Programmatically grep inside a specific directory.
-
-- `dir` (string) - Directory to search in (supports `~` and `$ENV`)
-- `args` (table|string) - Ripgrep arguments (pattern and options)
-
-```lua
-fuzzy.grep_in('$VIMRUNTIME/doc', { 'autocmd' })
-fuzzy.grep_in('~/.config/nvim', { 'TODO', '-t', 'lua' })
 ```
 
 ## License

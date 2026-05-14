@@ -2,7 +2,6 @@ local M = {}
 
 function M.setup(opts)
     require("fuzzy.config").setup(opts)
-    local config = require("fuzzy.config")
     local complete = require("fuzzy.complete")
     local quickfix = require("fuzzy.quickfix")
 
@@ -21,33 +20,6 @@ function M.setup(opts)
             desc = desc,
         })
     end
-
-    cmd("FuzzyGrepIn", function(o)
-        local parse = require("fuzzy.parse")
-        local dir_raw, rest_raw = parse.split_first(o.args)
-        if not dir_raw then
-            vim.notify("FuzzyGrepIn: provide a directory.", vim.log.levels.INFO)
-            return
-        end
-        local dir = vim.fn.fnamemodify(vim.fn.expand(dir_raw), ":p"):gsub("[/\\]+$", "")
-        local stat = vim.uv.fs_stat(dir)
-        if not stat or stat.type ~= "directory" then
-            vim.notify("FuzzyGrepIn: '" .. dir_raw .. "' is not a valid directory.", vim.log.levels.ERROR)
-            return
-        end
-        if o.bang then
-            local initial_query, initial_flags = parse.split_grep_picker_args(rest_raw)
-            require("fuzzy.picker").open_for("grep_in", {
-                dir = dir,
-                initial_query = initial_query,
-                initial_flags = initial_flags,
-            })
-        elseif rest_raw ~= "" then
-            require("fuzzy.commands.grep_in").run(dir, rest_raw)
-        else
-            vim.notify("FuzzyGrepIn: provide a search pattern.", vim.log.levels.INFO)
-        end
-    end, { nargs = "+", bang = true, complete = "file", desc = "Run ripgrep in a specific directory" })
 
     cmd("FuzzyGrep", function(o)
         if o.bang then
@@ -116,15 +88,5 @@ function M.setup(opts)
 end
 
 function M.grep(args) require("fuzzy.commands.grep").run(args) end
-
-function M.grep_in(dir, args)
-    local expanded = vim.fn.fnamemodify(vim.fn.expand(dir), ":p"):gsub("[/\\]+$", "")
-    local stat = vim.uv.fs_stat(expanded)
-    if not stat or stat.type ~= "directory" then
-        vim.notify("fuzzy.grep_in: '" .. dir .. "' is not a valid directory.", vim.log.levels.ERROR)
-        return
-    end
-    require("fuzzy.commands.grep_in").run(expanded, args)
-end
 
 return M
