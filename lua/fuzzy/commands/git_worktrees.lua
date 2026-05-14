@@ -125,4 +125,24 @@ function M.select(entry, callback)
     if callback then callback(true) end
 end
 
+---@param opts { initial_query?: string }
+---@param picker_open fun(opts: table): table
+function M.open(opts, picker_open)
+    M.collect(function(items)
+        if not items or #items == 0 then
+            vim.notify(M.empty_message or (M.prompt .. ": no items found."), vim.log.levels.INFO)
+            return
+        end
+        picker_open({
+            items = items,
+            prompt = M.prompt,
+            initial_query = opts.initial_query,
+            highlight_paths = M.highlight_paths == true,
+            format_item = M.format_entry,
+            filter_text = M.filter_text,
+            on_select = function(entry) M.select(entry) end,
+        })
+    end)
+end
+
 return M

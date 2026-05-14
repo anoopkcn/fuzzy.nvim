@@ -1,24 +1,26 @@
 local config = require("fuzzy.config")
 local match = require("fuzzy.match")
-local quickfix = require("fuzzy.quickfix")
-local util = require("fuzzy.util")
 
 local highlight = require("fuzzy.picker.highlight")
 local window = require("fuzzy.picker.window")
-local live_grep = require("fuzzy.picker.live_grep")
 local preview_mod = require("fuzzy.picker.preview")
 
 local HL = highlight.HL
 
 local M = {}
 
+-- Registry of picker kinds → source module names. Each source module exports
+-- M.open(opts, picker_open) which calls the engine to render its picker.
+-- Use M.register_source(kind, modname) to add user-defined sources.
 local picker_sources = {
+    files         = "fuzzy.picker.sources.files",
+    buffers       = "fuzzy.picker.sources.buffers",
+    grep          = "fuzzy.picker.live_grep",
+    helptags      = "fuzzy.picker.sources.helptags",
+    commands      = "fuzzy.picker.sources.commands",
+    qflist        = "fuzzy.picker.sources.qflist",
     git_branches  = "fuzzy.commands.git_branches",
     git_worktrees = "fuzzy.commands.git_worktrees",
-    -- Future:
-    -- git_commits = "fuzzy.commands.git_commits",
-    -- git_status  = "fuzzy.commands.git_status",
-    -- git_stashes = "fuzzy.commands.git_stashes",
 }
 
 -- Two namespaces so the per-key navigation update can wipe ONLY the cursor
@@ -58,7 +60,7 @@ end
 ---@field format_item? fun(item: any, ctx?: table, width?: integer): string
 ---@field filter_text? fun(item: any): string
 ---@field make_render_context? fun(items: any[], width: integer): table|nil
----@field row_highlight? fun(buf: integer, ns: integer, row: integer, item: any, text: string, ctx: table|nil)
+---@field row_highlight? fun(buf: integer, ns: integer, row: integer, item: any, text: string, ctx: table|nil, prefix_len: integer)
 ---@field filter_items? boolean
 ---@field highlight_matches? boolean
 ---@field highlight_fn? fun(query: string, line: string): integer[]|nil
@@ -250,7 +252,7 @@ local function open(opts)
             end
 
             if row_highlight then
-                row_highlight(result_buf, ns_content, row, item, text, render_ctx)
+                row_highlight(result_buf, ns_content, row, item, text, render_ctx, PREFIX_LEN)
             end
 
             if highlight_matches and query ~= "" then
@@ -613,396 +615,25 @@ local function open(opts)
     return controller
 end
 
----@param kind "files"|"buffers"|"grep"|"helptags"|"commands"|"qflist"|"git_branches"|"git_worktrees"|"git_commits"|"git_status"|"git_stashes"
+---@param kind "files"|"buffers"|"grep"|"helptags"|"commands"|"qflist"|"git_branches"|"git_worktrees"|string
 ---@param opts? { bang?: boolean, initial_query?: string, initial_flags?: string[], fuzzy_only?: boolean }
 local function open_for(kind, opts)
-    opts = opts or {}
     local source_name = picker_sources[kind]
-    if source_name then
-        local source = require(source_name)
-        source.collect(function(items)
-            if not items or #items == 0 then
-                vim.notify((source.empty_message or ((source.prompt or kind) .. ": no items found.")), vim.log.levels.INFO)
-                return
-            end
+    if not source_name then return end
+    return require(source_name).open(opts or {}, open)
+end
 
-            open({
-                items = items,
-                prompt = source.prompt or kind,
-                initial_query = opts.initial_query,
-                format_item = source.format_entry,
-                filter_text = source.filter_text,
-                highlight_paths = source.highlight_paths == true,
-                on_select = function(entry) source.select(entry) end,
-            })
-        end)
-        return
-    end
-
-    if kind == "files" then
-        local complete = require("fuzzy.complete")
-        local runner = require("fuzzy.runner")
-        local parse = require("fuzzy.parse")
-        local files_flags = parse.normalize(opts.initial_flags or {})
-
-        local function format_flags() return parse.join(files_flags) end
-        local function files_title()
-            local f = format_flags()
-            return (f == "") and "Files" or ("Files [" .. f .. "]")
-        end
-
-        -- Match complete.get_files_sync's --type f default. Only inject when the
-        -- user hasn't set their own -t/--type, so e.g. `-t d` works as expected.
-        local function build_fd_args()
-            local args = {}
-            local has_type = false
-            for i = 1, #files_flags do
-                args[i] = files_flags[i]
-                if files_flags[i] == "-t" or files_flags[i] == "--type"
-                    or files_flags[i]:match("^%-%-type=") then
-                    has_type = true
-                end
-            end
-            if not has_type then
-                args[#args + 1] = "--type"
-                args[#args + 1] = "f"
-            end
-            return args
-        end
-
-        local function run_fd(picker)
-            if picker.is_closed() then return end
-            picker.set_loading(true)
-            runner.fd(build_fd_args(), function(results, code, truncated, _limit, stderr)
-                vim.schedule(function()
-                    if picker.is_closed() then return end
-                    picker.set_loading(false)
-                    if code ~= 0 then
-                        local msg = (stderr and stderr[1])
-                            or ("fd exited with code " .. code)
-                        vim.notify("FuzzyFiles: " .. msg, vim.log.levels.ERROR)
-                        picker.set_items({})
-                        return
-                    end
-                    picker.set_items(results)
-                    if truncated then
-                        vim.notify("FuzzyFiles: results truncated.", vim.log.levels.WARN)
-                    end
-                end)
-            end, vim.fn.getcwd())
-        end
-
-        local initial_items
-        if #files_flags == 0 then
-            initial_items = complete.get_files_sync() or {}
-            if #initial_items == 0 then
-                vim.notify("Fuzzy: no files found in cwd.", vim.log.levels.INFO)
-                return
-            end
-        else
-            initial_items = {}
-        end
-
-        return open({
-            items = initial_items,
-            prompt = "Files",
-            title = files_title(),
-            initial_query = opts.initial_query,
-            highlight_paths = false,
-            preview_source = {
-                kind = "file",
-                resolve = function(p)
-                    if type(p) ~= "string" or p == "" then return nil end
-                    return { path = vim.fn.fnamemodify(p, ":p") }
-                end,
-            },
-            on_select = function(path) util.open_file(path) end,
-            on_marked = function(marked_items, picked_item)
-                util.load_files(marked_items)
-                local target = live_grep.pick_marked_target(marked_items, picked_item, function(item) return item end)
-                if target then util.open_file(target) end
-            end,
-            on_quickfix = function(visible_items)
-                if #visible_items == 0 then
-                    vim.notify("Fuzzy: no items to send to quickfix.", vim.log.levels.INFO)
-                    return
-                end
-                local qf_items = {}
-                for i = 1, #visible_items do
-                    local path = visible_items[i]
-                    qf_items[i] = { filename = vim.fn.fnamemodify(path, ":p"), lnum = 1, col = 1, text = path }
-                end
-                quickfix.update(qf_items, { title = "FuzzyFiles", command = "FuzzyFiles" })
-                quickfix.open_if_results(#qf_items)
-            end,
-            on_setup = function(picker, imap)
-                if #files_flags > 0 then run_fd(picker) end
-                local edit_key = config.get().edit_files_flags_key
-                if not edit_key or edit_key == "" then return end
-                imap(edit_key, function()
-                    vim.ui.input({
-                        prompt = "fd flags: ",
-                        default = format_flags(),
-                    }, function(input)
-                        vim.schedule(function()
-                            if picker.is_closed() then return end
-                            if input ~= nil then
-                                files_flags = parse.normalize(input)
-                                picker.set_title(files_title())
-                                run_fd(picker)
-                            end
-                            vim.cmd("startinsert!")
-                        end)
-                    end)
-                end)
-            end,
-        })
-    elseif kind == "buffers" then
-        local items, by_path, by_path_abs
-        local function build()
-            local bufs = util.get_listed_buffers()
-            items, by_path, by_path_abs = {}, {}, {}
-            for _, b in ipairs(bufs) do
-                local rel = vim.fn.fnamemodify(b.path, ":.")
-                items[#items + 1] = rel
-                by_path[rel] = b.bufnr
-                by_path_abs[rel] = b.path
-            end
-        end
-        build()
-        if #items == 0 then
-            vim.notify("Fuzzy: no listed buffers.", vim.log.levels.INFO)
-            return
-        end
-        return open({
-            items = items,
-            prompt = "Buffers",
-            initial_query = opts.initial_query,
-            highlight_paths = false,
-            preview_source = {
-                kind = "buffer",
-                resolve = function(rel)
-                    if type(rel) ~= "string" then return nil end
-                    return { bufnr = by_path[rel], path = by_path_abs[rel] }
-                end,
-            },
-            on_select = function(rel)
-                local bufnr = by_path[rel]
-                if bufnr then util.switch_to_buffer(bufnr) end
-            end,
-            on_marked = function(marked_items)
-                local bufnrs = {}
-                for _, rel in ipairs(marked_items) do
-                    local b = by_path[rel]
-                    if b and vim.api.nvim_buf_is_valid(b) then
-                        bufnrs[#bufnrs + 1] = b
-                    end
-                end
-                if #bufnrs == 0 then return end
-                util.switch_to_buffer(bufnrs[1])
-                if #bufnrs == 1 then return end
-                local split_cmd = (config.get().buffer_split_direction == "horizontal")
-                    and "split" or "vsplit"
-                for i = 2, #bufnrs do
-                    vim.cmd(split_cmd)
-                    pcall(vim.api.nvim_set_current_buf, bufnrs[i])
-                end
-            end,
-            on_quickfix = function(visible_items)
-                if #visible_items == 0 then
-                    vim.notify("Fuzzy: no items to send to quickfix.", vim.log.levels.INFO)
-                    return
-                end
-                local qf_items = {}
-                for i = 1, #visible_items do
-                    local rel = visible_items[i]
-                    local bufnr = by_path[rel]
-                    qf_items[i] = { bufnr = bufnr, filename = by_path_abs[rel] or rel, lnum = 1, col = 1, text = rel }
-                end
-                quickfix.update(qf_items, { title = "FuzzyBuffers", command = "FuzzyBuffers" })
-                quickfix.open_if_results(#qf_items)
-            end,
-            on_setup = function(picker, imap)
-                local close_key = config.get().close_buffer_key
-                if not close_key or close_key == "" then return end
-                imap(close_key, function()
-                    local targets = picker.get_marked()
-                    if #targets == 0 then
-                        local cur = picker.get_cursor()
-                        if cur ~= nil then targets = { cur } end
-                    end
-                    if #targets == 0 then return end
-
-                    local target_set = {}
-                    for _, rel in ipairs(targets) do
-                        local b = by_path[rel]
-                        if b then target_set[b] = true end
-                    end
-
-                    -- Pick a survivor buffer (a named listed buffer not being
-                    -- deleted) so windows showing a target can be vacated
-                    -- cleanly. Empty-name buffers (e.g. the startup [No Name])
-                    -- are skipped — falling back to :enew below is equivalent
-                    -- and avoids surfacing them via the close action.
-                    local survivor = nil
-                    for _, b in ipairs(vim.api.nvim_list_bufs()) do
-                        if not target_set[b]
-                            and vim.api.nvim_buf_is_loaded(b)
-                            and vim.bo[b].buflisted
-                            and vim.api.nvim_buf_get_name(b) ~= ""
-                        then
-                            survivor = b
-                            break
-                        end
-                    end
-
-                    -- Swap any non-floating window showing a target onto the
-                    -- survivor (or a fresh [No Name] if no survivor exists).
-                    for _, win in ipairs(vim.api.nvim_list_wins()) do
-                        local wbuf = vim.api.nvim_win_get_buf(win)
-                        if target_set[wbuf]
-                            and vim.api.nvim_win_get_config(win).relative == ""
-                        then
-                            if survivor then
-                                vim.api.nvim_win_set_buf(win, survivor)
-                            else
-                                vim.api.nvim_win_call(win, function() vim.cmd("enew") end)
-                                survivor = vim.api.nvim_win_get_buf(win)
-                            end
-                        end
-                    end
-
-                    local modified_failed, other_failed = {}, {}
-                    for _, rel in ipairs(targets) do
-                        local bufnr = by_path[rel]
-                        if bufnr and vim.api.nvim_buf_is_valid(bufnr) then
-                            local was_modified = vim.bo[bufnr].modified
-                            local ok = pcall(vim.api.nvim_buf_delete, bufnr, { force = false })
-                            if not ok then
-                                if was_modified then
-                                    modified_failed[#modified_failed + 1] = rel
-                                else
-                                    other_failed[#other_failed + 1] = rel
-                                end
-                            end
-                        end
-                    end
-                    if #modified_failed > 0 then
-                        vim.notify(
-                            "Fuzzy: unsaved changes: " .. table.concat(modified_failed, ", "),
-                            vim.log.levels.WARN
-                        )
-                    end
-                    if #other_failed > 0 then
-                        vim.notify(
-                            "Fuzzy: could not close: " .. table.concat(other_failed, ", "),
-                            vim.log.levels.WARN
-                        )
-                    end
-
-                    build()
-                    if #items == 0 then
-                        vim.notify("Fuzzy: no listed buffers.", vim.log.levels.INFO)
-                        picker.close()
-                    else
-                        picker.set_items(items)
-                    end
-                end)
-            end,
-        })
-    elseif kind == "grep" then
-        return live_grep.open(opts, open)
-    elseif kind == "helptags" then
-        local helptags = require("fuzzy.commands.helptags")
-        local tag_entries = helptags.collect()
-        if #tag_entries == 0 then
-            vim.notify("FuzzyHelp: no help tags found.", vim.log.levels.INFO)
-            return
-        end
-        return open({
-            items = tag_entries,
-            prompt = "Help",
-            initial_query = opts.initial_query,
-            highlight_paths = false,
-            format_item = function(entry) return entry.tag .. "  " .. entry.filename_short end,
-            filter_text = function(entry) return entry.tag .. "  " .. entry.filename_short end,
-            preview_source = {
-                kind = "help",
-                resolve = function(entry)
-                    if type(entry) ~= "table" or not entry.file then return nil end
-                    local t = helptags.excmd_to_qf_target(entry.excmd or "")
-                    return { path = entry.file, lnum = t and t.lnum, pattern = t and t.pattern }
-                end,
-            },
-            on_select = function(entry)
-                local ok, err = pcall(vim.cmd, { cmd = "help", args = { entry.tag } })
-                if not ok then
-                    vim.notify("FuzzyHelp: " .. tostring(err), vim.log.levels.ERROR)
-                end
-            end,
-            on_quickfix = function(visible_items)
-                if #visible_items == 0 then
-                    vim.notify("Fuzzy: no items to send to quickfix.", vim.log.levels.INFO)
-                    return
-                end
-                local qf_items = helptags.to_qf_items(visible_items)
-                quickfix.update(qf_items, { title = "FuzzyHelp", command = "FuzzyHelp" })
-                quickfix.open_if_results(#qf_items)
-            end,
-        })
-    elseif kind == "commands" then
-        local commands = require("fuzzy.commands.commands")
-        local entries = commands.collect()
-        if #entries == 0 then
-            vim.notify("FuzzyCommands: no commands found.", vim.log.levels.INFO)
-            return
-        end
-        return open({
-            items = entries,
-            prompt = "Commands",
-            initial_query = opts.initial_query,
-            highlight_paths = false,
-            format_item = commands.format_entry,
-            filter_text = commands.filter_text,
-            make_render_context = commands.make_render_context,
-            row_highlight = function(buf, row_ns, row, entry, text, ctx)
-                if not ctx then return end
-                for _, range in ipairs(commands.highlight_ranges(entry, ctx, text)) do
-                    if range.end_col >= range.start_col then
-                        vim.api.nvim_buf_set_extmark(buf, row_ns, row, PREFIX_LEN + range.start_col - 1, {
-                            end_col = PREFIX_LEN + range.end_col,
-                            hl_group = range.group,
-                            priority = 120,
-                        })
-                    end
-                end
-            end,
-            on_select = function(entry)
-                commands.prefill_cmdline(entry and entry.cmdline or nil)
-            end,
-        })
-    elseif kind == "qflist" then
-        local lists = quickfix.collect_history(opts.fuzzy_only)
-        if #lists == 0 then
-            vim.notify("No quickfix history.", vim.log.levels.INFO)
-            return
-        end
-        return open({
-            items = lists,
-            prompt = "Quickfix",
-            initial_query = opts.initial_query,
-            highlight_paths = false,
-            format_item = function(item) return ("%s (%d items)"):format(item.title, item.size) end,
-            filter_text = function(item) return item.title end,
-            on_select = function(item)
-                quickfix.activate(item.nr)
-                vim.cmd.copen()
-            end,
-        })
-    end
+--- Register a source module under the given kind. The module must export
+--- `M.open(opts, picker_open)`. Subsequent `M.open_for(kind, ...)` calls
+--- dispatch to it.
+---@param kind string
+---@param modname string  Lua module name passed to `require()`
+local function register_source(kind, modname)
+    picker_sources[kind] = modname
 end
 
 M.open = open
 M.open_for = open_for
+M.register_source = register_source
 
 return M
