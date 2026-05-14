@@ -23,6 +23,7 @@ CONTENTS                                                      *fuzzy-contents*
 5. Functions ............................... |fuzzy-functions|
     5.1 fuzzy.setup() ...................... |fuzzy.setup()|
     5.2 fuzzy.grep() ....................... |fuzzy.grep()|
+    5.3 picker.register_source() ........... |fuzzy.register_source()|
 6. Examples ................................ |fuzzy-examples|
 
 ==============================================================================
@@ -683,6 +684,31 @@ fuzzy.grep({args})
         fuzzy.grep({ 'TODO' })
         fuzzy.grep({ 'TODO', '-t', 'lua' })
         fuzzy.grep({ '-F', 'function(args)' })  -- literal search
+<
+------------------------------------------------------------------------------
+                                                      *fuzzy.register_source()*
+require('fuzzy.picker').register_source({kind}, {modname})
+    Register a custom picker source under {kind}. The module must export
+    `M.open(opts, picker_open)` and call `picker_open(picker_opts)` to render
+    its picker. Subsequent `:lua require('fuzzy.picker').open_for({kind})`
+    calls dispatch to it.
+
+    Parameters: ~
+        {kind}     (string) Identifier passed to |open_for|.
+        {modname}  (string) Lua module name passed to `require()`.
+
+    Built-in kinds: `files`, `buffers`, `grep`, `helptags`, `commands`,
+    `qflist`, `git_branches`, `git_worktrees`. They share the same contract,
+    so the smallest example to copy is
+    `lua/fuzzy/picker/sources/qflist.lua`.
+
+    Example: >
+        require('fuzzy.picker').register_source(
+            'oldfiles', 'my_plugin.oldfiles_source'
+        )
+        vim.api.nvim_create_user_command('FuzzyOldfiles', function()
+            require('fuzzy.picker').open_for('oldfiles')
+        end, {})
 <
 ==============================================================================
 6. EXAMPLES                                                  *fuzzy-examples*

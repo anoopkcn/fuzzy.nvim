@@ -72,7 +72,7 @@ Inside any interactive picker:
 | `<Tab>` / `<S-Tab>` | Mark / unmark result |
 | `<Esc>` / `<C-c>` | Close picker |
 | `<M-q>` | Send visible results, or marked results, to quickfix and close where supported |
-| `<M-r>` | Edit ripgrep backend flags in `:FuzzyGrep!` |
+| `<M-r>` | Edit backend flags for rg and fd in `:FuzzyGrep!`  and `:FuzzyFiles` respectively |
 | `<C-x>` | Close buffer under cursor in `:FuzzyBuffers!`; closes all marked buffers when entries are marked with `<Tab>` |
 | `<M-p>` | Toggle the preview pane in `:FuzzyFiles`, `:FuzzyBuffers`, `:FuzzyGrep!`, and `:FuzzyHelp` |
 | `<M-w>` | Move focus into the preview pane — use vim motions to navigate, `v`/`V` to select, `y` to yank; `<Esc>`/`q`/`<CR>` to return |
@@ -228,8 +228,6 @@ Browse and switch Git worktrees.
 
 The picker lists `git worktree list --porcelain`, marks the current worktree with `*`, and switches on `<CR>` by changing Neovim's current directory to the selected worktree path.
 
-More Git pickers may be added later using the same source architecture.
-
 ### `:FuzzyHelp [query]`
 
 Browse and open Neovim/Vim help tags.
@@ -308,6 +306,18 @@ Programmatically run a grep search and populate the quickfix list.
 fuzzy.grep({ 'TODO', '-t', 'lua' })
 fuzzy.grep({ '-F', 'function(args)' })  -- literal search
 ```
+
+### Custom pickers
+
+Every built-in picker (`files`, `buffers`, `grep`, `helptags`, `commands`, `qflist`, `git_branches`, `git_worktrees`) is a source module that exports `M.open(opts, picker_open)`. Register your own with:
+
+```lua
+require('fuzzy.picker').register_source('oldfiles', 'my_plugin.oldfiles_source')
+-- then:
+require('fuzzy.picker').open_for('oldfiles')
+```
+
+The source module receives `picker_open`, the picker engine's `open()` function. Inspect `lua/fuzzy/picker/sources/qflist.lua` for the smallest working example.
 
 ## Limitations
 
