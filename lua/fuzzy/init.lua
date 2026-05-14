@@ -66,8 +66,11 @@ function M.setup(opts)
 
     cmd("FuzzyFiles", function(o)
         if o.bang then
+            local parse = require("fuzzy.parse")
+            local initial_query, initial_flags = parse.split_fd_picker_args(o.args)
             require("fuzzy.picker").open_for("files", {
-                initial_query = o.args ~= "" and o.args or nil,
+                initial_query = initial_query,
+                initial_flags = initial_flags,
             })
         else
             require("fuzzy.commands.files").run(o.args, false)

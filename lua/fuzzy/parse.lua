@@ -47,6 +47,37 @@ local RG_LONG_FLAGS_WITH_VALUE = {
     ["--type-not"] = true,
 }
 
+local FD_SHORT_FLAGS_WITH_VALUE = {
+    ["-e"] = true,
+    ["-t"] = true,
+    ["-d"] = true,
+    ["-E"] = true,
+    ["-x"] = true,
+    ["-X"] = true,
+}
+
+local FD_LONG_FLAGS_WITH_VALUE = {
+    ["--extension"] = true,
+    ["--type"] = true,
+    ["--max-depth"] = true,
+    ["--min-depth"] = true,
+    ["--exact-depth"] = true,
+    ["--exclude"] = true,
+    ["--ignore-file"] = true,
+    ["--exec"] = true,
+    ["--exec-batch"] = true,
+    ["--changed-within"] = true,
+    ["--changed-before"] = true,
+    ["--max-results"] = true,
+    ["--search-path"] = true,
+    ["--owner"] = true,
+    ["--size"] = true,
+    ["--base-directory"] = true,
+    ["--color"] = true,
+    ["--threads"] = true,
+    ["--format"] = true,
+}
+
 --- Parse shell-like command arguments with quote handling
 ---@param raw string
 ---@return table
@@ -157,6 +188,12 @@ local function rg_flag_takes_value(token)
     return RG_SHORT_FLAGS_WITH_VALUE[token] or RG_LONG_FLAGS_WITH_VALUE[token] or false
 end
 
+local function fd_flag_takes_value(token)
+    if not token or token == "" or token == "--" then return false end
+    if token:match("^%-%-[^=]+=") then return false end
+    return FD_SHORT_FLAGS_WITH_VALUE[token] or FD_LONG_FLAGS_WITH_VALUE[token] or false
+end
+
 --- Join normalized arguments into a shell-like string for display or editing.
 ---@param args string[]|string
 ---@return string
@@ -184,6 +221,33 @@ function M.split_grep_picker_args(raw)
         elseif token ~= "-" and token:sub(1, 1) == "-" then
             flags[#flags + 1] = token
             expect_value = rg_flag_takes_value(token)
+        elseif not query then
+            query = token
+        else
+            flags[#flags + 1] = token
+        end
+    end
+
+    return query, M.normalize(flags)
+end
+
+--- Split a files picker invocation into the editable query and backend fd flags.
+--- Mirrors split_grep_picker_args but consults the fd flag-with-value tables.
+---@param raw string
+---@return string|nil query, string[] flags
+function M.split_fd_picker_args(raw)
+    local tokens = M.args(raw or "")
+    local flags = {}
+    local query = nil
+    local expect_value = false
+
+    for _, token in ipairs(tokens) do
+        if expect_value then
+            flags[#flags + 1] = token
+            expect_value = false
+        elseif token ~= "-" and token:sub(1, 1) == "-" then
+            flags[#flags + 1] = token
+            expect_value = fd_flag_takes_value(token)
         elseif not query then
             query = token
         else
