@@ -309,6 +309,10 @@ fuzzy.grep({ 'TODO', '-t', 'lua' })
 fuzzy.grep({ '-F', 'function(args)' })  -- literal search
 ```
 
+## Limitations
+
+- Fuzzy matching folds case for ASCII only; non-Latin queries match case-sensitively.
+
 ## License
 
 MIT

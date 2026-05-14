@@ -4,6 +4,9 @@
 -- - Consecutive matches
 -- - Beginning of word/path matches
 -- - Shorter matches
+--
+-- Case folding is ASCII-only: string.lower and the [A-Z] byte check do not
+-- handle non-ASCII letters, so non-Latin needles match case-sensitively.
 
 local M = {}
 
@@ -18,6 +21,12 @@ local SCORE_MATCH_CAPITAL = 0.7
 local SCORE_MATCH_DOT = 0.6
 local SCORE_MAX = math.huge
 local SCORE_MIN = -math.huge
+
+-- Reject haystacks longer than this so the DP grid (and module-level scratch
+-- arrays) stay bounded. A pathological line (minified JS, generated code)
+-- would otherwise permanently inflate the scratch buffers for the rest of the
+-- session. 64 KiB comfortably exceeds real source lines.
+local MAX_HAYSTACK = 65536
 
 -- Byte constants for fast comparisons
 local BYTE_SLASH = string.byte("/")
@@ -199,6 +208,10 @@ function M.score(needle, haystack)
         return SCORE_MIN, nil
     end
 
+    if m > MAX_HAYSTACK then
+        return SCORE_MIN, nil
+    end
+
     local needle_lower = is_already_lower(needle) and needle or string_lower(needle)
     local haystack_lower = is_already_lower(haystack) and haystack or string_lower(haystack)
 
@@ -288,6 +301,8 @@ function M.filter(pattern, items, limit, text_fn)
         if n == 0 then
             score = SCORE_MIN
         elseif n > m then
+            score = SCORE_MIN
+        elseif m > MAX_HAYSTACK then
             score = SCORE_MIN
         else
             local haystack_lower = is_already_lower(text) and text or string_lower(text)

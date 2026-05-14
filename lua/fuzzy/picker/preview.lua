@@ -103,6 +103,13 @@ local function build_help(target, ctx, max_lines)
             break
         end
     end
+    if not hit then
+        -- Tags-file excmd patterns are vim regex (e.g. `\*foo\*`). When the
+        -- literal find missed, retry through vim.fn.match, which understands
+        -- vim regex semantics.
+        local idx = vim.fn.match(all, target.pattern)
+        if idx >= 0 then hit = idx + 1 end
+    end
     if not hit then return all, nil, vim.filetype.match({ filename = target.path }) or "" end
     local start_l = math.max(1, hit - 2)
     local end_l   = math.min(#all, hit + ctx)

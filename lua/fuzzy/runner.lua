@@ -51,10 +51,13 @@ end
 
 --- Run ripgrep with per-line streaming
 ---@param raw_args string|string[] Search arguments
----@param opts { cwd?: string, on_line: fun(line: string), on_exit: fun(code: integer, stderr: string[]) }
+---@param opts { cwd?: string, on_line: fun(line: string), on_exit: fun(code: integer, stderr: string[]), skip_global_cancel?: boolean }
 ---@return vim.SystemObj|nil handle
 function M.rg_stream(raw_args, opts)
-    cancel_active("rg")
+    -- Callers that manage their own cancellation (e.g. the live-grep picker)
+    -- opt out of the global per-command tracker, so a picker session can't
+    -- kill a concurrent quickfix-path `:FuzzyGrep` job.
+    if not opts.skip_global_cancel then cancel_active("rg") end
     local args = parse.normalize(raw_args)
     local cmd = HAS_RG
         and vim.list_extend({ "rg", "--vimgrep", "--smart-case", "--color=never" }, args)
@@ -64,11 +67,11 @@ function M.rg_stream(raw_args, opts)
         cwd = opts.cwd,
         on_line = opts.on_line,
         on_exit = function(code, stderr)
-            if handle then untrack("rg", handle) end
+            if handle and not opts.skip_global_cancel then untrack("rg", handle) end
             opts.on_exit(code, stderr)
         end,
     })
-    track("rg", handle)
+    if not opts.skip_global_cancel then track("rg", handle) end
     return handle
 end
 
@@ -124,7 +127,7 @@ end
 
 --- Run fd with per-line streaming
 ---@param raw_args string|string[] Search arguments
----@param opts { cwd?: string, on_line: fun(line: string), on_exit: fun(code: integer, stderr: string[]) }
+---@param opts { cwd?: string, on_line: fun(line: string), on_exit: fun(code: integer, stderr: string[], truncated: boolean) }
 ---@return vim.SystemObj|nil handle Returns nil if using vim.fs.find fallback
 function M.fd_stream(raw_args, opts)
     cancel_active("fd")
@@ -137,19 +140,32 @@ function M.fd_stream(raw_args, opts)
 
     if HAS_FD then
         local cmd = { "fd", "--hidden", "--color=never", "--exclude", ".git" }
-        if not has_limit then vim.list_extend(cmd, { "--max-results", tostring(limit) }) end
+        if not has_limit then vim.list_extend(cmd, { "--max-results", tostring(limit + 1) }) end
         if vim.iter(args):any(function(a) return a:find("/", 1, true) end) then
             cmd[#cmd + 1] = "--full-path"
         end
         vim.list_extend(cmd, args)
 
+        local count = 0
+        local truncated = false
         local handle
         handle = system.run_stream(cmd, {
             cwd = opts.cwd,
-            on_line = opts.on_line,
+            on_line = function(line)
+                if has_limit then
+                    opts.on_line(line)
+                    return
+                end
+                count = count + 1
+                if count > limit then
+                    truncated = true
+                    return
+                end
+                opts.on_line(line)
+            end,
             on_exit = function(code, stderr)
                 if handle then untrack("fd", handle) end
-                opts.on_exit(code, stderr)
+                opts.on_exit(code, stderr, truncated)
             end,
         })
         track("fd", handle)
@@ -162,19 +178,21 @@ function M.fd_stream(raw_args, opts)
         local ok, results = pcall(vim.fs.find, predicate, {
             path = opts.cwd or ".",
             type = "file",
-            limit = limit,
+            limit = limit + 1,
             skip = function(name) return name == ".git" end,
         })
 
         if not ok then
-            vim.schedule(function() opts.on_exit(1, { results or "find failed" }) end)
+            vim.schedule(function() opts.on_exit(1, { results or "find failed" }, false) end)
             return nil
         end
 
-        for _, file in ipairs(results) do
-            opts.on_line(file)
+        local truncated = #results > limit
+        local upto = truncated and limit or #results
+        for i = 1, upto do
+            opts.on_line(results[i])
         end
-        vim.schedule(function() opts.on_exit(0, {}) end)
+        vim.schedule(function() opts.on_exit(0, {}, truncated) end)
         return nil
     end
 end

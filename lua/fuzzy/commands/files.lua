@@ -59,7 +59,7 @@ local function run(raw_args, bang)
                 vim.schedule(flush_line_batch)
             end
         end,
-        on_exit = function(code, err_lines)
+        on_exit = function(code, err_lines, truncated)
             -- The final stdout chunk is delivered immediately before on_exit, but
             -- its scheduled batch push may not have run yet. Drain it here so the
             -- first picker run includes files that appear in the last fd chunk.
@@ -69,6 +69,10 @@ local function run(raw_args, bang)
                 local msg = (err_lines and #err_lines > 0) and table.concat(err_lines, "\n") or "FuzzyFiles: failed."
                 vim.notify(msg, vim.log.levels.ERROR)
                 return
+            end
+
+            if truncated then
+                vim.notify("FuzzyFiles: results truncated.", vim.log.levels.WARN)
             end
 
             local count = updater.count()

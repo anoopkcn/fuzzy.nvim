@@ -13,6 +13,7 @@ local M = {}
 
 local LIVE_GREP_DEBOUNCE_MS = 150
 local MAX_CACHE_SIZE = 30
+local CACHE_TTL_SEC = 300
 
 -- Shorten a single directory component to its first character. Hidden
 -- directories (".config") keep the leading dot plus the first real char
@@ -127,6 +128,7 @@ function M.open(opts, picker_open)
     local cache_order = {}  -- FIFO insertion order; oldest at index 1
 
     local function cache_put(key, entry)
+        entry.ts = os.time()
         if cache[key] == nil then
             cache_order[#cache_order + 1] = key
             if #cache_order > MAX_CACHE_SIZE then
@@ -137,6 +139,10 @@ function M.open(opts, picker_open)
         cache[key] = entry
     end
 
+    local function is_fresh(entry)
+        return os.time() - (entry.ts or 0) <= CACHE_TTL_SEC
+    end
+
     local function flags_cache_key(flags) return table.concat(flags or {}, "\31") end
     local function cache_key(query, flags) return flags_cache_key(flags) .. "\30" .. query end
 
@@ -145,6 +151,7 @@ function M.open(opts, picker_open)
         local best_key, best_len = nil, 0
         for key, entry in pairs(cache) do
             if entry.complete
+                and is_fresh(entry)
                 and entry.flags_key == flag_key
                 and #entry.query < #query
                 and query:sub(1, #entry.query) == entry.query
@@ -261,6 +268,7 @@ function M.open(opts, picker_open)
 
         handle = runner.rg_stream(args, {
             cwd = netrw_dir,
+            skip_global_cancel = true,
             on_line = function(line)
                 if gen ~= generation then return end
                 line_batch[#line_batch + 1] = line
@@ -316,12 +324,18 @@ function M.open(opts, picker_open)
             return
         end
 
-        if cache[active_cache_key] and cache[active_cache_key].complete then
+        local hit = cache[active_cache_key]
+        if hit and hit.complete and is_fresh(hit) then
             if picker.set_loading then picker.set_loading(false) end
-            picker.set_items(cache[active_cache_key].items)
+            picker.set_items(hit.items)
             return
         end
 
+        -- Prefill from any prefix cache entry: filter_cached uses literal
+        -- substring matching, which is exact for literal queries and a sound
+        -- under-include for regex queries containing `.`/`(`/etc. The
+        -- background `rg` always runs to produce the authoritative result,
+        -- so any briefly-missing matches snap in within the debounce.
         local prefix_key = find_best_prefix(query, flags_snapshot)
         if prefix_key then
             picker.set_items(filter_cached(cache[prefix_key].items, query))
