@@ -1,14 +1,13 @@
 # fuzzy.nvim
-For workflows using neovim's **quickfix lists**. `fuzzy.nvim` populates the quickfixlist with fuzzy search results for files, grep, buffers, etc.
+For workflows using neovim's **quickfix lists**. `fuzzy.nvim` populates the quickfixlist with fuzzy search results for files, grep, buffers, etc. Also includes a picker and a preview window. 
 
 ![display_img](https://github.com/user-attachments/assets/6653d6f8-9371-43d4-8455-0c587857d995)
 
 ## Features
 
 - **`:FuzzyGrep` - Fast grep search** using `ripgrep` (fallback to `grep -R`)
-    - Equivalent to the default vim command `:copen | silent grep <pattern>` but smarter
+    - Equivalent to the default vim command `:copen | silent grep <pattern>` but smarter and faster
     - Live grep picker highlights matched text within results
-    - Per-session result cache: refining a query (e.g. `foo` → `foobar`) filters instantly from cache; same query typed again skips grep entirely
 - **`:FuzzyFiles` - File finding** using `fd` (fallback to `vim.fs.find`)
 - **`:FuzzyBuffers` - Buffer switching** with fuzzy filtering
 - **`:FuzzyHelp` - Help tag browser** with `'helplang'`-aware tag discovery across the full `runtimepath`
@@ -17,14 +16,16 @@ For workflows using neovim's **quickfix lists**. `fuzzy.nvim` populates the quic
 - **`:FuzzyGitBranches` - Git branch browser/switcher**
 - **`:FuzzyGitWorktrees` - Git worktree browser/switcher**
 - **Full control** over search arguments via `ripgrep`/`fd` arguments
-- **Explorer-friendly** execute commands with respect to current Explorer directory
-- **!** Add `!` to quickfix-backed commands to open an interactive picker instead of populating the quickfix list
 - **`<M-q>` in supported pickers** sends the currently visible or marked (using `<Tab>`) results to the quickfix list
 - **`<M-r>` in live grep pickers** edits ripgrep backend flags without leaving the picker
+- **`<M-p>` in pickers** Opens the preview window
+- **`<Tab>` to select multiple items in picker(`<S-Tab>` to unselect)
+
+**Note:** Add `!` to quickfix-backed commands to open an interactive picker instead of populating the quickfix list. Example: `:FuzzyGrep!`
 
 ## Requirements
 
-- Neovim 0.11+
+- Neovim 0.12+
 - (Optional) For best performance:
     - [ripgrep](https://github.com/BurntSushi/ripgrep) (rg) - for `:FuzzyGrep` (fallback: `grep -R`)
     - [fd](https://github.com/sharkdp/fd) - for `:FuzzyFiles` (fallback: `vim.fs.find`)
