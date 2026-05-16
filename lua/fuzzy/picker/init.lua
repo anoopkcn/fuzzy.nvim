@@ -18,6 +18,7 @@ local picker_sources = {
     grep          = "fuzzy.picker.live_grep",
     helptags      = "fuzzy.picker.sources.helptags",
     commands      = "fuzzy.picker.sources.commands",
+    keymaps       = "fuzzy.picker.sources.keymaps",
     qflist        = "fuzzy.picker.sources.qflist",
     git_branches  = "fuzzy.commands.git_branches",
     git_worktrees = "fuzzy.commands.git_worktrees",
@@ -615,7 +616,7 @@ local function open(opts)
     return controller
 end
 
----@param kind "files"|"buffers"|"grep"|"helptags"|"commands"|"qflist"|"git_branches"|"git_worktrees"|string
+---@param kind "files"|"buffers"|"grep"|"helptags"|"commands"|"keymaps"|"qflist"|"git_branches"|"git_worktrees"|string
 ---@param opts? { bang?: boolean, initial_query?: string, initial_flags?: string[], fuzzy_only?: boolean }
 local function open_for(kind, opts)
     local source_name = picker_sources[kind]

@@ -65,6 +65,12 @@ function M.setup(opts)
         })
     end, { nargs = "*", complete = "command", desc = "Browse and stage commands" })
 
+    cmd("FuzzyMap", function(o)
+        require("fuzzy.picker").open_for("keymaps", {
+            initial_query = o.args ~= "" and o.args or nil,
+        })
+    end, { nargs = "*", desc = "Browse keymaps (global + buffer-local, all modes)" })
+
     cmd("FuzzyList", function(o)
         require("fuzzy.picker").open_for("qflist", { fuzzy_only = o.bang })
     end, { bang = true, desc = "Pick quickfix from history" })
