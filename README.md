@@ -13,6 +13,7 @@ For workflows using neovim's **quickfix lists**. `fuzzy.nvim` populates the quic
 - **`:FuzzyBuffers` - Buffer switching** with fuzzy filtering
 - **`:FuzzyHelp` - Help tag browser** with `'helplang'`-aware tag discovery across the full `runtimepath`
 - **`:FuzzyCommands` - Command palette** for built-in, user, plugin commands, and Neovim options
+- **`:FuzzyMap` - Keymap browser** for global and buffer-local keymaps across every mode
 - **`:FuzzyGitBranches` - Git branch browser/switcher**
 - **`:FuzzyGitWorktrees` - Git worktree browser/switcher**
 - **Full control** over search arguments via `ripgrep`/`fd` arguments
@@ -58,7 +59,7 @@ All commands follow the same rule:
 
 Passing arguments to the `!` form pre-fills the picker's search query. For live grep pickers, ripgrep options are also preserved and can be edited in-picker.
 
-`:FuzzyHelp`, `:FuzzyCommands`, `:FuzzyGitBranches`, and `:FuzzyGitWorktrees` always open an interactive picker; they do not have a quickfix-only mode.
+`:FuzzyHelp`, `:FuzzyCommands`, `:FuzzyMap`, `:FuzzyGitBranches`, and `:FuzzyGitWorktrees` always open an interactive picker; they do not have a quickfix-only mode.
 
 ## Picker Keymaps
 
@@ -210,6 +211,17 @@ Browse built-in, user, and plugin commands available in the current Neovim sessi
 
 Readable command names are shown by default, so punctuation commands like `!`, `#`, `=`, and `~` are hidden. Entries render as aligned `CMD`/`OPT` rows, with option aliases in their own column and long descriptions or values trimmed to the picker width. User and plugin commands show descriptions when Neovim exposes them, and option entries stay searchable by both full name and shortname. Press `<CR>` to stage the selected command or option edit in the command line, for example `:FuzzyFiles ` or `:set relativenumber `.
 
+### `:FuzzyMap [query]`
+
+Browse keymaps registered in the current Neovim session — both global maps and maps local to the current buffer, across every mode (`n`, `i`, `v`, `x`, `s`, `o`, `c`, `t`, `l`, `!`).
+
+- `:FuzzyMap` — opens the keymap picker.
+- `:FuzzyMap query` — opens the picker pre-filled with `query`.
+
+Entries are sourced from `vim.api.nvim_get_keymap()` and `vim.api.nvim_buf_get_keymap()` and rendered as aligned `mode │ lhs │ detail` rows. The mode column is two characters: the mode short-name followed by `*` for buffer-local maps. Detail prefers the keymap's `desc`, falling back to its `rhs` string, then `<function>` for Lua callbacks. Filtering matches against mode, `lhs`, and detail.
+
+Pressing `<CR>` just closes the picker — `:FuzzyMap` is currently a browser only and does not invoke the selected keymap. Hard-coded built-in keys (`j`, `dd`, etc.) are not included; only keymaps that the API enumerates show up.
+
 ### `:FuzzyGitBranches [query]`
 
 Browse and switch Git branches.
@@ -309,7 +321,7 @@ fuzzy.grep({ '-F', 'function(args)' })  -- literal search
 
 ### Custom pickers
 
-Every built-in picker (`files`, `buffers`, `grep`, `helptags`, `commands`, `qflist`, `git_branches`, `git_worktrees`) is a source module that exports `M.open(opts, picker_open)`. Register your own with:
+Every built-in picker (`files`, `buffers`, `grep`, `helptags`, `commands`, `keymaps`, `qflist`, `git_branches`, `git_worktrees`) is a source module that exports `M.open(opts, picker_open)`. Register your own with:
 
 ```lua
 require('fuzzy.picker').register_source('oldfiles', 'my_plugin.oldfiles_source')

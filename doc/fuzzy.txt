@@ -19,6 +19,7 @@ CONTENTS                                                      *fuzzy-contents*
     3.8 FuzzyHelp .......................... |:FuzzyHelp|
     3.9 FuzzyGitBranches .................. |:FuzzyGitBranches|
     3.10 FuzzyGitWorktrees ................. |:FuzzyGitWorktrees|
+    3.11 FuzzyMap .......................... |:FuzzyMap|
 4. Configuration ........................... |fuzzy-configuration|
 5. Functions ............................... |fuzzy-functions|
     5.1 fuzzy.setup() ...................... |fuzzy.setup()|
@@ -41,6 +42,7 @@ Features:
   • File finding using fd with gitignore support
   • Buffer switching with fuzzy filtering
   • Command palette for built-in, user, plugin commands, and Neovim options
+  • Keymap browser for global and buffer-local keymaps across every mode
   • Git branch browser/switcher
   • Git worktree browser/switcher
   • Quickfix history navigation
@@ -75,7 +77,7 @@ Passing arguments to the [!] form pre-fills the picker's search query. In the
 live grep pickers, ripgrep options are also preserved and can be edited inside
 the picker.
 
-Note: |:FuzzyHelp|, |:FuzzyCommands|, |:FuzzyGitBranches|, and
+Note: |:FuzzyHelp|, |:FuzzyCommands|, |:FuzzyMap|, |:FuzzyGitBranches|, and
 |:FuzzyGitWorktrees| always open the picker and do not have a quickfix-only mode.
 
 Inside picker types that support quickfix export, press <M-q> (Alt+q,
@@ -88,7 +90,8 @@ entries with <Tab>, the marked entries are sent instead:
   • FuzzyHelp     → populates the FuzzyHelp quickfix list (entries jump to tag location)
 FuzzyCommands stages commands in the command line instead of exporting to
 quickfix. FuzzyGitBranches and FuzzyGitWorktrees perform Git switch actions and
-do not export to quickfix.
+do not export to quickfix. FuzzyMap is a browser only and does not export to
+quickfix or invoke the selected keymap.
 
 In :FuzzyGrep!, press <M-r> (Alt+r, configurable via
 |fuzzy-edit_grep_flags_key|) to edit ripgrep backend flags without leaving the
@@ -399,6 +402,46 @@ Examples: >
     :FuzzyGitWorktrees              " open worktree picker
     :FuzzyGitWorktrees feat         " picker pre-filled with 'feat'
 <
+------------------------------------------------------------------------------
+3.11 FuzzyMap                                                      *:FuzzyMap*
+
+Browse keymaps registered in the current Neovim session.
+
+Syntax: >
+    :FuzzyMap [query]
+<
+Always opens the interactive picker. There is no quickfix-only mode and no
+[!]. Pressing <CR> closes the picker without invoking the selected keymap —
+this command is currently a browser only.
+
+Entries combine global keymaps from |nvim_get_keymap()| and buffer-local
+keymaps from |nvim_buf_get_keymap()| for the buffer that was active when
+:FuzzyMap was invoked. All Neovim mode short-names are queried: n, i, v, x,
+s, o, c, t, l, and !. Hard-coded built-in keys (such as j, dd) are not
+returned by these APIs and do not appear in the list.
+
+Each entry renders as three aligned columns:
+
+    mode │ lhs                  │ detail
+
+The mode column is two characters wide: the mode short-name, followed by `*`
+when the entry is a buffer-local keymap (a plain space for global maps).
+Maps registered with `:map` (no mode prefix, applying to NVO) appear with
+mode " " — they are returned by the API under that pseudo-mode.
+
+The detail column prefers the keymap's `desc`; if absent it falls back to
+the keymap's `rhs` string, and finally to "<function>" when the keymap is a
+Lua callback with no string `rhs`.
+
+Filtering matches the mode, lhs, and detail text simultaneously, so you can
+narrow by mode ("i "), by key sequence ("<leader>ff"), or by description
+("signature").
+
+Examples: >
+    :FuzzyMap                  " open keymap picker
+    :FuzzyMap leader           " picker pre-filled with 'leader'
+    :FuzzyMap signature        " find keymaps mentioning 'signature'
+<
 ==============================================================================
 4. CONFIGURATION                                        *fuzzy-configuration*
 
@@ -698,8 +741,8 @@ require('fuzzy.picker').register_source({kind}, {modname})
         {modname}  (string) Lua module name passed to `require()`.
 
     Built-in kinds: `files`, `buffers`, `grep`, `helptags`, `commands`,
-    `qflist`, `git_branches`, `git_worktrees`. They share the same contract,
-    so the smallest example to copy is
+    `keymaps`, `qflist`, `git_branches`, `git_worktrees`. They share the
+    same contract, so the smallest example to copy is
     `lua/fuzzy/picker/sources/qflist.lua`.
 
     Example: >
