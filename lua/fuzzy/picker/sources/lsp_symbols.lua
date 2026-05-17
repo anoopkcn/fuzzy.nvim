@@ -8,9 +8,11 @@ local COMMAND_NAME = doc_symbols.COMMAND_NAME
 local METHOD = doc_symbols.METHOD
 
 -- On a freshly-opened buffer most language servers return null/empty for
--- documentSymbol until they finish indexing. We retry a few times with a
--- small delay before giving up so the user doesn't have to close + reopen.
-local RETRY_DELAYS_MS = { 250, 500, 1000, 1500 }
+-- documentSymbol until they finish indexing. Poll until either results
+-- arrive, the picker closes, or we hit MAX_WAIT_MS (safety cap so a
+-- never-responding server doesn't leak a timer).
+local POLL_INTERVAL_MS = 500
+local MAX_WAIT_MS = 30000
 
 local M = {}
 
@@ -36,6 +38,7 @@ function M.open(opts, picker_open)
     local retry_timer = vim.uv.new_timer()
     local retry_timer_closed = false
     local attempt = 0
+    local start_ms = vim.uv.now()
 
     local function close_timer()
         if retry_timer_closed then return end
@@ -127,17 +130,18 @@ function M.open(opts, picker_open)
                 return
             end
             -- Empty result. Most LSPs return null until they finish
-            -- indexing a freshly opened buffer, so try again after a delay.
-            local delay = RETRY_DELAYS_MS[attempt]
-            if not delay then
+            -- indexing a freshly opened buffer, so keep polling until
+            -- results arrive (or we hit the safety cap).
+            local elapsed = vim.uv.now() - start_ms
+            if elapsed >= MAX_WAIT_MS then
                 if picker.set_loading then picker.set_loading(false) end
                 picker.set_title(COMMAND_NAME .. " (no symbols)")
                 return
             end
-            picker.set_title(("%s (waiting for LSP… retry %d/%d)"):format(
-                COMMAND_NAME, attempt, #RETRY_DELAYS_MS))
+            picker.set_title(("%s (waiting for LSP… %ds)"):format(
+                COMMAND_NAME, math.floor(elapsed / 1000)))
             if retry_timer_closed then return end
-            retry_timer:start(delay, 0, vim.schedule_wrap(function()
+            retry_timer:start(POLL_INTERVAL_MS, 0, vim.schedule_wrap(function()
                 if picker.is_closed() or retry_timer_closed then return end
                 request_fn()
             end))

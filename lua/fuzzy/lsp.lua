@@ -110,9 +110,11 @@ end
 ---@return fun()|nil cancel
 function M.request_document_symbols(bufnr, cb)
     local method = "textDocument/documentSymbol"
-    local params = function(client, _)
-        return vim.lsp.util.make_position_params(0, client.offset_encoding)
-    end
+    -- documentSymbol only needs textDocument (no cursor position). Build it
+    -- from `bufnr` explicitly — *not* from the current window — because the
+    -- bang picker fires this after focus has moved into the picker input
+    -- window, so make_position_params(0, ...) would point at the wrong buf.
+    local params = { textDocument = { uri = vim.uri_from_bufnr(bufnr) } }
     return vim.lsp.buf_request_all(bufnr, method, params, function(responses)
         cb(responses_to_items(responses, bufnr), nil)
     end)
