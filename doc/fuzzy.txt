@@ -20,6 +20,8 @@ CONTENTS                                                      *fuzzy-contents*
     3.9 FuzzyGitBranches .................. |:FuzzyGitBranches|
     3.10 FuzzyGitWorktrees ................. |:FuzzyGitWorktrees|
     3.11 FuzzyMap .......................... |:FuzzyMap|
+    3.12 FuzzyLspSymbols ................... |:FuzzyLspSymbols|
+    3.13 FuzzyLspProjectSymbols ............ |:FuzzyLspProjectSymbols|
 4. Configuration ........................... |fuzzy-configuration|
 5. Functions ............................... |fuzzy-functions|
     5.1 fuzzy.setup() ...................... |fuzzy.setup()|
@@ -45,6 +47,8 @@ Features:
   • Keymap browser for global and buffer-local keymaps across every mode
   • Git branch browser/switcher
   • Git worktree browser/switcher
+  • LSP document symbol browser (current buffer)
+  • LSP workspace symbol browser with live re-query
   • Quickfix history navigation
   • Send picker results to quickfix with a single key (<M-q> by default)
   • Single-file direct opening
@@ -80,14 +84,20 @@ the picker.
 Note: |:FuzzyHelp|, |:FuzzyCommands|, |:FuzzyMap|, |:FuzzyGitBranches|, and
 |:FuzzyGitWorktrees| always open the picker and do not have a quickfix-only mode.
 
+|:FuzzyLspSymbols| and |:FuzzyLspProjectSymbols| require an attached LSP
+client that supports |textDocument/documentSymbol| or |workspace/symbol|
+respectively, and notify (without creating a quickfix list) when none does.
+
 Inside picker types that support quickfix export, press <M-q> (Alt+q,
 configurable via |fuzzy-send_to_qf_key|) to send the currently visible
 (filtered) results to the quickfix list and close the picker. If you marked
 entries with <Tab>, the marked entries are sent instead:
-  • FuzzyGrep!    → populates the FuzzyGrep quickfix list
-  • FuzzyFiles!   → populates the FuzzyFiles quickfix list
-  • FuzzyBuffers! → populates the FuzzyBuffers quickfix list
-  • FuzzyHelp     → populates the FuzzyHelp quickfix list (entries jump to tag location)
+  • FuzzyGrep!               → populates the FuzzyGrep quickfix list
+  • FuzzyFiles!              → populates the FuzzyFiles quickfix list
+  • FuzzyBuffers!            → populates the FuzzyBuffers quickfix list
+  • FuzzyHelp                → populates the FuzzyHelp quickfix list (entries jump to tag location)
+  • FuzzyLspSymbols!         → populates the FuzzyLspSymbols quickfix list
+  • FuzzyLspProjectSymbols!  → populates the FuzzyLspProjectSymbols quickfix list
 FuzzyCommands stages commands in the command line instead of exporting to
 quickfix. FuzzyGitBranches and FuzzyGitWorktrees perform Git switch actions and
 do not export to quickfix. FuzzyMap is a browser only and does not export to
@@ -303,7 +313,8 @@ Interactive pickers share these insert-mode keymaps:
                     or every <Tab>-marked buffer when entries are marked
                     (key is configurable, see |fuzzy-close_buffer_key|)
     <M-p>           Toggle the preview pane in :FuzzyFiles, :FuzzyBuffers,
-                    :FuzzyGrep!, :FuzzyHelp
+                    :FuzzyGrep!, :FuzzyHelp, :FuzzyLspSymbols!,
+                    :FuzzyLspProjectSymbols!
                     (key is configurable, see |fuzzy-preview_toggle_key|)
     <M-w>           Move focus into the preview pane. Use vim motions to
                     navigate; v/V to select; y to yank; <Esc>/q/<CR> to
@@ -441,6 +452,88 @@ Examples: >
     :FuzzyMap                  " open keymap picker
     :FuzzyMap leader           " picker pre-filled with 'leader'
     :FuzzyMap signature        " find keymaps mentioning 'signature'
+<
+------------------------------------------------------------------------------
+3.12 FuzzyLspSymbols                                        *:FuzzyLspSymbols*
+
+Browse LSP document symbols (functions, classes, variables, etc.) for the
+current buffer.
+
+Syntax: >
+    :FuzzyLspSymbols[!] [pattern]
+<
+Without [!]: Sends document symbols returned by the LSP server to the
+             FuzzyLspSymbols quickfix list and opens it. When [pattern] is
+             given, the list is filtered to symbols whose label (the
+             "[Kind] name in Container" text) contains [pattern] as a
+             literal (case-insensitive) substring.
+With [!]:    Opens the interactive picker with a file preview pinned to the
+             symbol under the cursor. [pattern] pre-fills the picker query.
+             Press <M-q> to export the visible (filtered) symbols to the
+             FuzzyLspSymbols quickfix list.
+
+The command queries every attached LSP client that supports
+|textDocument/documentSymbol| and merges their responses (dedup by location +
+label, stable order by file → line → column). If no attached client supports
+the method, the command notifies and exits without creating a quickfix list.
+
+Each entry shows: >
+    [Kind] container.name
+<
+The container prefix only appears when the symbol is nested (method on a
+class, field on a struct, etc.). Deprecated symbols are tagged at the end.
+Filtering matches the kind, container, and name together — type "func" to
+narrow to functions, "MyClass" to narrow to one class, or "MyClass.do" to
+narrow to a specific method.
+
+Press <CR> to jump to the symbol's definition. Marked entries (<Tab>) load
+all marked files as buffers and jump to one of them.
+
+Examples: >
+    :FuzzyLspSymbols                " all symbols → quickfix
+    :FuzzyLspSymbols!               " open picker with preview
+    :FuzzyLspSymbols! init          " picker pre-filled with 'init'
+<
+------------------------------------------------------------------------------
+3.13 FuzzyLspProjectSymbols                          *:FuzzyLspProjectSymbols*
+
+Browse LSP workspace symbols across the entire project.
+
+Syntax: >
+    :FuzzyLspProjectSymbols[!] [query]
+<
+Without [!]: Runs one |workspace/symbol| request with [query] and sends the
+             matching symbols to the FuzzyLspProjectSymbols quickfix list.
+             Most LSP servers return nothing for an empty [query]; pass at
+             least one character for useful results.
+With [!]:    Opens an interactive picker that re-queries the LSP server live
+             as you type, debounced at 150ms. Each keystroke after the
+             debounce window fires a fresh workspace/symbol request; the
+             previous in-flight request is cancelled, so only the latest
+             query's results land in the picker. An empty input shows
+             nothing and skips the request. Press <M-q> to export the
+             current visible (filtered) snapshot to the
+             FuzzyLspProjectSymbols quickfix list.
+
+Each entry shows: >
+    [Kind] container.name │ relative/path/to/file:lnum
+<
+Filtering in the bang picker is server-side: the LSP server decides which
+symbols match your query, so behavior (substring vs. fuzzy, case sensitivity)
+matches whatever your language server does. The relative path is also part
+of the filter input, so typing a path fragment narrows by file.
+
+The command queries every attached LSP client that supports
+|workspace/symbol|, merging and deduping responses identically to
+|:FuzzyLspSymbols|.
+
+Press <CR> to jump to the symbol's location in the project. Marked entries
+(<Tab>) load all marked files as buffers and jump to one of them.
+
+Examples: >
+    :FuzzyLspProjectSymbols MyClass      " one-shot workspace query → quickfix
+    :FuzzyLspProjectSymbols!             " open picker, type to live-search
+    :FuzzyLspProjectSymbols! parse_      " open picker pre-filled with 'parse_'
 <
 ==============================================================================
 4. CONFIGURATION                                        *fuzzy-configuration*

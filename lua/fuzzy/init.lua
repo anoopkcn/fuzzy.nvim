@@ -71,6 +71,26 @@ function M.setup(opts)
         })
     end, { nargs = "*", desc = "Browse keymaps (global + buffer-local, all modes)" })
 
+    cmd("FuzzyLspSymbols", function(o)
+        if o.bang then
+            require("fuzzy.picker").open_for("lsp_symbols", {
+                initial_query = o.args ~= "" and o.args or nil,
+            })
+        else
+            require("fuzzy.commands.lsp_symbols").run(o.args)
+        end
+    end, { nargs = "*", bang = true, desc = "LSP document symbols (current buffer)" })
+
+    cmd("FuzzyLspProjectSymbols", function(o)
+        if o.bang then
+            require("fuzzy.picker").open_for("lsp_project_symbols", {
+                initial_query = o.args ~= "" and o.args or nil,
+            })
+        else
+            require("fuzzy.commands.lsp_project_symbols").run(o.args)
+        end
+    end, { nargs = "*", bang = true, desc = "LSP workspace symbols (project)" })
+
     cmd("FuzzyList", function(o)
         require("fuzzy.picker").open_for("qflist", { fuzzy_only = o.bang })
     end, { bang = true, desc = "Pick quickfix from history" })

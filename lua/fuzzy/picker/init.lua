@@ -13,15 +13,17 @@ local M = {}
 -- M.open(opts, picker_open) which calls the engine to render its picker.
 -- Use M.register_source(kind, modname) to add user-defined sources.
 local picker_sources = {
-    files         = "fuzzy.picker.sources.files",
-    buffers       = "fuzzy.picker.sources.buffers",
-    grep          = "fuzzy.picker.live_grep",
-    helptags      = "fuzzy.picker.sources.helptags",
-    commands      = "fuzzy.picker.sources.commands",
-    keymaps       = "fuzzy.picker.sources.keymaps",
-    qflist        = "fuzzy.picker.sources.qflist",
-    git_branches  = "fuzzy.commands.git_branches",
-    git_worktrees = "fuzzy.commands.git_worktrees",
+    files               = "fuzzy.picker.sources.files",
+    buffers             = "fuzzy.picker.sources.buffers",
+    grep                = "fuzzy.picker.live_grep",
+    helptags            = "fuzzy.picker.sources.helptags",
+    commands            = "fuzzy.picker.sources.commands",
+    keymaps             = "fuzzy.picker.sources.keymaps",
+    qflist              = "fuzzy.picker.sources.qflist",
+    git_branches        = "fuzzy.commands.git_branches",
+    git_worktrees       = "fuzzy.commands.git_worktrees",
+    lsp_symbols         = "fuzzy.picker.sources.lsp_symbols",
+    lsp_project_symbols = "fuzzy.picker.sources.lsp_project_symbols",
 }
 
 -- Two namespaces so the per-key navigation update can wipe ONLY the cursor
@@ -616,7 +618,7 @@ local function open(opts)
     return controller
 end
 
----@param kind "files"|"buffers"|"grep"|"helptags"|"commands"|"keymaps"|"qflist"|"git_branches"|"git_worktrees"|string
+---@param kind "files"|"buffers"|"grep"|"helptags"|"commands"|"keymaps"|"qflist"|"git_branches"|"git_worktrees"|"lsp_symbols"|"lsp_project_symbols"|string
 ---@param opts? { bang?: boolean, initial_query?: string, initial_flags?: string[], fuzzy_only?: boolean }
 local function open_for(kind, opts)
     local source_name = picker_sources[kind]
