@@ -7,6 +7,11 @@ local live_grep = require("fuzzy.picker.live_grep")
 local COMMAND_NAME = doc_symbols.COMMAND_NAME
 local METHOD = doc_symbols.METHOD
 
+-- On a freshly-opened buffer most language servers return null/empty for
+-- documentSymbol until they finish indexing. We retry a few times with a
+-- small delay before giving up so the user doesn't have to close + reopen.
+local RETRY_DELAYS_MS = { 250, 500, 1000, 1500 }
+
 local M = {}
 
 local function jump_to(entry)
@@ -28,6 +33,16 @@ function M.open(opts, picker_open)
     -- Slow servers no longer feel like a hang.
     local picker
     local cancel_request = nil
+    local retry_timer = vim.uv.new_timer()
+    local retry_timer_closed = false
+    local attempt = 0
+
+    local function close_timer()
+        if retry_timer_closed then return end
+        retry_timer_closed = true
+        retry_timer:stop()
+        retry_timer:close()
+    end
 
     picker = picker_open({
         items = {},
@@ -83,35 +98,53 @@ function M.open(opts, picker_open)
         end,
         on_close = function()
             if cancel_request then pcall(cancel_request) end
+            close_timer()
         end,
     })
 
-    if not picker then return end
+    if not picker then
+        close_timer()
+        return
+    end
     if picker.set_loading then picker.set_loading(true) end
 
-    cancel_request = lsp.request_document_symbols(bufnr, function(items, err)
-        if picker.is_closed() then return end
-        if picker.set_loading then picker.set_loading(false) end
-        if err then
-            -- Keep the picker open so the user can <Esc> at their own pace
-            -- and see the message; closing here would look like the picker
-            -- "never opened".
-            vim.notify(COMMAND_NAME .. ": " .. err, vim.log.levels.WARN)
-            picker.set_title(COMMAND_NAME .. " (error)")
-            return
-        end
-        if #items == 0 then
-            -- Common on a freshly-opened buffer: the LSP server hasn't
-            -- indexed the file yet and returns null. Stay open instead of
-            -- closing — closing would look like the picker never opened.
-            picker.set_title(COMMAND_NAME .. " (no symbols — server may not be ready)")
-            return
-        end
-        local entries = {}
-        for i, item in ipairs(items) do entries[i] = lsp.make_entry(item) end
-        picker.set_items(entries)
-    end)
+    local request_fn
+    request_fn = function()
+        attempt = attempt + 1
+        cancel_request = lsp.request_document_symbols(bufnr, function(items, err)
+            if picker.is_closed() then return end
+            if err then
+                if picker.set_loading then picker.set_loading(false) end
+                vim.notify(COMMAND_NAME .. ": " .. err, vim.log.levels.WARN)
+                picker.set_title(COMMAND_NAME .. " (error)")
+                return
+            end
+            if #items > 0 then
+                if picker.set_loading then picker.set_loading(false) end
+                local entries = {}
+                for i, item in ipairs(items) do entries[i] = lsp.make_entry(item) end
+                picker.set_items(entries)
+                return
+            end
+            -- Empty result. Most LSPs return null until they finish
+            -- indexing a freshly opened buffer, so try again after a delay.
+            local delay = RETRY_DELAYS_MS[attempt]
+            if not delay then
+                if picker.set_loading then picker.set_loading(false) end
+                picker.set_title(COMMAND_NAME .. " (no symbols)")
+                return
+            end
+            picker.set_title(("%s (waiting for LSP… retry %d/%d)"):format(
+                COMMAND_NAME, attempt, #RETRY_DELAYS_MS))
+            if retry_timer_closed then return end
+            retry_timer:start(delay, 0, vim.schedule_wrap(function()
+                if picker.is_closed() or retry_timer_closed then return end
+                request_fn()
+            end))
+        end)
+    end
 
+    request_fn()
     return picker
 end
 
