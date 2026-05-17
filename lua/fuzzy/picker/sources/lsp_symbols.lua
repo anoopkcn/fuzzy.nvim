@@ -93,13 +93,18 @@ function M.open(opts, picker_open)
         if picker.is_closed() then return end
         if picker.set_loading then picker.set_loading(false) end
         if err then
+            -- Keep the picker open so the user can <Esc> at their own pace
+            -- and see the message; closing here would look like the picker
+            -- "never opened".
             vim.notify(COMMAND_NAME .. ": " .. err, vim.log.levels.WARN)
-            picker.close()
+            picker.set_title(COMMAND_NAME .. " (error)")
             return
         end
         if #items == 0 then
-            vim.notify(COMMAND_NAME .. ": no symbols.", vim.log.levels.INFO)
-            picker.close()
+            -- Common on a freshly-opened buffer: the LSP server hasn't
+            -- indexed the file yet and returns null. Stay open instead of
+            -- closing — closing would look like the picker never opened.
+            picker.set_title(COMMAND_NAME .. " (no symbols — server may not be ready)")
             return
         end
         local entries = {}
