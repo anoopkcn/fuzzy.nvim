@@ -25,13 +25,13 @@ local M = {}
 local function target_key(kind, t)
     if not t then return nil end
     if kind == "buffer" then
-        return ("buf:%s:%s"):format(tostring(t.bufnr or ""), t.path or "")
+        return ("buf:%s:%s:%s"):format(tostring(t.bufnr or ""), t.path or "", tostring(t.lnum or ""))
     elseif kind == "grep" then
         return ("grep:%s:%d"):format(t.path or "", t.lnum or 0)
     elseif kind == "help" then
         return ("help:%s:%s:%s"):format(t.path or "", t.lnum or "", t.pattern or "")
     end
-    return ("file:%s"):format(t.path or "")
+    return ("file:%s:%s"):format(t.path or "", tostring(t.lnum or ""))
 end
 
 -- ---------- file readers ----------
@@ -50,13 +50,24 @@ end
 
 -- ---------- per-kind builders ----------
 
+-- When target.lnum points into the file, return it as match_row so the
+-- preview window centers + highlights that line. Without lnum (e.g. the
+-- files picker) the file is shown from the top with no highlight, matching
+-- the original behavior.
+local function locate_match_row(target, line_count)
+    if not target.lnum or target.lnum <= 0 then return nil end
+    local row = target.lnum - 1
+    if row >= line_count then return nil end
+    return row
+end
+
 local function build_file(target, max_lines)
     local lines = read_file(target.path, max_lines)
     if not lines then return { "(no preview)" }, nil, nil end
     if #lines == 0 then return { "(empty file)" }, nil, nil end
     if looks_binary(lines) then return { "(binary file)" }, nil, nil end
     local ft = vim.filetype.match({ filename = target.path }) or ""
-    return lines, nil, ft
+    return lines, locate_match_row(target, #lines), ft
 end
 
 local function build_buffer(target, max_lines)
@@ -64,7 +75,7 @@ local function build_buffer(target, max_lines)
     if bufnr and vim.api.nvim_buf_is_valid(bufnr) and vim.api.nvim_buf_is_loaded(bufnr) then
         local lines = vim.api.nvim_buf_get_lines(bufnr, 0, max_lines, false)
         if #lines == 0 then return { "(empty buffer)" }, nil, vim.bo[bufnr].filetype end
-        return lines, nil, vim.bo[bufnr].filetype
+        return lines, locate_match_row(target, #lines), vim.bo[bufnr].filetype
     end
     return build_file(target, max_lines)
 end

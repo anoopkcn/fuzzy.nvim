@@ -56,7 +56,7 @@ function M.open(opts, picker_open)
                 end
             end,
             preview_source = {
-                kind = "grep",
+                kind = "file",
                 resolve = function(entry)
                     local qf = entry and entry.qf
                     if not qf or not qf.filename then return nil end
