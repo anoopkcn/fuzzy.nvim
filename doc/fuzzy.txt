@@ -619,7 +619,8 @@ send_to_qf_key~
 
 Key (in insert mode) that sends the currently visible picker results to the
 quickfix list and closes the picker. Works in picker types that support
-quickfix export (:FuzzyGrep!, :FuzzyFiles!, :FuzzyBuffers!, :FuzzyHelp).
+quickfix export (:FuzzyGrep!, :FuzzyFiles!, :FuzzyBuffers!, :FuzzyHelp,
+:FuzzyLspSymbols!, :FuzzyLspProjectSymbols!).
 
 Set to false to disable the mapping entirely. >
     require('fuzzy').setup({ send_to_qf_key = false })
@@ -686,7 +687,7 @@ preview~
 
 When true, the preview pane opens automatically each time a supported picker
 opens. Supported pickers: :FuzzyFiles, :FuzzyBuffers, :FuzzyGrep!,
-:FuzzyHelp.
+:FuzzyHelp, :FuzzyLspSymbols!, :FuzzyLspProjectSymbols!.
 
 The pane is anchored below the picker. If there isn't enough vertical room
 for both, the preview is skipped and a one-shot notification fires.
@@ -834,9 +835,9 @@ require('fuzzy.picker').register_source({kind}, {modname})
         {modname}  (string) Lua module name passed to `require()`.
 
     Built-in kinds: `files`, `buffers`, `grep`, `helptags`, `commands`,
-    `keymaps`, `qflist`, `git_branches`, `git_worktrees`. They share the
-    same contract, so the smallest example to copy is
-    `lua/fuzzy/picker/sources/qflist.lua`.
+    `keymaps`, `qflist`, `git_branches`, `git_worktrees`, `lsp_symbols`,
+    `lsp_project_symbols`. They share the same contract, so the smallest
+    example to copy is `lua/fuzzy/picker/sources/qflist.lua`.
 
     Example: >
         require('fuzzy.picker').register_source(

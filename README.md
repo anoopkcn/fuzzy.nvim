@@ -15,6 +15,8 @@ For workflows using neovim's **quickfix lists**. `fuzzy.nvim` populates the quic
 - **`:FuzzyMap` - Keymap browser** for global and buffer-local keymaps across every mode
 - **`:FuzzyGitBranches` - Git branch browser/switcher**
 - **`:FuzzyGitWorktrees` - Git worktree browser/switcher**
+- **`:FuzzyLspSymbols` - LSP document symbol browser** for the current buffer
+- **`:FuzzyLspProjectSymbols` - LSP workspace symbol browser** with live re-query as you type
 - **Full control** over search arguments via `ripgrep`/`fd` arguments
 - **`<M-q>` in supported pickers** sends the currently visible or marked (using `<Tab>`) results to the quickfix list
 - **`<M-r>` in live grep pickers** edits ripgrep backend flags without leaving the picker
@@ -76,7 +78,7 @@ Inside any interactive picker:
 | `<M-q>` | Send visible results, or marked results, to quickfix and close where supported |
 | `<M-r>` | Edit backend flags for rg and fd in `:FuzzyGrep!`  and `:FuzzyFiles` respectively |
 | `<C-x>` | Close buffer under cursor in `:FuzzyBuffers!`; closes all marked buffers when entries are marked with `<Tab>` |
-| `<M-p>` | Toggle the preview pane in `:FuzzyFiles`, `:FuzzyBuffers`, `:FuzzyGrep!`, and `:FuzzyHelp` |
+| `<M-p>` | Toggle the preview pane in `:FuzzyFiles`, `:FuzzyBuffers`, `:FuzzyGrep!`, `:FuzzyHelp`, `:FuzzyLspSymbols!`, and `:FuzzyLspProjectSymbols!` |
 | `<M-w>` | Move focus into the preview pane — use vim motions to navigate, `v`/`V` to select, `y` to yank; `<Esc>`/`q`/`<CR>` to return |
 | `<C-d>` / `<C-u>` | Scroll the preview pane half-page down / up |
 | Mouse wheel | Scroll the preview pane by `mousescroll` lines per tick (requires `:set mouse=a` or `:set mouse+=i`) |
@@ -149,7 +151,7 @@ require('fuzzy').setup({
   Open the preview pane automatically when a supported picker opens. Off by default; can still be toggled at runtime via `preview_toggle_key`.
 
 - **`preview_toggle_key`** (string|false, default: `"<M-p>"`)
-  Insert-mode key inside a picker that shows or hides the preview pane. Available in `:FuzzyFiles`, `:FuzzyBuffers`, `:FuzzyGrep!`, and `:FuzzyHelp`. Set to `false` to disable.
+  Insert-mode key inside a picker that shows or hides the preview pane. Available in `:FuzzyFiles`, `:FuzzyBuffers`, `:FuzzyGrep!`, `:FuzzyHelp`, `:FuzzyLspSymbols!`, and `:FuzzyLspProjectSymbols!`. Set to `false` to disable.
 
 - **`preview_focus_key`** (string|false, default: `"<M-w>"`)
   Insert-mode key that moves focus from the picker into the preview pane, so you can drive selection and yanking with vim motions instead of the mouse. No-op while the preview is hidden. From inside the preview, `<Esc>`/`q`/`<CR>` return to the picker input. Set to `false` to disable.
@@ -252,6 +254,27 @@ Always opens the interactive picker; there is no quickfix-only mode. Tag discove
 
 Each entry shows `tagname  filename.txt`; filtering matches against both, so you can narrow by topic (`autocmd`) or by file (`lsp.txt`). Press `<CR>` to jump via `:help`, or `<M-q>` to export visible tags to the quickfix list (entries resolve to the exact tag location).
 
+### `:FuzzyLspSymbols[!] [pattern]`
+
+Browse LSP document symbols (functions, classes, variables, etc.) for the current buffer.
+
+- `:FuzzyLspSymbols` — sends document symbols to the quickfix list and opens it.
+- `:FuzzyLspSymbols pattern` — same, but filters symbols whose `[Kind] name in Container` label contains `pattern` as a literal (case-insensitive) substring.
+- `:FuzzyLspSymbols!` — opens the interactive picker with a file preview pinned to the symbol under the cursor.
+- `:FuzzyLspSymbols! query` — opens the picker pre-filled with `query`.
+
+The command queries every attached LSP client that supports `textDocument/documentSymbol` and merges their responses (dedup by location + label, stable order by file → line → column). If no attached client supports the method, the command notifies and exits without creating a quickfix list. Press `<CR>` to jump to the symbol; `<M-q>` exports visible (filtered) symbols to quickfix.
+
+### `:FuzzyLspProjectSymbols[!] [query]`
+
+Browse LSP workspace symbols across the entire project.
+
+- `:FuzzyLspProjectSymbols query` — runs one `workspace/symbol` request with `query` and sends matching symbols to the quickfix list. Most LSP servers return nothing for an empty query.
+- `:FuzzyLspProjectSymbols!` — opens an interactive picker that re-queries the LSP server live as you type (debounced at 150ms). Each keystroke after the debounce fires a fresh `workspace/symbol` request; the previous in-flight request is cancelled. An empty input shows nothing and skips the request.
+- `:FuzzyLspProjectSymbols! query` — opens the picker pre-filled with `query`.
+
+Filtering in the bang picker is server-side: the LSP server decides which symbols match, so behavior (substring vs. fuzzy, case sensitivity) follows whatever your language server does. The relative path is part of the filter input, so typing a path fragment narrows by file. Press `<CR>` to jump to the symbol; `<M-q>` exports the visible snapshot to quickfix.
+
 ### `:FuzzyList[!]`
 
 Browse and select from quickfix list history.
@@ -322,7 +345,7 @@ fuzzy.grep({ '-F', 'function(args)' })  -- literal search
 
 ### Custom pickers
 
-Every built-in picker (`files`, `buffers`, `grep`, `helptags`, `commands`, `keymaps`, `qflist`, `git_branches`, `git_worktrees`) is a source module that exports `M.open(opts, picker_open)`. Register your own with:
+Every built-in picker (`files`, `buffers`, `grep`, `helptags`, `commands`, `keymaps`, `qflist`, `git_branches`, `git_worktrees`, `lsp_symbols`, `lsp_project_symbols`) is a source module that exports `M.open(opts, picker_open)`. Register your own with:
 
 ```lua
 require('fuzzy.picker').register_source('oldfiles', 'my_plugin.oldfiles_source')
