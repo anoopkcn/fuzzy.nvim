@@ -17,6 +17,39 @@ local HL = highlight.HL
 
 local REFRESH_DEBOUNCE_MS = 50
 local FT_LINE_LIMIT       = 1500   -- skip filetype assignment beyond this
+local PREVIEW_SIZE_LIMIT  = 10 * 1024 * 1024  -- 10 MiB cap before we bail
+
+-- Extensions we never try to render as text. Cheap pre-filter so binary
+-- formats that don't have a null byte in their first few lines (jpeg, pdf,
+-- some archives) still report "(binary file)" instead of dumping garbage
+-- into the preview buffer.
+local NON_TEXT_EXT = {
+    -- images
+    png = true, jpg = true, jpeg = true, gif = true, bmp = true, ico = true,
+    webp = true, tif = true, tiff = true, psd = true, heic = true, avif = true,
+    -- audio
+    mp3 = true, wav = true, flac = true, ogg = true, m4a = true, aac = true,
+    opus = true, wma = true,
+    -- video
+    mp4 = true, mov = true, avi = true, mkv = true, webm = true, flv = true,
+    wmv = true, m4v = true, mpg = true, mpeg = true,
+    -- archives
+    zip = true, tar = true, gz = true, tgz = true, bz2 = true, xz = true,
+    ["7z"] = true, rar = true, zst = true, lz = true, lzma = true,
+    -- documents
+    pdf = true, doc = true, docx = true, xls = true, xlsx = true, ppt = true,
+    pptx = true, odt = true, ods = true, odp = true, epub = true, mobi = true,
+    -- compiled / binary
+    exe = true, dll = true, so = true, dylib = true, class = true, jar = true,
+    war = true, pyc = true, pyo = true, wasm = true,
+    -- databases / disk images
+    db = true, sqlite = true, sqlite3 = true, mdb = true,
+    iso = true, dmg = true, deb = true, rpm = true, pkg = true,
+    -- fonts
+    ttf = true, otf = true, woff = true, woff2 = true, eot = true,
+    -- other
+    bin = true, dat = true,
+}
 
 local M = {}
 
@@ -48,6 +81,34 @@ local function looks_binary(lines)
     return probe:find("\0", 1, true) ~= nil
 end
 
+local function ext_of(path)
+    local ext = path:match("%.([^./\\]+)$")
+    return ext and ext:lower() or nil
+end
+
+-- Returns a message string if the file at `path` can't be previewed as text,
+-- otherwise nil. Combines an extension allowlist (cheap, catches binary
+-- formats whose null bytes appear later in the file) with an `fs_stat` check
+-- (catches directories, sockets, oversized files). nil means "go ahead and
+-- try to read it as text."
+local function unpreviewable_reason(path)
+    if not path or path == "" then return nil end
+    local ext = ext_of(path)
+    if ext and NON_TEXT_EXT[ext] then
+        return "(binary file)"
+    end
+    local stat = vim.uv.fs_stat(path)
+    if not stat then return nil end
+    if stat.type == "directory" then return "(directory)" end
+    if stat.type ~= "file" and stat.type ~= "link" then
+        return ("(unsupported: %s)"):format(stat.type or "special")
+    end
+    if stat.size and stat.size > PREVIEW_SIZE_LIMIT then
+        return "(file too large)"
+    end
+    return nil
+end
+
 -- ---------- per-kind builders ----------
 
 -- When target.lnum points into the file, return it as match_row so the
@@ -62,6 +123,8 @@ local function locate_match_row(target, line_count)
 end
 
 local function build_file(target, max_lines)
+    local reason = unpreviewable_reason(target.path)
+    if reason then return { reason }, nil, nil end
     local lines = read_file(target.path, max_lines)
     if not lines then return { "(no preview)" }, nil, nil end
     if #lines == 0 then return { "(empty file)" }, nil, nil end
@@ -81,6 +144,8 @@ local function build_buffer(target, max_lines)
 end
 
 local function build_grep(target, ctx, max_lines)
+    local reason = unpreviewable_reason(target.path)
+    if reason then return { reason }, nil, nil end
     local lnum = target.lnum or 1
     local start_l = math.max(1, lnum - ctx)
     local end_l   = lnum + ctx
@@ -98,6 +163,8 @@ local function build_grep(target, ctx, max_lines)
 end
 
 local function build_help(target, ctx, max_lines)
+    local reason = unpreviewable_reason(target.path)
+    if reason then return { reason }, nil, nil end
     if target.lnum and target.lnum > 0 then
         return build_grep(target, ctx, max_lines)
     end
