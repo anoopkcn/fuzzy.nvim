@@ -19,6 +19,8 @@ local M = {}
 ---@field file_match_limit integer Maximum number of files to return from fd
 ---@field grep_dedupe boolean Deduplicate grep results by file:line (default: true)
 ---@field grep_path_truncate boolean Shorten directory components in the live-grep picker when a result line overflows the picker width (default: true)
+---@field grep_group_by_file boolean Render live-grep results grouped under one header per file (default: true)
+---@field grep_syntax_highlight boolean Apply treesitter syntax highlighting to grep result content (default: true)
 ---@field send_to_qf_key string|false Key to send picker results to quickfix (false to disable)
 ---@field edit_grep_flags_key string|false Key to edit ripgrep flags in live grep pickers (false to disable)
 ---@field edit_files_flags_key string|false Key to edit fd flags in the files picker (false to disable)
@@ -37,6 +39,8 @@ local defaults = {
     file_match_limit = 10000,
     grep_dedupe = true,
     grep_path_truncate = true,
+    grep_group_by_file = true,
+    grep_syntax_highlight = true,
     send_to_qf_key = "<M-q>",
     edit_grep_flags_key = "<M-r>",
     edit_files_flags_key = "<M-r>",
@@ -84,6 +88,8 @@ function M.setup(opts)
         vim.validate("file_match_limit", opts.file_match_limit, "number", true)
         vim.validate("grep_dedupe", opts.grep_dedupe, "boolean", true)
         vim.validate("grep_path_truncate", opts.grep_path_truncate, "boolean", true)
+        vim.validate("grep_group_by_file", opts.grep_group_by_file, "boolean", true)
+        vim.validate("grep_syntax_highlight", opts.grep_syntax_highlight, "boolean", true)
         if opts.send_to_qf_key ~= nil then
             assert(
                 opts.send_to_qf_key == false or type(opts.send_to_qf_key) == "string",

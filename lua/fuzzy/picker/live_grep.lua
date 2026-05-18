@@ -8,6 +8,8 @@ local parse = require("fuzzy.parse")
 local quickfix = require("fuzzy.quickfix")
 local runner = require("fuzzy.runner")
 local util = require("fuzzy.util")
+local ts_highlight = require("fuzzy.picker.ts_highlight")
+local HL = require("fuzzy.picker.highlight").HL
 
 local M = {}
 
@@ -40,11 +42,11 @@ local function shorten_path(path)
     return table.concat(out, "/")
 end
 
--- Width-aware display formatter. When the full "path:lnum:col:text" line
--- overflows the picker column budget and `grep_path_truncate` is enabled,
--- shorten directory components so the lnum:col coords and the matched text
--- stay visible. Filename is preserved verbatim.
-local function grep_display(item, _ctx, width)
+-- Flat-mode (no grouping) display formatter. When the full
+-- "path:lnum:col:text" line overflows the picker column budget and
+-- `grep_path_truncate` is enabled, shorten directory components so the
+-- lnum:col coords and the matched text stay visible. Filename is preserved.
+local function grep_display_flat(item, _ctx, width)
     local d = item.display
     if not config.get().grep_path_truncate then return d end
     if not width or width <= 0 then return d end
@@ -57,11 +59,101 @@ local function grep_display(item, _ctx, width)
     return shorten_path(path) .. rest
 end
 
+-- Grouped-mode display formatter: ":lnum:col  text". Path is rendered in the
+-- header line above by `grep_format_header`, so the data line omits it.
+local function grep_display_grouped(item, _ctx, _width)
+    local qf = item.qf
+    return (":%d:%d  %s"):format(qf.lnum or 0, qf.col or 0, qf.text or "")
+end
+
+-- Build the header line for a group: "name  dir  count" (or "name  count" if
+-- the file is in cwd root). Stores byte offsets on the item so
+-- `grep_header_highlight` can color the components without re-parsing.
+local function grep_format_header(item, ctx, _width)
+    local path = item.display_path or item.qf.filename or ""
+    local name = vim.fn.fnamemodify(path, ":t")
+    local dir = vim.fn.fnamemodify(path, ":h")
+    if dir == "." or dir == "" or dir == name then dir = "" end
+    local count = (ctx and ctx.fuzzy_grep_counts and ctx.fuzzy_grep_counts[item.qf.filename]) or 0
+
+    local header_text, parts
+    if dir == "" then
+        header_text = ("%s  %d"):format(name, count)
+        parts = {
+            name_end    = #name,
+            dir_start   = nil,
+            dir_end     = nil,
+            count_start = #name + 2,
+        }
+    else
+        header_text = ("%s  %s  %d"):format(name, dir, count)
+        parts = {
+            name_end    = #name,
+            dir_start   = #name + 2,
+            dir_end     = #name + 2 + #dir,
+            count_start = #name + 2 + #dir + 2,
+        }
+    end
+    parts.total = #header_text
+    item._header_parts = parts
+    return header_text
+end
+
+-- Apply per-component highlights to a header line using offsets stashed on the
+-- item by `grep_format_header`.
+local function grep_header_highlight(buf, ns, row, item, _header_text, _ctx, prefix_len)
+    local p = item._header_parts
+    if not p then return end
+    vim.api.nvim_buf_set_extmark(buf, ns, row, prefix_len, {
+        end_col = prefix_len + p.name_end, hl_group = HL.file, priority = 110,
+    })
+    if p.dir_start then
+        vim.api.nvim_buf_set_extmark(buf, ns, row, prefix_len + p.dir_start, {
+            end_col = prefix_len + p.dir_end, hl_group = HL.dir, priority = 110,
+        })
+    end
+    vim.api.nvim_buf_set_extmark(buf, ns, row, prefix_len + p.count_start, {
+        end_col = prefix_len + p.total, hl_group = HL.grepHeaderCount, priority = 110,
+    })
+end
+
+-- Apply line-number prefix + treesitter syntax to a grouped data row. The data
+-- line is laid out as ":LNUM:COL  CONTENT" — we color the prefix with LineNr
+-- and walk treesitter captures over CONTENT.
+local function grep_data_row_highlight(buf, ns, row, item, text, _ctx, prefix_len)
+    local content_start = text:match("^:%d+:%d+  ()")
+    if content_start then
+        -- 1-indexed byte after the trailing whitespace; convert to extmark
+        -- byte offset (0-indexed): prefix_len + (content_start - 1).
+        vim.api.nvim_buf_set_extmark(buf, ns, row, prefix_len, {
+            end_col = prefix_len + content_start - 1, hl_group = HL.grepLineNr, priority = 100,
+        })
+    end
+    if not config.get().grep_syntax_highlight then return end
+    if not content_start then return end
+    local content = item.qf and item.qf.text or nil
+    if not content or content == "" then return end
+    local hls = ts_highlight.get_line_highlights(item.qf.filename, content)
+    if not hls then return end
+    local base = prefix_len + content_start - 1  -- 0-indexed byte offset of content start
+    for _, cap in ipairs(hls) do
+        vim.api.nvim_buf_set_extmark(buf, ns, row, base + cap.col, {
+            end_col = base + cap.end_col, hl_group = cap.hl_group, priority = 120,
+        })
+    end
+end
+
 -- Highlight the query as a literal substring within the text portion of a
--- grep display line ("filename:lnum:col:text"). Falls back to match.positions
--- if the display cannot be parsed.
+-- grep display line. Handles both flat ("file:lnum:col:text") and grouped
+-- (":lnum:col  text") layouts. Falls back to match.positions otherwise.
 local function grep_highlight(query, line)
-    local text_start = line:match("^[^:]+:%d+:%d+:()")
+    -- Grouped layout: leading colon. Try it first because it's the only one
+    -- that starts with `:`. Match the literal 2-space separator (not %s+) so
+    -- leading whitespace on the actual content is not consumed.
+    local text_start = line:match("^:%d+:%d+  ()")
+    if not text_start then
+        text_start = line:match("^[^:]+:%d+:%d+:()")
+    end
     if not text_start then return match.positions(query, line) end
 
     local text = line:sub(text_start)
@@ -220,6 +312,7 @@ function M.open(opts, picker_open)
         e.filename = util.with_root(e.filename, netrw_dir)
         local result = {
             display = ("%s:%d:%d:%s"):format(display_path, e.lnum, e.col, e.text),
+            display_path = display_path,
             qf = e,
         }
         if seen then
@@ -348,7 +441,8 @@ function M.open(opts, picker_open)
         end))
     end
 
-    return picker_open({
+    local grouped = config.get().grep_group_by_file ~= false
+    local picker_opts = {
         items = {},
         prompt = "Grep",
         title = picker_title(),
@@ -357,7 +451,7 @@ function M.open(opts, picker_open)
         highlight_paths = false,
         highlight_matches = true,
         highlight_fn = grep_highlight,
-        format_item = grep_display,
+        format_item = grouped and grep_display_grouped or grep_display_flat,
         preview_source = {
             kind = "grep",
             resolve = function(item)
@@ -415,7 +509,24 @@ function M.open(opts, picker_open)
                 end)
             end)
         end,
-    })
+    }
+
+    if grouped then
+        picker_opts.group_key = function(item) return item.qf and item.qf.filename or nil end
+        picker_opts.format_header = grep_format_header
+        picker_opts.header_highlight = grep_header_highlight
+        picker_opts.row_highlight = grep_data_row_highlight
+        picker_opts.make_render_context = function(items)
+            local counts = {}
+            for _, item in ipairs(items) do
+                local fn = item.qf and item.qf.filename
+                if fn then counts[fn] = (counts[fn] or 0) + 1 end
+            end
+            return { fuzzy_grep_counts = counts }
+        end
+    end
+
+    return picker_open(picker_opts)
 end
 
 M.pick_marked_target = pick_marked_target

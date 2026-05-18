@@ -16,6 +16,8 @@ M.HL = {
     dir           = "FuzzyPickerDir",
     file          = "FuzzyPickerFile",
     selected      = "FuzzyPickerSelected",
+    grepHeaderCount = "FuzzyPickerGrepHeaderCount",
+    grepLineNr      = "FuzzyPickerGrepLineNr",
     paletteLabel  = "FuzzyPickerPaletteLabel",
     paletteName   = "FuzzyPickerPaletteName",
     paletteAlias  = "FuzzyPickerPaletteAlias",
@@ -43,6 +45,8 @@ set_default_hl(M.HL.match,         "IncSearch")
 set_default_hl(M.HL.dir,           "Comment")
 set_default_hl(M.HL.file,          "Normal")
 set_default_hl(M.HL.selected,      "DiagnosticOk")
+set_default_hl(M.HL.grepHeaderCount, "Number")
+set_default_hl(M.HL.grepLineNr,      "LineNr")
 set_default_hl(M.HL.paletteLabel,  "Type")
 set_default_hl(M.HL.paletteName,   "Function")
 set_default_hl(M.HL.paletteAlias,  "Constant")

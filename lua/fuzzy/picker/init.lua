@@ -67,6 +67,9 @@ end
 ---@field filter_text? fun(item: any): string
 ---@field make_render_context? fun(items: any[], width: integer): table|nil
 ---@field row_highlight? fun(buf: integer, ns: integer, row: integer, item: any, text: string, ctx: table|nil, prefix_len: integer)
+---@field group_key? fun(item: any): any  When set together with `format_header`, items whose group_key differs from the previous item's are preceded by a header buffer row. Cursor still indexes items, not buffer rows.
+---@field format_header? fun(item: any, ctx: table|nil, width: integer): string  Header text for the first item of a group. Required alongside `group_key` to enable grouped rendering.
+---@field header_highlight? fun(buf: integer, ns: integer, row: integer, item: any, header_text: string, ctx: table|nil, prefix_len: integer)
 ---@field filter_items? boolean
 ---@field highlight_matches? boolean
 ---@field highlight_fn? fun(query: string, line: string): integer[]|nil
@@ -112,6 +115,10 @@ local function open(opts)
     end
     local make_render_context = opts.make_render_context
     local row_highlight   = opts.row_highlight
+    local group_key       = opts.group_key
+    local format_header   = opts.format_header
+    local header_highlight = opts.header_highlight
+    local has_groups      = group_key ~= nil and format_header ~= nil
     local filter_items    = opts.filter_items ~= false
     local highlight_matches = opts.highlight_matches ~= false
     local highlight_fn    = opts.highlight_fn or match.positions
@@ -150,6 +157,12 @@ local function open(opts)
     local render_timer = vim.uv.new_timer()
     local timers_closed = false
     local render_pending = false
+
+    -- Maps from visible item index (1-based, relative to `scroll`) to the
+    -- buffer row where its data line lives. Refreshed by render(). Used by
+    -- update_cursor_hl() to attach the cursor extmark at the correct row when
+    -- group headers are inserted between items.
+    local last_data_rows = {}
 
     local function close_timers()
         if timers_closed then return end
@@ -191,10 +204,17 @@ local function open(opts)
     -- it touches one extmark in one tiny namespace.
     local function update_cursor_hl()
         vim.api.nvim_buf_clear_namespace(result_buf, ns_cursor, 0, -1)
-        local total = #current
-        local n = math.min(view.displayed, math.max(0, total - scroll))
-        local row = cursor - scroll - 1
-        if row >= 0 and row < n then
+        local visible_idx = cursor - scroll
+        local row
+        if has_groups then
+            row = last_data_rows[visible_idx]
+        else
+            local total = #current
+            local n = math.min(view.displayed, math.max(0, total - scroll))
+            local r = visible_idx - 1
+            if r >= 0 and r < n then row = r end
+        end
+        if row then
             vim.api.nvim_buf_set_extmark(result_buf, ns_cursor, row, 0, {
                 end_row = row + 1, hl_group = HL.sel, hl_eol = true, priority = 50,
             })
@@ -209,31 +229,182 @@ local function open(opts)
         if preview_ctrl then preview_ctrl.refresh() end
     end
 
-    local function render()
-        view.resize(#current)
+    -- For a 1-based index into `current`, returns the buffer row cost of
+    -- emitting this item (2 if it starts a new group, 1 otherwise, 0 if the
+    -- item doesn't exist). When grouping is disabled, every item costs 1.
+    local function row_cost(idx)
+        if not has_groups then
+            return current[idx] and 1 or 0
+        end
+        local item = current[idx]
+        if not item then return 0 end
+        if idx == 1 then return 2 end
+        local prev = current[idx - 1]
+        if not prev then return 2 end
+        local pk = group_key(prev)
+        local ck = group_key(item)
+        if pk == nil or ck == nil then return 1 end
+        if pk ~= ck then return 2 end
+        return 1
+    end
+
+    -- How many items fit in the visible window when scrolled to `s`, given
+    -- the row budget `view.displayed`. Used by render() to admit items and by
+    -- move()/select_current() to keep the cursor on-screen.
+    local function visible_count(s)
         local total = #current
-        local n = math.min(view.displayed, math.max(0, total - scroll))
+        if total == 0 or s >= total then return 0 end
+        if not has_groups then
+            return math.min(view.displayed, total - s)
+        end
+        local rows_used = 0
+        local count = 0
+        for i = 1, total - s do
+            local cost
+            local item = current[s + i]
+            if not item then break end
+            if i == 1 then
+                -- The topmost visible row never emits a header for being the
+                -- first in its group when we're scrolled mid-group: only when
+                -- the previous off-screen item belongs to a different group.
+                if s == 0 then
+                    cost = 2
+                else
+                    local prev = current[s]
+                    local pk = prev and group_key(prev) or nil
+                    local ck = group_key(item)
+                    if pk == nil or ck == nil or pk == ck then
+                        cost = 1
+                    else
+                        cost = 2
+                    end
+                end
+            else
+                local prev = current[s + i - 1]
+                local pk = prev and group_key(prev) or nil
+                local ck = group_key(item)
+                if pk == nil or ck == nil or pk == ck then
+                    cost = 1
+                else
+                    cost = 2
+                end
+            end
+            if rows_used + cost > view.displayed then break end
+            rows_used = rows_used + cost
+            count = i
+        end
+        return count
+    end
+
+    -- Ensure `cursor` falls within the visible window by shifting `scroll`
+    -- minimally. Row-aware: with groups, advancing scroll by 1 may free 1 or
+    -- 2 rows depending on whether the leaving item brought a header along.
+    local function clamp_scroll_to_cursor()
+        local total = #current
+        if total == 0 then
+            cursor = 1
+            scroll = 0
+            return
+        end
+        if cursor < 1 then cursor = 1 end
+        if cursor > total then cursor = total end
+        if cursor < scroll + 1 then
+            scroll = cursor - 1
+        else
+            while cursor > scroll + visible_count(scroll) do
+                scroll = scroll + 1
+                if scroll >= cursor then
+                    scroll = cursor - 1
+                    break
+                end
+            end
+        end
+        if scroll < 0 then scroll = 0 end
+    end
+
+    local function render()
+        -- 1. Compute total buffer rows needed and size the window accordingly.
+        local total = #current
+        local total_rows
+        if not has_groups then
+            total_rows = total
+        else
+            total_rows = 0
+            for i = 1, total do total_rows = total_rows + row_cost(i) end
+        end
+        view.resize(total_rows)
+
+        -- 2. Clamp scroll so cursor is visible against the (possibly resized)
+        --    row budget, then determine how many items the window can show.
+        clamp_scroll_to_cursor()
+        local n = visible_count(scroll)
         if show_count then view.set_count(total, #items) end
         local query = read_query()
         local render_ctx = make_render_context and make_render_context(current, view.width) or nil
 
-        -- Build buffer lines + per-row metadata in a single pass.
+        -- 3. Walk admitted items, emitting header + data lines in order and
+        --    recording the buffer row of each component for the extmark pass.
         local lines = {}
         local texts = {}
+        local data_rows = {}
+        local header_rows = {}
+        local header_texts = {}
+        local row_count = 0
+
         for i = 1, n do
             local item = current[scroll + i]
+            local emit_header = false
+            if has_groups then
+                if i == 1 then
+                    if scroll == 0 then
+                        emit_header = true
+                    else
+                        local prev = current[scroll]
+                        local pk = prev and group_key(prev) or nil
+                        local ck = group_key(item)
+                        emit_header = pk ~= nil and ck ~= nil and pk ~= ck
+                    end
+                else
+                    local prev = current[scroll + i - 1]
+                    local pk = prev and group_key(prev) or nil
+                    local ck = group_key(item)
+                    emit_header = pk ~= nil and ck ~= nil and pk ~= ck
+                end
+            end
+
+            if emit_header then
+                local ok, header_text = pcall(format_header, item, render_ctx, view.width)
+                if not ok or type(header_text) ~= "string" then header_text = "" end
+                header_rows[i] = row_count
+                header_texts[i] = header_text
+                lines[#lines + 1] = PREFIX_PAD .. header_text
+                row_count = row_count + 1
+            end
+
             local text = item_text(item, render_ctx)
             texts[i] = text
-            lines[i] = PREFIX_PAD .. text
+            data_rows[i] = row_count
+            lines[#lines + 1] = PREFIX_PAD .. text
+            row_count = row_count + 1
         end
+
         vim.api.nvim_buf_set_lines(result_buf, 0, -1, false, lines)
         vim.api.nvim_buf_clear_namespace(result_buf, ns_content, 0, -1)
 
         for i = 1, n do
-            local row = i - 1
+            local row = data_rows[i]
             local text = texts[i]
-            local line_len = #lines[i]
+            local line_len = #lines[row + 1]
             local item = current[scroll + i]
+
+            -- Header row first (it sits visually above the data row).
+            if header_rows[i] then
+                local hrow = header_rows[i]
+                local htext = header_texts[i]
+                if header_highlight then
+                    header_highlight(result_buf, ns_content, hrow, item, htext, render_ctx, PREFIX_LEN)
+                end
+            end
 
             if selected[item] then
                 -- Overlay virt_text at col 1: stays out of the way of the
@@ -288,6 +459,7 @@ local function open(opts)
             end
         end
 
+        last_data_rows = data_rows
         update_cursor_hl()
     end
 
@@ -306,7 +478,9 @@ local function open(opts)
             scroll = 0
         else
             cursor = math.max(1, math.min(cursor, math.max(1, #current)))
-            scroll = math.max(0, math.min(scroll, math.max(0, #current - view.max_height)))
+            -- Don't bother clamping scroll here — render() calls
+            -- clamp_scroll_to_cursor() with the up-to-date row budget.
+            scroll = math.max(0, math.min(scroll, math.max(0, cursor - 1)))
         end
     end
 
@@ -498,13 +672,8 @@ local function open(opts)
         local total = #current
         if total == 0 then return end
         cursor = math.max(1, math.min(total, cursor + delta))
-        local page = math.max(1, view.displayed)
         local prev_scroll = scroll
-        if cursor < scroll + 1 then
-            scroll = cursor - 1
-        elseif cursor > scroll + page then
-            scroll = cursor - page
-        end
+        clamp_scroll_to_cursor()
         if scroll == prev_scroll then
             update_cursor_hl()
         else
@@ -523,8 +692,7 @@ local function open(opts)
             selected_count = selected_count + 1
         end
         cursor = math.min(#current, cursor + 1)
-        local page = math.max(1, view.displayed)
-        if cursor > scroll + page then scroll = cursor - page end
+        clamp_scroll_to_cursor()
         render()
     end
 
@@ -536,7 +704,7 @@ local function open(opts)
             selected_count = selected_count - 1
         end
         cursor = math.max(1, cursor - 1)
-        if cursor < scroll + 1 then scroll = cursor - 1 end
+        clamp_scroll_to_cursor()
         render()
     end
 
