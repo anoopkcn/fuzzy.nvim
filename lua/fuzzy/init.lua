@@ -71,6 +71,24 @@ function M.setup(opts)
         })
     end, { nargs = "*", desc = "Browse keymaps (global + buffer-local, all modes)" })
 
+    cmd("FuzzyJumps", function(o)
+        require("fuzzy.picker").open_for("jumps", {
+            initial_query = o.args ~= "" and o.args or nil,
+        })
+    end, { nargs = "*", desc = "Browse the jump list" })
+
+    cmd("FuzzyMarks", function(o)
+        require("fuzzy.picker").open_for("marks", {
+            initial_query = o.args ~= "" and o.args or nil,
+        })
+    end, { nargs = "*", desc = "Browse marks (global + buffer-local)" })
+
+    cmd("FuzzyReg", function(o)
+        require("fuzzy.picker").open_for("registers", {
+            initial_query = o.args ~= "" and o.args or nil,
+        })
+    end, { nargs = "*", desc = "Browse registers (CR copies to system clipboard)" })
+
     cmd("FuzzyLspSymbols", function(o)
         if o.bang then
             require("fuzzy.picker").open_for("lsp_symbols", {

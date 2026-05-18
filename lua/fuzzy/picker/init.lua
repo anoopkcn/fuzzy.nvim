@@ -24,6 +24,9 @@ local picker_sources = {
     git_worktrees       = "fuzzy.commands.git_worktrees",
     lsp_symbols         = "fuzzy.picker.sources.lsp_symbols",
     lsp_project_symbols = "fuzzy.picker.sources.lsp_project_symbols",
+    jumps               = "fuzzy.picker.sources.jumps",
+    marks               = "fuzzy.picker.sources.marks",
+    registers           = "fuzzy.picker.sources.registers",
 }
 
 -- Two namespaces so the per-key navigation update can wipe ONLY the cursor

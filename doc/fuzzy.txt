@@ -22,6 +22,9 @@ CONTENTS                                                      *fuzzy-contents*
     3.11 FuzzyMap .......................... |:FuzzyMap|
     3.12 FuzzyLspSymbols ................... |:FuzzyLspSymbols|
     3.13 FuzzyLspProjectSymbols ............ |:FuzzyLspProjectSymbols|
+    3.14 FuzzyJumps ........................ |:FuzzyJumps|
+    3.15 FuzzyMarks ........................ |:FuzzyMarks|
+    3.16 FuzzyReg .......................... |:FuzzyReg|
 4. Configuration ........................... |fuzzy-configuration|
 5. Functions ............................... |fuzzy-functions|
     5.1 fuzzy.setup() ...................... |fuzzy.setup()|
@@ -50,6 +53,9 @@ Features:
   • LSP document symbol browser (current buffer)
   • LSP workspace symbol browser with live re-query
   • Quickfix history navigation
+  • Jump-list browser (:jumps) — pick to jump cross-buffer
+  • Marks browser (:marks) — global A-Z + 0-9 and buffer-local marks
+  • Registers browser (:reg) — pick to copy contents to the system clipboard
   • Send picker results to quickfix with a single key (<M-q> by default)
   • Single-file direct opening
   • Full control over search arguments
@@ -81,8 +87,9 @@ Passing arguments to the [!] form pre-fills the picker's search query. In the
 live grep pickers, ripgrep options are also preserved and can be edited inside
 the picker.
 
-Note: |:FuzzyHelp|, |:FuzzyCommands|, |:FuzzyMap|, |:FuzzyGitBranches|, and
-|:FuzzyGitWorktrees| always open the picker and do not have a quickfix-only mode.
+Note: |:FuzzyHelp|, |:FuzzyCommands|, |:FuzzyMap|, |:FuzzyGitBranches|,
+|:FuzzyGitWorktrees|, |:FuzzyJumps|, |:FuzzyMarks|, and |:FuzzyReg| always
+open the picker and do not have a quickfix-only mode.
 
 |:FuzzyLspSymbols| and |:FuzzyLspProjectSymbols| require an attached LSP
 client that supports |textDocument/documentSymbol| or |workspace/symbol|
@@ -535,6 +542,110 @@ Examples: >
     :FuzzyLspProjectSymbols!             " open picker, type to live-search
     :FuzzyLspProjectSymbols! parse_      " open picker pre-filled with 'parse_'
 <
+------------------------------------------------------------------------------
+3.14 FuzzyJumps                                                  *:FuzzyJumps*
+
+Browse the jump list (|:jumps|).
+
+Syntax: >
+    :FuzzyJumps [query]
+<
+Always opens the interactive picker. There is no quickfix-only mode and no
+[!]. Pressing <CR> jumps to the selected location across buffers.
+
+Entries are sourced from |getjumplist()|. The picker shows the list newest
+first (reverse of |:jumps|), so the most recent jump is at the top. Each row
+renders as four aligned columns: >
+
+    mark │ lnum:col │ rel/path │ line text
+<
+The mark column is a single character: ">" for the current jump-list position
+(the line |:jumps| highlights with ">"), or a space otherwise. Jumps whose
+buffer is no longer valid are skipped during collection.
+
+Filtering matches the relative path and the line text together, so you can
+narrow by file ("init.lua") or by content ("TODO").
+
+Press <CR> to switch to the target buffer (reusing an existing window if one
+is displaying it) and move the cursor to the recorded lnum:col. The preview
+pane, when enabled, centers on the jump location.
+
+Examples: >
+    :FuzzyJumps                  " open jump-list picker
+    :FuzzyJumps init.lua         " picker pre-filtered to 'init.lua'
+<
+------------------------------------------------------------------------------
+3.15 FuzzyMarks                                                  *:FuzzyMarks*
+
+Browse global and buffer-local marks.
+
+Syntax: >
+    :FuzzyMarks [query]
+<
+Always opens the interactive picker. There is no quickfix-only mode and no
+[!]. Pressing <CR> jumps to the selected mark.
+
+Entries combine global marks from |getmarklist()| (uppercase A-Z and 0-9)
+with buffer-local marks from |getmarklist()| called on the buffer that was
+current when |:FuzzyMarks| was invoked (lowercase a-z plus special marks
+`'`, `` ` ``, `.`, `^`, `[`, `]`, `<`, `>`). Marks with `lnum == 0` (unset)
+are filtered out.
+
+Each entry renders as five aligned columns: >
+
+    name │ G/L │ lnum:col │ rel/path │ line text
+<
+The "G/L" column distinguishes global from buffer-local marks. Filtering
+matches name, scope, path, and line text simultaneously.
+
+Press <CR> to jump. Alphanumeric marks use vim's native backtick-jump
+(`` `<name> ``), which preserves cross-file semantics for global marks
+(e.g. mark A in another file is opened automatically). Special marks fall
+back to a manual buffer switch + cursor placement.
+
+The preview pane, when enabled, centers on the mark location.
+
+Examples: >
+    :FuzzyMarks                  " open marks picker
+    :FuzzyMarks A                " picker pre-filtered to global mark A
+    :FuzzyMarks global           " picker pre-filtered to global marks
+<
+------------------------------------------------------------------------------
+3.16 FuzzyReg                                                      *:FuzzyReg*
+
+Browse non-empty registers.
+
+Syntax: >
+    :FuzzyReg [query]
+<
+Always opens the interactive picker. There is no quickfix-only mode and no
+[!].
+
+Entries are sourced from |getreginfo()| for the standard register set: the
+unnamed register `"`, the selection registers `*` and `+`, the small-delete
+register `-`, the read-only specials `/`, `:`, `.`, `%`, `#`, the numbered
+registers `0`-`9`, and the named registers `a`-`z`. Empty registers are
+hidden from the picker.
+
+Each entry renders as three aligned columns: >
+
+    name │ type │ preview
+<
+The "type" column shows the regtype as `c` (charwise), `l` (linewise), or
+`b` (blockwise). The "preview" column shows the first line of the register
+contents; multi-line registers are suffixed with `↵` so you can tell at a
+glance.
+
+Press <CR> to copy the register's contents to the system clipboard (`+`),
+preserving the original regtype so a subsequent `p` pastes with the same
+charwise/linewise/blockwise semantics. A notification confirms the copy.
+
+This picker has no preview pane in v1.
+
+Examples: >
+    :FuzzyReg                    " open registers picker
+    :FuzzyReg 0                  " picker pre-filtered to the yank register
+<
 ==============================================================================
 4. CONFIGURATION                                        *fuzzy-configuration*
 
@@ -836,8 +947,9 @@ require('fuzzy.picker').register_source({kind}, {modname})
 
     Built-in kinds: `files`, `buffers`, `grep`, `helptags`, `commands`,
     `keymaps`, `qflist`, `git_branches`, `git_worktrees`, `lsp_symbols`,
-    `lsp_project_symbols`. They share the same contract, so the smallest
-    example to copy is `lua/fuzzy/picker/sources/qflist.lua`.
+    `lsp_project_symbols`, `jumps`, `marks`, `registers`. They share the
+    same contract, so the smallest example to copy is
+    `lua/fuzzy/picker/sources/qflist.lua`.
 
     Example: >
         require('fuzzy.picker').register_source(

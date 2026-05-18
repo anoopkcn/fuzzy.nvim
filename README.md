@@ -17,6 +17,9 @@ For workflows using neovim's **quickfix lists**. `fuzzy.nvim` populates the quic
 - **`:FuzzyGitWorktrees` - Git worktree browser/switcher**
 - **`:FuzzyLspSymbols` - LSP document symbol browser** for the current buffer
 - **`:FuzzyLspProjectSymbols` - LSP workspace symbol browser** with live re-query as you type
+- **`:FuzzyJumps` - Jump list browser** — pick an entry to jump to that location across buffers
+- **`:FuzzyMarks` - Marks browser** for global (A-Z, 0-9) and buffer-local marks
+- **`:FuzzyReg` - Registers browser** — `<CR>` copies the chosen register to the system clipboard
 - **Full control** over search arguments via `ripgrep`/`fd` arguments
 - **`<M-q>` in supported pickers** sends the currently visible or marked (using `<Tab>`) results to the quickfix list
 - **`<M-r>` in live grep pickers** edits ripgrep backend flags without leaving the picker
@@ -62,7 +65,7 @@ All commands follow the same rule:
 
 Passing arguments to the `!` form pre-fills the picker's search query. For live grep pickers, ripgrep options are also preserved and can be edited in-picker.
 
-`:FuzzyHelp`, `:FuzzyCommands`, `:FuzzyMap`, `:FuzzyGitBranches`, and `:FuzzyGitWorktrees` always open an interactive picker; they do not have a quickfix-only mode.
+`:FuzzyHelp`, `:FuzzyCommands`, `:FuzzyMap`, `:FuzzyGitBranches`, `:FuzzyGitWorktrees`, `:FuzzyJumps`, `:FuzzyMarks`, and `:FuzzyReg` always open an interactive picker; they do not have a quickfix-only mode.
 
 ## Picker Keymaps
 
@@ -275,6 +278,39 @@ Browse LSP workspace symbols across the entire project.
 
 Filtering in the bang picker is server-side: the LSP server decides which symbols match, so behavior (substring vs. fuzzy, case sensitivity) follows whatever your language server does. The relative path is part of the filter input, so typing a path fragment narrows by file. Press `<CR>` to jump to the symbol; `<M-q>` exports the visible snapshot to quickfix.
 
+### `:FuzzyJumps [query]`
+
+Browse the jump list (`:jumps`).
+
+- `:FuzzyJumps` — open the jump-list picker.
+- `:FuzzyJumps query` — open the picker pre-filled with `query`.
+
+Entries are sourced from `vim.fn.getjumplist()` and shown newest-first. Each row renders as `mark │ lnum:col │ rel/path │ line text`, where `mark` is `>` for the current jump-list position and a space otherwise. Jumps whose buffer is no longer valid are skipped.
+
+Press `<CR>` to jump: the picker switches to the target buffer (reusing an existing window if one is showing it) and places the cursor at `lnum:col`.
+
+### `:FuzzyMarks [query]`
+
+Browse global and buffer-local marks.
+
+- `:FuzzyMarks` — open the marks picker.
+- `:FuzzyMarks query` — open the picker pre-filled with `query`.
+
+Entries combine global marks from `vim.fn.getmarklist()` (A-Z and 0-9) with buffer-local marks from `vim.fn.getmarklist(bufnr)` for the buffer that was active when the picker opened (a-z plus special marks `'`, `` ` ``, `.`, `^`, `[`, `]`, `<`, `>`). Each row renders as `name │ G/L │ lnum:col │ rel/path │ line text`. Unset marks (`lnum == 0`) are skipped.
+
+Press `<CR>` to jump. Alphanumeric marks use vim's native `` `<name> `` jump, which preserves cross-file semantics for global marks. Special marks switch buffer manually and set the cursor.
+
+### `:FuzzyReg [query]`
+
+Browse non-empty registers.
+
+- `:FuzzyReg` — open the registers picker.
+- `:FuzzyReg query` — open the picker pre-filled with `query`.
+
+Entries are sourced from `vim.fn.getreginfo()` for the standard register set (`"`, `*`, `+`, `-`, `/`, `:`, `.`, `%`, `#`, `0`-`9`, `a`-`z`). Empty registers are hidden. Each row renders as `name │ type │ preview`, where `type` is `c` (charwise), `l` (linewise), or `b` (blockwise), and `preview` is the first line of the register contents — multi-line registers are suffixed with `↵` so you can tell at a glance.
+
+Press `<CR>` to copy the register's contents to the system clipboard (`+`), preserving the original register type so a subsequent `p` pastes with the same charwise/linewise/blockwise semantics.
+
 ### `:FuzzyList[!]`
 
 Browse and select from quickfix list history.
@@ -345,7 +381,7 @@ fuzzy.grep({ '-F', 'function(args)' })  -- literal search
 
 ### Custom pickers
 
-Every built-in picker (`files`, `buffers`, `grep`, `helptags`, `commands`, `keymaps`, `qflist`, `git_branches`, `git_worktrees`, `lsp_symbols`, `lsp_project_symbols`) is a source module that exports `M.open(opts, picker_open)`. Register your own with:
+Every built-in picker (`files`, `buffers`, `grep`, `helptags`, `commands`, `keymaps`, `qflist`, `git_branches`, `git_worktrees`, `lsp_symbols`, `lsp_project_symbols`, `jumps`, `marks`, `registers`) is a source module that exports `M.open(opts, picker_open)`. Register your own with:
 
 ```lua
 require('fuzzy.picker').register_source('oldfiles', 'my_plugin.oldfiles_source')
