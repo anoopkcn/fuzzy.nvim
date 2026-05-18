@@ -229,6 +229,11 @@ local function open(opts)
         if preview_ctrl then preview_ctrl.refresh() end
     end
 
+    -- Single rule used by row_cost / visible_count / render: emit a header
+    -- iff `group_key(item)` is non-nil AND differs from the previous item's
+    -- key (a nil-keyed previous item counts as "different" — needed for the
+    -- "root files block, then first subdir item" transition in :FuzzyFiles).
+    --
     -- For a 1-based index into `current`, returns the buffer row cost of
     -- emitting this item (2 if it starts a new group, 1 otherwise, 0 if the
     -- item doesn't exist). When grouping is disabled, every item costs 1.
@@ -238,14 +243,14 @@ local function open(opts)
         end
         local item = current[idx]
         if not item then return 0 end
+        local ck = group_key(item)
+        if ck == nil then return 1 end
         if idx == 1 then return 2 end
         local prev = current[idx - 1]
         if not prev then return 2 end
         local pk = group_key(prev)
-        local ck = group_key(item)
-        if pk == nil or ck == nil then return 1 end
-        if pk ~= ck then return 2 end
-        return 1
+        if pk == ck then return 1 end
+        return 2
     end
 
     -- How many items fit in the visible window when scrolled to `s`, given
@@ -260,34 +265,22 @@ local function open(opts)
         local rows_used = 0
         local count = 0
         for i = 1, total - s do
-            local cost
             local item = current[s + i]
             if not item then break end
-            if i == 1 then
-                -- The topmost visible row never emits a header for being the
-                -- first in its group when we're scrolled mid-group: only when
-                -- the previous off-screen item belongs to a different group.
+            local ck = group_key(item)
+            local cost
+            if ck == nil then
+                cost = 1
+            elseif i == 1 then
                 if s == 0 then
                     cost = 2
                 else
-                    local prev = current[s]
-                    local pk = prev and group_key(prev) or nil
-                    local ck = group_key(item)
-                    if pk == nil or ck == nil or pk == ck then
-                        cost = 1
-                    else
-                        cost = 2
-                    end
+                    local pk = group_key(current[s])
+                    cost = (pk == ck) and 1 or 2
                 end
             else
-                local prev = current[s + i - 1]
-                local pk = prev and group_key(prev) or nil
-                local ck = group_key(item)
-                if pk == nil or ck == nil or pk == ck then
-                    cost = 1
-                else
-                    cost = 2
-                end
+                local pk = group_key(current[s + i - 1])
+                cost = (pk == ck) and 1 or 2
             end
             if rows_used + cost > view.displayed then break end
             rows_used = rows_used + cost
@@ -355,20 +348,19 @@ local function open(opts)
             local item = current[scroll + i]
             local emit_header = false
             if has_groups then
-                if i == 1 then
-                    if scroll == 0 then
-                        emit_header = true
+                local ck = group_key(item)
+                if ck ~= nil then
+                    if i == 1 then
+                        if scroll == 0 then
+                            emit_header = true
+                        else
+                            local pk = group_key(current[scroll])
+                            emit_header = pk ~= ck
+                        end
                     else
-                        local prev = current[scroll]
-                        local pk = prev and group_key(prev) or nil
-                        local ck = group_key(item)
-                        emit_header = pk ~= nil and ck ~= nil and pk ~= ck
+                        local pk = group_key(current[scroll + i - 1])
+                        emit_header = pk ~= ck
                     end
-                else
-                    local prev = current[scroll + i - 1]
-                    local pk = prev and group_key(prev) or nil
-                    local ck = group_key(item)
-                    emit_header = pk ~= nil and ck ~= nil and pk ~= ck
                 end
             end
 

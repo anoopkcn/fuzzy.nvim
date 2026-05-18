@@ -21,6 +21,7 @@ local M = {}
 ---@field grep_path_truncate boolean Shorten directory components in the live-grep picker when a result line overflows the picker width (default: true)
 ---@field grep_group_by_file boolean Render live-grep results grouped under one header per file (default: true)
 ---@field grep_syntax_highlight boolean Apply treesitter syntax highlighting to grep result content (default: true)
+---@field files_show_parent_dir boolean Append the dimmed parent directory to each `:FuzzyFiles!` row, e.g. `init.lua  lua/fuzzy` (default: true)
 ---@field send_to_qf_key string|false Key to send picker results to quickfix (false to disable)
 ---@field edit_grep_flags_key string|false Key to edit ripgrep flags in live grep pickers (false to disable)
 ---@field edit_files_flags_key string|false Key to edit fd flags in the files picker (false to disable)
@@ -41,6 +42,7 @@ local defaults = {
     grep_path_truncate = true,
     grep_group_by_file = true,
     grep_syntax_highlight = true,
+    files_show_parent_dir = true,
     send_to_qf_key = "<M-q>",
     edit_grep_flags_key = "<M-r>",
     edit_files_flags_key = "<M-r>",
@@ -90,6 +92,7 @@ function M.setup(opts)
         vim.validate("grep_path_truncate", opts.grep_path_truncate, "boolean", true)
         vim.validate("grep_group_by_file", opts.grep_group_by_file, "boolean", true)
         vim.validate("grep_syntax_highlight", opts.grep_syntax_highlight, "boolean", true)
+        vim.validate("files_show_parent_dir", opts.files_show_parent_dir, "boolean", true)
         if opts.send_to_qf_key ~= nil then
             assert(
                 opts.send_to_qf_key == false or type(opts.send_to_qf_key) == "string",

@@ -5,8 +5,30 @@ local parse = require("fuzzy.parse")
 local quickfix = require("fuzzy.quickfix")
 local runner = require("fuzzy.runner")
 local util = require("fuzzy.util")
+local HL = require("fuzzy.picker.highlight").HL
 
 local M = {}
+
+-- Render each path as "<basename>  <relative_dir>", omitting the dir part
+-- when the file sits in cwd root. Fuzzy filtering still runs against the
+-- full path (see `filter_text` below) so a query like "lua/match" still
+-- selects `lua/fuzzy/match.lua` despite the inline-name display.
+local function files_format_item(item)
+    local name = vim.fn.fnamemodify(item, ":t")
+    local dir = vim.fn.fnamemodify(item, ":h")
+    if dir == "." or dir == "" or dir == name then return name end
+    return ("%s  %s"):format(name, dir)
+end
+
+local function files_row_highlight(buf, ns, row, item, text, _ctx, prefix_len)
+    local name_len = #vim.fn.fnamemodify(item, ":t")
+    if name_len + 2 >= #text then return end  -- root file: no dir suffix
+    vim.api.nvim_buf_set_extmark(buf, ns, row, prefix_len + name_len + 2, {
+        end_col  = prefix_len + #text,
+        hl_group = HL.dir,
+        priority = 100,
+    })
+end
 
 ---@param opts { initial_query?: string, initial_flags?: string[] }
 ---@param picker_open fun(opts: table): table
@@ -37,6 +59,8 @@ function M.open(opts, picker_open)
         end
         return args
     end
+
+    local show_dir = config.get().files_show_parent_dir ~= false
 
     local function run_fd(picker)
         if picker.is_closed() then return end
@@ -71,7 +95,7 @@ function M.open(opts, picker_open)
         initial_items = {}
     end
 
-    return picker_open({
+    local picker_opts = {
         items = initial_items,
         prompt = "Files",
         title = files_title(),
@@ -124,7 +148,15 @@ function M.open(opts, picker_open)
                 end)
             end)
         end,
-    })
+    }
+
+    if show_dir then
+        picker_opts.filter_text = function(item) return item end
+        picker_opts.format_item = files_format_item
+        picker_opts.row_highlight = files_row_highlight
+    end
+
+    return picker_open(picker_opts)
 end
 
 return M
