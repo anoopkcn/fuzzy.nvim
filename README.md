@@ -1,5 +1,5 @@
 # fuzzy.nvim
-For workflows using neovim's **quickfix lists**. `fuzzy.nvim` populates the quickfixlist with fuzzy search results for files, grep, buffers, etc. Also includes a picker that allows changing the search flags on the fly along with a preview window. 
+For workflows using neovim's **quickfix lists**. `fuzzy.nvim` populates the quickfixlist with fuzzy search results for files, grep, buffers, etc. Also includes a picker that allows changing the search flags on the fly.
 
 ![display_img](https://github.com/user-attachments/assets/06b37c7a-70ad-4dad-8e70-98f9a139eb6f)
 
