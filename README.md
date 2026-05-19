@@ -1,30 +1,27 @@
 # fuzzy.nvim
-For workflows using neovim's **quickfix lists**. `fuzzy.nvim` populates the quickfixlist with fuzzy search results for files, grep, buffers, etc. Also includes a picker and a preview window. 
+For workflows using neovim's **quickfix lists**. `fuzzy.nvim` populates the quickfixlist with fuzzy search results for files, grep, buffers, etc. Also includes a picker that allows changing the search flags on the fly along with a preview window. 
 
 ![display_img](https://github.com/user-attachments/assets/06b37c7a-70ad-4dad-8e70-98f9a139eb6f)
 
 ## Features
 
-- **`:FuzzyGrep` - Fast grep search** using `ripgrep` (fallback to `grep -R`)
-    - Equivalent to the default vim command `:copen | silent grep <pattern>` but smarter and faster
-    - Live grep picker highlights matched text within results
-- **`:FuzzyFiles` - File finding** using `fd` (fallback to `vim.fs.find`)
-- **`:FuzzyBuffers` - Buffer switching** with fuzzy filtering
-- **`:FuzzyHelp` - Help tag browser** with `'helplang'`-aware tag discovery across the full `runtimepath`
+- **`:FuzzyGrep!` - Fast grep search** using `ripgrep` (fallback to `grep -R`)
+- **`:FuzzyFiles!` - File finding** using `fd` (fallback to `vim.fs.find`)
+- **`:FuzzyBuffers!` - Buffer switching** with fuzzy filtering
+- **`:FuzzyHelp!` - Help tag browser** with `'helplang'`-aware tag discovery across the full `runtimepath`
 - **`:FuzzyCommands` - Command palette** for built-in, user, plugin commands, and Neovim options
 - **`:FuzzyMap` - Keymap browser** for global and buffer-local keymaps across every mode
 - **`:FuzzyGitBranches` - Git branch browser/switcher**
 - **`:FuzzyGitWorktrees` - Git worktree browser/switcher**
-- **`:FuzzyLspSymbols` - LSP document symbol browser** for the current buffer
-- **`:FuzzyLspProjectSymbols` - LSP workspace symbol browser** with live re-query as you type
+- **`:FuzzyLspSymbols!` - LSP document symbol browser** for the current buffer
+- **`:FuzzyLspProjectSymbols!` - LSP workspace symbol browser** with live re-query as you type
 - **`:FuzzyJumps` - Jump list browser** — pick an entry to jump to that location across buffers
 - **`:FuzzyMarks` - Marks browser** for global (A-Z, 0-9) and buffer-local marks
 - **`:FuzzyReg` - Registers browser** — `<CR>` copies the chosen register to the system clipboard
 - **Full control** over search arguments via `ripgrep`/`fd` arguments
+- **`<M-r>` in live grep pickers** edits ripgrep/fd backend flags without leaving the picker
+- **`<M-p>` in pickers** Toggle the preview window
 - **`<M-q>` in supported pickers** sends the currently visible or marked (using `<Tab>`) results to the quickfix list
-- **`<M-r>` in live grep pickers** edits ripgrep backend flags without leaving the picker
-- **`<M-p>` in pickers** Opens the preview window
-- **`<Tab>`** to select multiple items in picker(`<S-Tab>` to unselect)
 
 **Note:** Add `!` to quickfix-backed commands to open an interactive picker instead of populating the quickfix list. Example: `:FuzzyGrep!`
 
