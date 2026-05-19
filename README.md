@@ -24,7 +24,7 @@ For workflows using neovim's **quickfix lists**. `fuzzy.nvim` populates the quic
 - **`<M-q>` in supported pickers** sends the currently visible or marked (using `<Tab>`) results to the quickfix list
 - **`<M-r>` in live grep pickers** edits ripgrep backend flags without leaving the picker
 - **`<M-p>` in pickers** Opens the preview window
-- **`<Tab>` to select multiple items in picker(`<S-Tab>` to unselect)
+- **`<Tab>`** to select multiple items in picker(`<S-Tab>` to unselect)
 
 **Note:** Add `!` to quickfix-backed commands to open an interactive picker instead of populating the quickfix list. Example: `:FuzzyGrep!`
 
