@@ -34,22 +34,31 @@ For workflows using neovim's **quickfix lists**. `fuzzy.nvim` populates the quic
 
 ## Installation
 
+Commands are registered automatically via `plugin/fuzzy.lua` — calling `setup()` is **optional** and only needed to override defaults.
+
 ### Using neovim native [vim.pack](https://neovim.io/doc/user/pack.html#vim.pack)
 ```lua
 vim.pack.add({ src = "https://github.com/anoopkcn/fuzzy.nvim" })
-require("fuzzy").setup()
+-- Optional: require("fuzzy").setup({ ... }) to override defaults.
 ```
 
 ### Using [lazy.nvim](https://github.com/folke/lazy.nvim)
 
 ```lua
-{
-  'anoopkcn/fuzzy.nvim',
-  config = function()
-    require('fuzzy').setup()
-  end
-}
+{ 'anoopkcn/fuzzy.nvim' }
+-- Or, to override defaults:
+-- { 'anoopkcn/fuzzy.nvim', opts = { grep_dedupe = true } }
 ```
+
+### Disabling file-cache warming
+
+By default, fuzzy.nvim warms a file-list cache on `VimEnter` and `DirChanged` so `:FuzzyFiles<Tab>` completion is responsive on first use. To disable:
+
+```lua
+vim.g.fuzzy_warm_cache = false
+```
+
+Set this **before** the plugin loads (in your `init.lua` before `vim.pack.add` / lazy.nvim setup).
 
 ## Convention
 
@@ -363,7 +372,7 @@ end, { desc = 'Grep WORD (literal)' })
 
 ### `fuzzy.setup(opts)`
 
-Initialize the plugin with optional configuration.
+Override configuration defaults. **Optional** — the plugin works without it. Commands are registered at startup by `plugin/fuzzy.lua`; calling `setup()` only merges `opts` into the active config.
 
 ### `fuzzy.grep(args)`
 
