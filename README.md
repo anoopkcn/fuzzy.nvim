@@ -60,9 +60,6 @@ vim.g.fuzzy_warm_cache = false
 
 Set this **before** the plugin loads (in your `init.lua` before `vim.pack.add` / lazy.nvim setup).
 
-### Set `alt` key as `Meta` key
-If you are using modern terminals like kitty or ghostty you can set the alt key as meta key on Mac OS
-
 ## Convention
 
 All commands follow the same rule:
@@ -104,6 +101,10 @@ In `:FuzzyGrep!`, press `<M-r>` to edit the active ripgrep flags (for example `-
 The preview pane is off by default. Set `preview = true` to open it automatically, or press `<M-p>` inside a supported picker to toggle it for that session. `:FuzzyFiles` and `:FuzzyBuffers` show the file/buffer contents; `:FuzzyGrep!` shows `preview_grep_context` lines (default 10) on either side of the matched line with the match highlighted; `:FuzzyHelp` jumps to the tag's source line. The pane is rendered below the picker — if there isn't enough vertical room, it is skipped with a one-shot notification.
 
 You can also navigate the preview from the keyboard: press `<M-w>` from the picker to shift focus into the preview pane. Once focused, use vim motions (`hjkl`, `gg`, `G`, `/`), enter visual mode (`v`, `V`, `<C-v>`) to select a region, and `y` to yank — or `"+y` to copy to the system clipboard. Press `<Esc>`, `q`, or `<CR>` to return to the picker input. Clicking into the preview with the mouse has the same effect; the buffer is read-only either way.
+
+
+### Set `alt` key as `Meta` key
+If you are using modern terminals like [kitty](https://sw.kovidgoyal.net/kitty/) or [ghostty](https://ghostty.org/) you can set the `alt` key as `meta` key on Mac OS
 
 ## Configuration (optional)
 
