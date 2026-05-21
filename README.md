@@ -34,7 +34,8 @@ For workflows using neovim's **quickfix lists**. `fuzzy.nvim` populates the quic
 
 ## Installation
 
-Commands are registered automatically via `plugin/fuzzy.lua` — calling `setup()` is **optional** and only needed to override defaults.
+Commands are registered automatically via `plugin/fuzzy.lua`. 
+Calling `setup()` is **optional** and only needed to override defaults.
 
 ### Using neovim native [vim.pack](https://neovim.io/doc/user/pack.html#vim.pack)
 ```lua
