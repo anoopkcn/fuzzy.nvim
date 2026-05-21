@@ -60,6 +60,9 @@ vim.g.fuzzy_warm_cache = false
 
 Set this **before** the plugin loads (in your `init.lua` before `vim.pack.add` / lazy.nvim setup).
 
+### Set `alt` key as `Meta` key
+If you are using modern terminals like kitty or ghostty you can set the alt key as meta key on Mac OS
+
 ## Convention
 
 All commands follow the same rule:
