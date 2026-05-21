@@ -42,6 +42,12 @@ local function activate(nr)
     local delta = nr - cur
     if delta > 0 then pcall(vim.cmd, "silent! cnewer " .. delta)
     elseif delta < 0 then pcall(vim.cmd, "silent! colder " .. -delta) end
+    if delta ~= 0 then
+        local id = (get_info({ nr = 0, id = 0 }) or {}).id
+        if id and id > 0 then
+            require("fuzzy.qf_highlight").apply_all(id)
+        end
+    end
 end
 
 M.activate = activate
@@ -68,6 +74,10 @@ function M.open_if_results(count, empty_msg)
         vim.notify(empty_msg or "No matches.", vim.log.levels.INFO)
     else
         vim.cmd.copen()
+        local id = (get_info({ nr = 0, id = 0 }) or {}).id
+        if id and id > 0 then
+            require("fuzzy.qf_highlight").apply_all(id)
+        end
     end
 end
 
@@ -100,11 +110,14 @@ function M.stream_updater(opts)
     local first_flush = true
     local timer = vim.uv.new_timer()
     local opened = false
+    local qf_hl = require("fuzzy.qf_highlight")
+    if info then qf_hl.set_streaming(info.id, true) end
 
     local function flush()
         if #pending == 0 or not info then return end
         local batch = pending
         pending = {}
+        local prev_count = total_count
         total_count = total_count + #batch
 
         local action = first_flush and "r" or "a"
@@ -121,6 +134,14 @@ function M.stream_updater(opts)
         if not opened then
             opened = true
             vim.cmd.copen()
+        end
+
+        -- "r" rewrites the buffer (any prior extmarks collapse to row 0 and
+        -- must be cleared); "a" appends rows that need fresh highlights only.
+        if action == "r" then
+            qf_hl.apply_all(info.id)
+        else
+            qf_hl.apply_range(info.id, prev_count, total_count)
         end
     end
 
@@ -140,12 +161,15 @@ function M.stream_updater(opts)
                 vim.notify(opts.empty_msg or "No matches.", vim.log.levels.INFO)
             elseif not opened then
                 vim.cmd.copen()
+                if info then qf_hl.apply_range(info.id, 0, total_count) end
             end
+            if info then qf_hl.set_streaming(info.id, false) end
         end,
         stop = function()
             timer:stop()
             timer:close()
             pending = {}
+            if info then qf_hl.set_streaming(info.id, false) end
         end,
         count = function()
             return total_count + #pending

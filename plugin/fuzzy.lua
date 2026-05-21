@@ -145,3 +145,15 @@ if vim.g.fuzzy_warm_cache ~= false then
         end,
     })
 end
+
+-- Re-apply syntax highlights when a quickfix window is (re)entered:
+-- covers :cclose/:copen, switching to it from another window, and
+-- :colder/:cnewer (which fire BufWinEnter on the qf buffer). The early
+-- buftype guard keeps the hook free in non-qf buffers.
+vim.api.nvim_create_autocmd("BufWinEnter", {
+    group = vim.api.nvim_create_augroup("FuzzyQfHighlight", { clear = true }),
+    callback = function(args)
+        if vim.bo[args.buf].buftype ~= "quickfix" then return end
+        pcall(function() require("fuzzy.qf_highlight").maybe_refresh() end)
+    end,
+})
